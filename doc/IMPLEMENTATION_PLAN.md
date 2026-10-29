@@ -1,165 +1,134 @@
-# High School Student OS — 前后端详细实施计划（v1.0）
+# High School Student OS — 实施计划 v2.0
 
-依据：`HIGH_SCHOOL_STUDENT_OS.md`（产品方案）、`API.md`（接口契约）、`BACKEND.md` v0.2（后端设计）、`../web/README.md`（前端模块地图）。
-当前状态：前端模块化版 `web/` 已完成（纯 mock，数据走 `data.js` 的 HSData 接缝）；后端 `server/` 仅有早期骨架（已暂停）。接口与后端设计已于 2026-10-28 确认，见 `BACKEND.md` 第 11 节。
-工时口径：按业余时间（晚间+周末）估算的「有效开发日」，含联调不含内容生产；内容轨单独列（第 7 节）。
+更新：2026-10-29。采纳 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md)，替代 v1.0 的 M0–M5 排期。目标设计见 [产品方案](HIGH_SCHOOL_STUDENT_OS.md)、[BACKEND.md](BACKEND.md) v0.3、[API.md](API.md) v0.2；逐步操作见 [STEP_BY_STEP_PLAN.md](STEP_BY_STEP_PLAN.md)。
 
-## 工程执行规则（必须遵守）
+本次只更新文档，未验证或修改应用实现。此前关于 `web/` 已完成、`server/` 已有骨架的描述属于历史记录，M0 必须核对当前 checkout。下面的工作项均是待实施目标，不标记为已完成。
 
-### 0.1 仓库边界与所有权
+## 0. 工程边界与交付规则
 
-- **唯一实现仓库**：所有新功能、修复、测试、配置、迁移脚本和文档只能写入 `~/Documents/education/hs-student-os` (以下简称 Student OS)。
-- **只读参考仓库**：`~/Documents/education/ai-college-advisor` 和 `~/Documents/education/sat-tutor-app` 只用于阅读、盘点和提取可复用思路。不得在这两个目录中编辑文件、安装依赖、运行格式化/迁移脚本、提交代码或修改其数据。
-- **参考不等于集成**：Student OS 不得在运行时通过 `../ai-college-advisor`、`../sat-tutor-app`、绝对路径、软链接或本地端口依赖这两个工程。移走两个参考目录后，Student OS 仍必须能独立构建、测试和运行。
-- **外部产品接入是后续边界**：如需与原有产品互通，Student OS 只在本仓库实现稳定 API/深链接契约；对方仓库的适配改动不属于本计划，必须另立任务和授权。
+### 0.1 独立实现与参考边界
 
-### 0.2 参考代码的引入规则
+- 实现根目录为当前 Student OS 工程根（包含本 `doc/` 的工程），不硬编码另一台机器的个人目录。只有文档的副本不能假定已存在 server/web 实现。
+- `ai-college-advisor`、`sat-tutor-app` 只读参考；不在参考目录安装、编辑、迁移或提交。Student OS 不通过路径、软链接、本地端口、共享 JWT 密钥或数据库依赖它们。
+- **不复制或改造任何 LOGIQ 代码，不使用 LOGIQ 服务或凭证。** 只参考通用任务、会话、工具与事件架构，独立定义 Student OS API。
+- 其他参考能力如需引入，先盘点来源、许可、依赖和适配成本；只按边界引入可独立测试的领域能力，不搬迁整套身份/存储/UI。不得复制秘密、用户数据、生产日志或受限题库。
+- 外部互通与参考仓库的修改是后续独立任务；本工程移除参考目录后仍应能独立登录、构建、测试和运行。
 
-1. **先盘点，后实现**：引入前记录源文件、用途、依赖、数据模型、测试状态与适配工作量；不因“已有代码”就默认可直接复制。
-2. **按能力切片引入**：优先提取纯函数、数据 schema、规则、测试用例和无 UI 的领域逻辑。不整目录复制，不连同旧项目的页面框架、认证、存储和部署绑定一起搬迁。
-3. **先适配 Student OS 契约**：引入代码必须改造为 TwinStore、Course/Agent Registry、SessionRuntime、EventBus 和 `API.md` 定义的边界，不得为了少改旧代码而建第二套学生身份、会话、任务或掌握度数据。
-4. **保留来源**：直接改造的非平凡代码需在 PR/变更记录中写明来源仓库、原路径和引入日期；代码内只在能帮助维护时保留简短 provenance 注释。
-5. **合规与秘密检查**：引入前确认代码所有权/许可兼容性；严禁复制 `.env`、API key、JWT 秘钥、用户数据、生产日志、缓存、构建产物和受版权保护的题库内容。
-6. **不保留旧系统隐式假设**：SAT 代码必须符合 Digital SAT 1600 分和两阶段模块；Admissions 代码必须使用 Twin 的实时画像，不继承旧项目的全局状态、假数据或提示词内嵌身份。
+### 0.2 数据与交付约束
 
-### 0.3 大型工程的交付规则
+- 每个切片包含前后端契约、正常/失败路径、幂等、恢复和适用的学生隔离测试；跨域链在 M3 加入，不要求 M0 就实现所有功能。
+- Task、Session、Run、Submission、Assessment 分开；共享学生记录是逻辑视图，不能在每个 Agent 内复制第二份权威状态。
+- 评分由后端证据评估决定；没有客户端 score delta 或任意领域事件写入。entitlements 后台管理。
+- 使用支持中的 Node.js LTS + TypeScript + Fastify + Ajv，Firestore/Auth emulator 从基础阶段使用，JSON 仅为 fixture/demo。
+- 契约、迁移和测试先行。旧 demo 预测不能迁成真实成绩；对需保留数据先备份并提供可逆导入方案。
+- 模块清晰但不为“可扩展”先建复杂通用框架。一个共享运行时与少量已验证内容包即可。
+- 日志记录状态、延迟、tokens、模型版本和错误，不记录完整学生作答、文书或凭证。
+- 前端优先保持 provider/store 边界；必要的状态/组件改动正常审查，不以“最多改三个文件”替代功能正确性。
 
-- **纵向切片**：一次只交付一条可运行链路（例如“读 Twin → 产生任务 → 打开 Session → 结算回写”），不先搭出大量不可验证的空框架。
-- **契约先行**：更改 API、Twin event、manifest 或 schema 时，先更新契约与测试，再更新实现；不允许前后端靠未记录的隐式字段联调。
-- **单一学生真值**：学生身份、目标、日历、掌握度和成果只存在 Twin；各课程 Agent 实例通过 student-scoped EventBus 交换结构化事件，不直接共享可变状态。
-- **共享运行时，课程模块化**：每个已注册课程有独立 Agent 实例（`studentId:courseId`），但复用同一 CourseAgentRuntime。新增课程应以 manifest + skills + RAG + tools + tests 完成，不复制整套 Agent 核心代码。
-- **每个切片自验证**：至少包含正常路径、权限/订阅失败路径、重复请求幂等性、持久化恢复和一条跨 Agent 事件链测试。
-- **小步可回滚**：提交必须单一目的、不夹带无关重构；数据迁移提供版本号、旧格式读取兼容和回滚/恢复说明。
-- **性能、成本与隐私可观测**：每个 Session 记录延迟、模型档位、token 和工具调用，但日志不写完整学生作答、文书正文、认证信息或密钥。
+## 1. 统一里程碑
 
-## 0. 总览：里程碑
+首个产品闭环：**Calculus 练习 → 有依据的反馈 → 学生记录 → SAT 前置技能诊断 → 有证据的补强 → 可解释计划**。
 
-| 里程碑 | 内容 | 出口标准 | 估时 |
+| 里程碑 | 内容 | 退出标准 | 步骤 |
 |---|---|---|---|
-| M0 收尾与基线 | 后端骨架清理、仓库规范、Jev key 申请 | 本地一条命令起全栈（mock 数据） | 2 天 |
-| M1 后端核心 | TwinStore + 注册表 + Planner v1 + 读接口 | API.md 读接口全通，前端切到真数据渲染 | 5 天 |
-| M2 会话闭环 | session start/settle + 事件总线 + 前端接线 | 三条验收链全过（见 3.3） | 5 天 |
-| M3 智能层 | LLM 网关 + ModelRouter + SkillExecutor + 首批真 Skill | 苏格拉底/精批走真模型，输出过 schema 校验 | 7 天 |
-| M4 Jev 决策层 | DecisionService 接 Jev（路由 + RAG 门控） | 无 key 自动回退；有 key 时路由/门控生效可观测 | 3 天 |
-| M5 上线硬化 | JWT、Firestore、多用户、部署、成本护栏 | 外部学生可注册使用，红线检查全过 | 7 天 |
+| M0 契约与基线 | 核对工程、schema、合成数据、评估夹具 | 代码状态有记录，接口/内容契约可验证 | 1–5 |
+| M1 可靠基础 | 独立身份、隔离、Firestore、Task/Session/Run、队列 | 模拟执行可刷新/重启恢复，重复命令不重复生效 | 6–10 |
+| M2 Calculus 学习闭环 | 模型/技能、评估事务、真实反馈、事件与恢复 | 审阅例题反馈有证据，失败不写进度 | 11–15 |
+| M3 SAT 跨域验证 | 映射、短诊断、消费者、计划增量更新 | 诊断确认后才补强，未支持不误推荐 | 16–20 |
+| M4 主动规划与试点 | 时区调度、提醒、云部署、质量与运维验证 | 外部试点可用，可靠性和学习质量均过门槛 | 21–25 |
+| M5 覆盖扩展 | APUSH 等课程、申请/家长、校准与可选优化 | 每项扩展单独通过内容、权限和质量验收 | 26–30 |
 
-总计约 29 个有效开发日。M1–M2 是「能演示的真系统」，M3 起是「有真智能的系统」，M5 是「能给别人用的系统」。
+M0–M4 是本轮核心范围；M5 是按试点证据排序的后续工作，不作为首发必需。旧“29 个有效开发日”估计不沿用：身份/恢复提前且评分合同变化，需要 M0 核对代码和内容投入后按切片估时。内容审阅与实施并行，不能算作已由工程时间覆盖。
 
-## 1. M0 收尾与基线（2 天）
+## 2. M0：契约与基线
 
-**后端**
-- [ ] 建立参考代码盘点表：列出 `ai-college-advisor` / `sat-tutor-app` 中候选能力、源路径、依赖、许可/秘密风险、“引入/重写/放弃”决策；不做源仓库改动。
-- [ ] 盘点已暂停的 `server/` 骨架，按 BACKEND.md 第 3 节目录结构对齐（server.js / lib/ / packs/ / agents/ / data/），不符合的删掉重写，不背历史包袱。
-- [ ] `package.json`（零依赖声明、Node ≥18）、`.gitignore`（data/ 不入库，种子数据除外）。
-- [ ] 种子 Twin 固化为 `server/data/seed/twin-alex.json`，与前端 mock 的 Alex 数据逐字段对齐（订阅 calc_bc/apush/csa、Calc 预测 4.5、SAT 1510→1550）。
+- [ ] 盘点 server/web 当前状态、可复用边界、旧 API 调用和未提交工作；不删除未知代码。
+- [ ] 建 TypeScript/Fastify/Ajv 骨架、受支持 Node LTS 声明、依赖锁定、环境示例与本地开发说明。
+- [ ] 以 API v0.2 建 JSON Schema：Task、Session、Run、Submission、Assessment、事件、字段白名单和错误码。
+- [ ] 两名合成学生独立 studentId；默认 prediction unavailable；entitlements 与 selectedCourses 分开。
+- [ ] calc_bc 为唯一初始 active AP 包；建立版本化原创题、rubric、提示例与候选 SAT 映射评估夹具。其他课程 planned。
 
-**前端**
-- [ ] `web/` 定为前端主线；根目录单文件 `index.html` 冻结为演示版，不再双向同步。
-- [ ] `data.js` 的 HSData 接口签名冻结（getPacks/getSessions/getEvents/getStudent + 后续异步化预留），写进 web/README。
+**验收：** schema 拒绝 scoreDelta、客户端权威事件、entitlement 修改；种子无真实学生信息；客户端和领域字段一致；迁移清单明确废弃接口。本阶段不需要 Jev key、MCP server 或真实外部产品账号。
 
-**外部依赖（尽早启动，有等待期）**
-- [ ] 申请 TypeSafe Jev API key（early access，等待时间未知，M4 才用，但现在就申请）。
-- [ ] 确认 LLM 网关首选厂商账号与额度（Claude / OpenAI 二选一起步）。
+## 3. M1：可靠基础
 
-## 2. M1 后端核心 + 前端切真数据（5 天）
+- [ ] Student OS 独立 Firebase Auth；本地 Auth emulator；服务端验证 token 与 studentId 映射。
+- [ ] Firestore repository 与两学生隔离；学生字段白名单、entitlements 管理、版本冲突与权限规则。
+- [ ] 持久 Task/Session/Run，Task 最多一个 OPEN Session，Session 最多一个非终态 Run；刷新恢复与用户取消。
+- [ ] 命令/Run/idempotency/outbox 同事务；Cloud Tasks adapter、本地重复投递队列、worker 租约和 fencing token。
+- [ ] provider/store 接 API，显示 queued/running/failed/waiting 状态；demo 明确开启，线上错误不回退为假学生数据。
 
-### 2.1 后端任务
-- [ ] **TwinStore**（lib/twin-store.js）：get / patchProfile（字段白名单）/ commitSettlement（结算专用通道）/ version 自增与 409；JSON 落盘走临时文件+rename；内存缓存。
-- [ ] **注册表**（lib/registry.js）：启动扫描 `packs/*.json`（五门）与 `agents/*.json`（三个 Agent），建索引；`skillsFor(pack, taskType, mode)` 按模式筛 Skill。
-- [ ] **Planner v1**（lib/planner.js）：规则引擎——差距计算（SAT 当前 vs 目标、AP 预测 vs 目标与距 5 月天数、申请截止）、权重 = 紧急度 × 录取杠杆、按当周可用小时装箱、产出具体到题量的 Task 落盘；`calendar.pressure` 下调 SAT 题量（−30%）。
-- [ ] **读接口**：GET /api/twin、/api/packs、/api/packs/:id、/api/tasks、/api/agents、/api/agent/context（画像摘要版即可）。
-- [ ] **静态托管**：server.js 同时 serve `web/`，一条命令全栈启动。
-- [ ] 单元测试：TwinStore 字段权限、Planner 权重规则各 ≥3 个用例（node:test，零依赖）。
+**验收：** 两学生无法互读资源；相同幂等键返回同一 Run；重启恢复待处理任务；队列重复投递不重复提交；取消和旧租约 worker 不会覆盖终态。模拟输出明确标注，仅用于内部链路，不伪装成真实评估。
 
-### 2.2 前端任务
-- [ ] `data.js` 改造为**异步 provider**：`HSData.ready()` 返回 Promise，先拉 twin/packs/tasks，组件渲染前完成；加载中显示骨架屏，失败自动回退内置 mock 并显示「离线演示模式」角标（接回 M2 前的临时形态，M2 完成事件接线后定型）。
-- [ ] `app.js` 启动流程改异步；`store.js` 增加 `online` 与 `loading` 状态；其余模块不动（这是模块化预留接缝的兑现点，改动应只落在 data.js / store.js / app.js 三个文件，超出即说明接缝失效，要停下来修接缝而不是改组件）。
-- [ ] 顶栏加连接状态指示（已连接/离线演示）。
+## 4. M2：Calculus 学习闭环
 
-### 2.3 M1 验收
-- 后端未启动：前端 = 离线演示模式，行为与现版一致。
-- 后端启动：刷新后任务列表、预测分、订阅状态全部来自 /api；改种子 Twin 的预测分，刷新即变。
+- [ ] `LLMGateway` + 静态 ModelRouter；限次重试、Run/Session/每日预算、模型/工作流版本日志。
+- [ ] 苏格拉底提示和 calc_bc rubric 评估；小规模审阅语料检索、必要数学核验；提示与独立作答分别计证据。
+- [ ] `AssessmentService.commitAssessment()` 事务保存 assessment、mastery、Run 终态、事件/outbox；证据不足不改掌握度。
+- [ ] `completeSession()` 依据已保存评估和任务条件关闭 Session/Task；重复完成不重新应用证据。
+- [ ] SSE + 轮询共享持久事件序列；恢复与当前状态同步；先完成文本作答再加入上传/OCR，低可信识别由学生确认。
 
-## 3. M2 会话闭环（5 天）
+**验收：** 审阅答案、错误答案、提示后订正、材料缺失、OCR 歧义各有样例；输出引用实际题目/rubric；schema 合法但证据错误的输出被拒；数据库事务注入失败不留下部分进度。界面展示评估与证据覆盖，预测仍 unavailable。
 
-### 3.1 后端任务
-- [ ] **EventBus**（lib/events.js）：进程内 pub/sub + `data/events.jsonl` append-only 落盘；GET/POST /api/twin/events。
-- [ ] **SessionRuntime**（lib/session.js）：POST /api/ap/session/start（订阅校验 403、未注册 404、装载清单、发 session.started）；POST /api/session/start（DSAT/Admissions 泛化入口）；Session 状态机 PLANNED→ACTIVE→SETTLED。
-- [ ] **settle**（POST /api/session/:id/settle）：汇总 outcome → commitSettlement 算掌握度增量（v1 规则：错因计数+分项加分）→ 更新预测分 → 发 ap.predicted / skill.weak → 触发 Planner 增量重排；重复结算 409。
-- [ ] **跨域消费者**：skill.weak → Planner 按 satTags 生成 DSAT 变式任务；vocab.context → 生成语境闪卡任务（任务落盘即可，内容 M3 生成）。
+## 5. M3：SAT 跨域验证
 
-### 3.2 前端任务
-- [ ] `store.js` 动作接线：openSession → 调 session start（AP 走专用入口）；「完成并结算」→ 调 settle，用返回值刷新预测分；订正/采纳/词汇同步等现有 pushEvent 动作改为同时 POST /api/twin/events（本地先行渲染、后端为准）。
-- [ ] 事件流改为以后端日志为源（打开时拉取 + 动作后刷新；SSE 留 M5）。
-- [ ] 在线/离线双行为一致性核对：同一操作离线走本地、在线走后端，UI 结果一致。
+- [ ] 内容人员审阅 AP→SAT 共享前置技能映射，记录版本、证据要求和反例。
+- [ ] AP 结果仅产生 prerequisite.suspected，提供短诊断，而非直接认定 SAT 弱点。
+- [ ] DSAT 短诊断使用已审题目、独立作答与同一 AssessmentService；不从几道题换算 SAT 分数。
+- [ ] confirmed 才生成补强，unsupported/证据不足不生成；事件消费者收据与任务创建同事务去重。
+- [ ] Planner 增量更新仅改变未来未锁定任务，遵守小时预算并展示来源解释。
 
-### 3.3 M2 验收（三条链，逐条过）
-1. 未订阅 phys_c 打开任务 → 403 COURSE_NOT_SUBSCRIBED，前端给出订阅引导而非报错页。
-2. Calc FRQ 订正并结算 → 预测分 4.5→4.8，事件流出现 session.settled 与 ap.predicted，Twin 落盘可查。
-3. Calc GPA 订正触发 skill.weak → 今日任务里出现 SAT 复合函数变式任务。
+**验收链：** AP 候选 → SAT 诊断 → 支持/不支持两种结果；重复事件只生成一项对应任务；学生已无时间时可延后建议而不超配；推导类 AP 失误但前置技能正确时不推不相关练习。
 
-## 4. M3 智能层（7 天）
+## 6. M4：主动规划与外部试点
 
-### 4.1 后端任务
-- [ ] **LLMGateway**（lib/llm.js）：统一 `chat({tier, system, messages, schema}) → JSON`；输出 schema 校验，不合格重试一次、再不合格降级为纯文本反馈并记事件。
-- [ ] **ModelRouter**（lib/model-router.js）：四档 decision/fast/balanced/strong；路由顺序按 BACKEND.md 第 9 节（manifest 默认档 → 规则升级 → Jev（M4 接入，先留接口）→ 成本护栏）；型号集中在 `models.yaml`。
-- [ ] **SkillExecutor**（lib/skills.js）：按 skills/*.json 注册执行；首批真 Skill（按家族）：
-  - 共用：苏格拉底分步辅导（balanced，按包参数化）
-  - STEM：FRQ 采分点精批（strong）、OCR→LaTeX 结构化（balanced，先接图片输入通道）
-  - 文科：DBQ/论说文 Rubric Diff（strong）、史料 Sourcing 追问（balanced）
-  - SAT：错因变式题生成（balanced）、语境闪卡生成（fast）
-  - 申请：访谈追问（strong）、活动 150 字符改写（fast，事实需学生确认的交互不变）
-- [ ] **RAG v1**：namespace 先做本地文件检索（考纲结构 + 采分逻辑 + 校内讲义），接口按 rag.json 注册表抽象，M5 换向量库不改调用方。
-- [ ] **MCP v1**：SymPy/Desmos 先做演示级真调用或结构化 stub（按 packs 注册），Twin Bus 即 EventBus 的工具封装。
-- [ ] **成本护栏**：单 Session token 上限（models.yaml 配置），超限降档 + 记 Twin 事件；每日用量汇总打日志。
+- [ ] Cloud Scheduler 触发 dueAt 扫描，按 IANA timezone/localDate 去重，覆盖夏令时与学生修改时区。
+- [ ] 每周预算、延后/跳过/锁定和重排解释；与 Run/Session 状态一致。
+- [ ] 选择一个提醒渠道，显式 opt-in、安静时段、频控、发送前复核同意；不默认通知家长。
+- [ ] Cloud Run API/worker、Firestore、Cloud Tasks OIDC、Storage、Secret Manager 部署；备份与恢复演练、失败告警和用量指标。
+- [ ] staging 检查云队列期限、worker 恢复、SSE 重连、文件归属；外部学生登录与隔离从 M1 继承验证。
+- [ ] 人工评估集与试点指标过门槛，再允许真实学生使用；未达到内容质量时缩小范围，不用模拟结果补齐。
 
-### 4.2 前端任务
-- [ ] 工作区接真 Skill 输出：苏格拉底追问、FRQ 精批、闪卡内容由接口返回渲染（替换写死文案，结构不变）；流式输出先做整段返回 + 打字机效果，不做真流式（SSE 在 M5 一并考虑）。
-- [ ] 图片上传通道：手写推导入口接文件选择 → 上传 → OCR 结果回填画布。
-- [ ] 错误与降级态：Skill 超时/降级时前端有明确提示，不白屏。
+**验收：** 完整 M0–M3 链在 staging 通过；断线/重复任务/worker 崩溃不丢作答或重复增益；学生能理解为何安排后续任务；提醒可撤销；数据库和文件恢复可执行。上线前测试学生 A 对 B 的 Session、事件、文件及检索访问全部拒绝。
 
-### 4.3 M3 验收
-- 同一道 FRQ，精批结果引用真实采分点且与学生作答内容对应（非模板文案）；换一道题结果随之变化。
-- 每个 Skill 的档位、token 消耗在日志里可查；超限降档实际发生过一次（人为调低上限验证）。
+## 7. M5：按证据扩展
 
-## 5. M4 Jev 决策层（3 天）
+以下不是同一上线包，每项单独选取和验收：
 
-- [ ] **DecisionService**（lib/decision.js）：封装 Jev API（Choice/Score/Boolean 三类问题），超时 800ms 熔断；无 key / 超时 / 低置信一律回退规则，业务零感知。
-- [ ] 落点一（模型路由）：manifest 未定档的任务由 Jev 打复杂度分选档，结果与规则档不一致时记事件便于复盘。
-- [ ] 落点二（RAG 门控）：检索片段逐条过 Jev「是否支撑回答」，不达标弃权/换源；弃权时前端显示「材料不足」而不是硬答。
-- [ ] 中文场景护栏：中文内容阈值保守（单独配置），Jev 只做第一道筛，重要判断仍走 strong 档复核（BACKEND.md 第 10 节约束）。
-- [ ] 验收：断网/停用 Jev 后全功能可用（回退验证）；开启后路由与门控决策在事件流可审计。
+- [ ] APUSH 优先扩展 rubric 与语料；随后 Physics C、CSA、AP Lang。新增内容类型必要时增加工具/画布，不承诺仅改 manifest。
+- [ ] Admissions 访谈、大纲、活动事实确认与学校资料来源管线；不因内部 AP 估计自动调整选校分档。
+- [ ] 家长 summary:read 授权和撤销；默认不开放私有对话/文书；顾问协作另立权限。
+- [ ] 扩大 MCQ/FRQ/模考内容与覆盖后，用独立持出数据校准 mastery/考试预测；未过门槛不展示预测分或“官方式”评分。
+- [ ] 有明确收益再评估 Jev、MCP、Temporal、向量检索或额外模型。验证真实接口、成本、隐私和质量，无依赖时核心流程照常。
 
-## 6. M5 上线硬化（7 天）
+## 8. 内容与质量轨
 
-- [ ] **鉴权**：X-User-Email 替换为 ai-college-advisor 的 JWT 校验；email 仍作 Twin 连接键；CORS 收紧到正式域名。
-- [ ] **存储迁移**：TwinStore 换 Firestore 实现（userProfiles/{email} + twinEvents 集合），接口不变，M1 的单元测试原样跑通才算迁移完成。
-- [ ] **多用户**：按 email 隔离数据与事件；订阅字段接真实开通流程的最小版（人工开通即可，不做支付）。
-- [ ] **对外集成契约**：只在 Student OS 内实现并测试 `GET /api/agent/context`、JWT 验证与 SAT 深链接接收端；用 contract test/模拟客户端验证兼容性，本计划不修改 `ai-college-advisor` 或 `sat-tutor-app`。
-- [ ] **实时性**：事件流升级 SSE（接口语义不变）。
-- [ ] **部署**：单机部署脚本 + 环境变量清单（LLM key、Jev key、JWT 密钥）；数据备份（Twin 每日导出）。
-- [ ] **红线复查**（上线门禁，逐条签核）：文书 Skill 无正文生成入口；RAG 无 College Board 真题全文；选校/ROI 输出只引用 Twin 真实分数、缺数据返回「数据不足」；无录取承诺文案。
-- [ ] **前端迁移评估**（仅评估，不在本期执行）：web/ 模块与 Next.js 组件一一对应，迁移成本评估后另立计划；React Native Web 复用 store/data 层的可行性结论。
+内容工作从 M0 开始，先覆盖 Calculus 小范围题型及一个共享 SAT 技能，不铺五科题库。题目、rubric、映射和测试答案均保留来源、权限、版本与审核人。
 
-## 7. 内容轨（与开发并行，产品侧投入）
-
-- 五门 AP 包内容：考纲结构、采分点、校内进度映射——先 Calc BC + APUSH 两门做深（已订阅演示路径），其余三门跟上。
-- SAT 题库：自研题（按错因图谱组织），严禁用真题；变式题生成规则与人工抽检流程。
-- 申请：Reach/Match/Safety 数据来源与更新节奏、访谈问题库。
-- 内容验收标准随 M3 的 Skill 一起定（每个 Skill 至少 5 个真实样例人工评审）。
-
-## 8. 风险与对策
-
-| 风险 | 对策 |
+| 检查 | 记录与退出依据 |
 |---|---|
-| Jev early access 申请不到位 | M4 可整段跳过，DecisionService 回退规则，架构不受影响 |
-| LLM 成本失控 | ModelRouter 分档 + 单 Session 上限 + 每日汇总，M3 就落地不等 M5 |
-| 前端接缝失效（改组件才能接后端） | M1 设检查点：改动文件数超 data/store/app 三个即停工修接缝 |
-| 掌握度模型 v1 过于粗糙 | settle 接口与数据结构预留 BKT，Phase 2 换实现不换契约 |
-| 内容生产拖过开发 | 内容轨独立排期，开发用种子内容先行，Calc/APUSH 优先 |
+| Rubric 评分一致性 | 与独立人工评分逐采分点比较，登记分歧与适用范围 |
+| 反馈证据 | 引用实际答案/材料，无支持则弃权；评估错误接受率 |
+| 提示依赖 | 有提示和无提示表现分开；订正不当作全新独立证据 |
+| 跨域推荐 | confirmed/unsupported 标注集检验映射，审阅错误推荐 |
+| 学习效果 | 新题独立作答表现、后续任务完成情况，而非聊天长度 |
+| 产品理解 | 学生能解释“为何做这项任务”，记录困惑和手动调整 |
+| 可靠性与成本 | 重复进度次数必须为零；记录恢复结果、每次有效评估成本 |
 
-## 9. 待你拍板的事项（不阻塞 M0–M2）
+内容负责人和工程人员在扩大试点前记录评估集规模、门槛、失败处置与结果。少量烟雾样例不能当作校准证明。文书边界用行为样例评估，不以文件名/关键词扫描代替真实输出检查。
 
-1. LLM 网关首选：Claude 还是 OpenAI 起步（M3 前定）。
-2. M5 部署形态：自有服务器 / 云函数 / 沿用现有 Firebase 生态（M5 前定）。
-3. 前端是否在本期后启动 Next.js 迁移（M5 评估后定）。
+## 9. 迁移与风险处理
+
+| 旧方案/风险 | 当前处理 |
+|---|---|
+| 合并 Task/Session、内存会话 | 持久分离资源，身份与恢复先实现 |
+| 浏览器传分数与任意事件 | 只收命令/作答，服务端验证与事务提交 |
+| JSON→Firestore 后期迁移 | 首版 emulator 对接真实事务模型；JSON 保留为 fixture |
+| email 连接与外部 JWT 共享 | 自有身份、稳定 studentId，外部映射另行授权 |
+| 模拟预测上涨作为验收 | 真实证据反馈与独立题表现；prediction unavailable |
+| 五科 + 全 SAT + 申请并行上线 | 先 Calculus + 一个 SAT 前置技能闭环 |
+| Jev key 或供应商不可用 | 不在关键路径，静态路由与规则可运行 |
+| 工具失败但 UI 显示成功 | failed/insufficient 状态保留，禁止 stub 冒充实测 |
+| 云消息重复/请求超时 | outbox、幂等、租约、分步执行与补偿扫描 |
+
+本计划不触发部署、发送提醒或修改参考产品。实现时根据明确里程碑交付；每次验收记录所用代码版本、数据版本与实际检查结果。
