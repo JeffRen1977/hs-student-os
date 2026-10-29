@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>High School Student OS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    html, body, #root { height: 100%; }
+    body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</head>
+<body class="bg-[#F7F8FA] text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    const AP_PACKS = {
+      calc_bc: {
+        id: "calc_bc",
+        name: "AP Calculus BC",
+        shortName: "Calc BC",
+        icon: "📐",
+        family: "stem",
+        canvas: "calc",
+        predicted: 4.5,
+        target: 4.8,
+        stable: false,
+        schoolProgress: 74,
+        cbCoverage: 58,
+        currentUnit: "Unit 4: Contextual Applications of Differentiation",
+        skills: [
+          { name: "Socratic Math Step-by-Step", modes: ["GPA_SYNC"] },
+          { name: "STEM FRQ Point-by-Point Grader", modes: ["EXAM_CRUNCH"] },
+          { name: "Handwriting OCR -> LaTeX", modes: ["GPA_SYNC", "EXAM_CRUNCH"] },
+        ],
+        rag: ["CB Calc CED Graph", "Mr. Smith Week 12 Syllabus"],
+        mcp: ["SymPy 符号验算", "Desmos", "Twin Bus"],
+      },
+      apush: {
+        id: "apush",
+        name: "AP US History",
+        shortName: "APUSH",
+        icon: "📜",
+        family: "humanities",
+        canvas: "history",
+        predicted: 4.0,
+        target: 4.5,
+        stable: false,
+        schoolProgress: 68,
+        cbCoverage: 62,
+        currentUnit: "Period 6 (1865–1898): Gilded Age",
+        skills: [
+          { name: "Historical Sourcing Socratic Guide", modes: ["GPA_SYNC"] },
+          { name: "DBQ 7-Point Rubric Diff Grader", modes: ["EXAM_CRUNCH"] },
+          { name: "Contextual SAT Vocab Extractor", modes: ["GPA_SYNC", "EXAM_CRUNCH"] },
+        ],
+        rag: ["CB APUSH 9-Period Matrix", "Primary Doc: Carnegie (1889)"],
+        mcp: ["SAT Flashcard Bridge", "Chronology Validator", "Twin Bus"],
+      },
+      csa: {
+        id: "csa",
+        name: "AP Computer Science A",
+        shortName: "AP CSA",
+        icon: "💻",
+        family: "stem",
+        canvas: "code",
+        predicted: 4.8,
+        target: 5,
+        stable: true,
+        schoolProgress: 80,
+        cbCoverage: 75,
+        currentUnit: "Unit 7: ArrayList Algorithms",
+        skills: [
+          { name: "Socratic Array Tracer", modes: ["GPA_SYNC"] },
+          { name: "CB Java FRQ Penalty Checker", modes: ["EXAM_CRUNCH"] },
+        ],
+        rag: ["CB Java Quick Reference", "4 Standard FRQ Archetypes"],
+        mcp: ["Java 17 JUnit Sandbox", "Twin Bus"],
+      },
+      phys_c: {
+        id: "phys_c",
+        name: "AP Physics C: Mechanics",
+        shortName: "Physics C",
+        icon: "⚡",
+        family: "stem",
+        canvas: "physics",
+        predicted: 3.9,
+        target: 5,
+        stable: false,
+        schoolProgress: 60,
+        cbCoverage: 50,
+        currentUnit: "Unit 3: Work, Energy, and Power",
+        skills: [
+          { name: "Free-Body & Calculus Socratic Tutor", modes: ["GPA_SYNC"] },
+          { name: "Differential Equation FRQ Grader", modes: ["EXAM_CRUNCH"] },
+        ],
+        rag: ["CB Physics C CED", "Experimental Design Rubrics"],
+        mcp: ["SymPy ODE Solver", "Twin Bus"],
+      },
+      ap_lang: {
+        id: "ap_lang",
+        name: "AP English Language",
+        shortName: "AP Lang",
+        icon: "✒️",
+        family: "humanities",
+        canvas: "lang",
+        predicted: 4.2,
+        target: 5,
+        stable: false,
+        schoolProgress: 70,
+        cbCoverage: 55,
+        currentUnit: "Unit 4: Rhetorical Synthesis",
+        skills: [
+          { name: "Rhetorical Analysis Socratic Guide", modes: ["GPA_SYNC"] },
+          { name: "Argument FRQ Rubric Diff Grader", modes: ["EXAM_CRUNCH"] },
+          { name: "Contextual SAT Vocab Extractor", modes: ["GPA_SYNC", "EXAM_CRUNCH"] },
+        ],
+        rag: ["CB AP Lang CED", "Synthesis Source Packet"],
+        mcp: ["SAT Flashcard Bridge", "Twin Bus"],
+      },
+    };
+
+    const INIT_SESSIONS = [
+      { id: "sess_101", num: "101", agent: "AP_BASE", courseId: "calc_bc", mode: "GPA_SYNC", title: "攻克隐函数求导与变化率", duration: "20m", tokens: "1.8k", desc: "周五测验：排查链式法则漏写 dh/dt" },
+      { id: "sess_102", num: "102", agent: "AP_BASE", courseId: "calc_bc", mode: "EXAM_CRUNCH", title: "FRQ 精批：圆锥水箱推导", duration: "25m", tokens: "2.4k", desc: "按评分要点核验列式分与过程分" },
+      { id: "sess_103", num: "103", agent: "AP_BASE", courseId: "calc_bc", mode: "GPA_SYNC", title: "作业：参数方程的二阶导数", duration: "15m", tokens: "0.9k", desc: "对齐 Mr. Smith Week 12 讲义" },
+      { id: "sess_201", num: "201", agent: "AP_BASE", courseId: "apush", mode: "GPA_SYNC", title: "精读《财富的福音》并提炼语境词", duration: "15m", tokens: "1.2k", desc: "Period 6 阅读，触发 vocab.context" },
+      { id: "sess_202", num: "202", agent: "AP_BASE", courseId: "apush", mode: "EXAM_CRUNCH", title: "DBQ 精批：镀金时代工业化", duration: "35m", tokens: "3.1k", desc: "Contextualization 按采分点改写" },
+      { id: "sess_301", num: "301", agent: "AP_BASE", courseId: "csa", mode: "GPA_SYNC", title: "ArrayList 遍历：漏判边界", duration: "20m", tokens: "1.4k", desc: "校内测验：off-by-one" },
+      { id: "sess_302", num: "302", agent: "AP_BASE", courseId: "csa", mode: "EXAM_CRUNCH", title: "FRQ：ArrayList 删除重复元素", duration: "30m", tokens: "1.6k", desc: "按 Java FRQ 扣分点检查" },
+      { id: "sess_601", num: "601", agent: "AP_BASE", courseId: "phys_c", mode: "GPA_SYNC", title: "功率推导：漏乘速度", duration: "20m", tokens: "1.1k", desc: "Unit 3 作业，对齐能量守恒" },
+      { id: "sess_602", num: "602", agent: "AP_BASE", courseId: "phys_c", mode: "EXAM_CRUNCH", title: "FRQ：变力做功积分", duration: "25m", tokens: "1.5k", desc: "实验设计与积分过程分" },
+      { id: "sess_701", num: "701", agent: "AP_BASE", courseId: "ap_lang", mode: "GPA_SYNC", title: "修辞分析：演讲里的关键词", duration: "15m", tokens: "1.0k", desc: "找出被作者重定义的词" },
+      { id: "sess_702", num: "702", agent: "AP_BASE", courseId: "ap_lang", mode: "EXAM_CRUNCH", title: "Argument FRQ：证据与让步", duration: "30m", tokens: "1.8k", desc: "按论点采分点改写" },
+      { id: "sess_401", num: "401", agent: "DSAT", courseId: "dsat", kind: "math", mode: "ADAPTIVE", title: "Math：复合函数变式 5 题", duration: "15m", tokens: "1.1k", cross: true, desc: "由 Calc BC 的 skill.weak 触发，含 Desmos" },
+      { id: "sess_402", num: "402", agent: "DSAT", courseId: "dsat", kind: "rw", mode: "ADAPTIVE", title: "Reading：双篇科学文，分清假设与结论", duration: "20m", tokens: "1.4k", desc: "错因是混淆作者假设与实验结论" },
+      { id: "sess_403", num: "403", agent: "DSAT", courseId: "dsat", kind: "vocab", mode: "ADAPTIVE", title: "词汇：用 APUSH 史料做语境闪卡", duration: "10m", tokens: "0.6k", cross: true, desc: "来自 vocab.context，不是孤立词表" },
+      { id: "sess_404", num: "404", agent: "DSAT", courseId: "dsat", kind: "mock", mode: "ADAPTIVE", title: "自适应模考：Module 1 → Module 2", duration: "35m", tokens: "2.2k", desc: "Module 1 正确率决定 Module 2 难度" },
+      { id: "sess_501", num: "501", agent: "ADMISSIONS", courseId: "adm", kind: "interview", mode: "INTERVIEW", title: "主文书访谈：机器人视觉与社区", duration: "30m", tokens: "2.9k", desc: "追问细节。学生自己写，不代写。" },
+      { id: "sess_502", num: "502", agent: "ADMISSIONS", courseId: "adm", kind: "matrix", mode: "SCHOOL_LIST", title: "重算 Reach / Match / Safety", duration: "15m", tokens: "1.0k", desc: "用最新 AP 预测分和 SAT 1510 更新名单" },
+      { id: "sess_503", num: "503", agent: "ADMISSIONS", courseId: "adm", kind: "activities", mode: "ACTIVITIES", title: "活动列表：压到 150 字符", duration: "20m", tokens: "0.8k", desc: "动作动词 + 可核对的结果，学生确认事实" },
+      { id: "sess_504", num: "504", agent: "ADMISSIONS", courseId: "adm", kind: "spike", mode: "INTERVIEW", title: "主线缺口：AI 伦理缺人文活动", duration: "15m", tokens: "0.7k", desc: "把缺口写成下周任务，不生成文书" },
+    ];
+
+    const MODE_LABEL = {
+      GPA_SYNC: "日常作业",
+      EXAM_CRUNCH: "大考精批",
+      ADAPTIVE: "SAT 练习",
+      INTERVIEW: "文书访谈",
+      SCHOOL_LIST: "选校",
+      ACTIVITIES: "活动列表",
+    };
+
+    function modeClass(mode, active) {
+      if (!active) return "text-slate-500 dark:text-slate-400";
+      if (mode === "EXAM_CRUNCH") return "bg-rose-600 text-white shadow-sm";
+      if (mode === "GPA_SYNC") return "bg-emerald-600 text-white shadow-sm";
+      return "bg-indigo-600 text-white shadow-sm";
+    }
+
+    const CARD = "bg-white dark:bg-slate-900 rounded-2xl shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10";
+    const BTN = "transition hover:opacity-90 active:scale-[0.98]";
+
+    function App() {
+      const [view, setView] = useState("architect");
+      const [subs, setSubs] = useState({ dsat: true, admissions: true, ap: ["calc_bc", "apush", "csa"] });
+      const [activeAgent, setActiveAgent] = useState("AP_BASE");
+      const [activeCourse, setActiveCourse] = useState("calc_bc");
+      const [apMode, setApMode] = useState("GPA_SYNC");
+      const [activeSessId, setActiveSessId] = useState("sess_101");
+      const [showSubModal, setShowSubModal] = useState(false);
+      const [showManifest, setShowManifest] = useState(false);
+      const [fixedSteps, setFixedSteps] = useState({});
+      const [fixedFrq, setFixedFrq] = useState({});
+      const [tier2, setTier2] = useState(false);
+      const [draft, setDraft] = useState("");
+      const [dark, setDark] = useState(false);
+      const [mobileTab, setMobileTab] = useState("tasks");
+      const [events, setEvents] = useState([
+        { id: 1, type: "skill.weak", time: "Just now", from: "AP Base [calc_bc]", to: "dSAT", text: "隐函数求导漏项 -> 已向 SAT Math 注入 5 道复合函数题" },
+        { id: 2, type: "calendar.pressure", time: "10m", from: "Timeline", to: "Planner", text: "周五 Calc 校内测验，自动下调本周 SAT 刷题量 30%" },
+        { id: 3, type: "ap.predicted", time: "2d ago", from: "AP Base [csa]", to: "Admissions", text: "CSA 预测分 4.8 -> 强化 CMU/UCB 工程院选校匹配度" },
+      ]);
+
+      const toggleDark = () => {
+        const next = !dark;
+        setDark(next);
+        document.documentElement.classList.toggle("dark", next);
+      };
+
+      const architect = view === "architect";
+      const pack = AP_PACKS[activeCourse] || AP_PACKS.calc_bc;
+      const mountedCount = subs.ap.length + (subs.dsat ? 1 : 0) + (subs.admissions ? 1 : 0);
+
+      const apTasks = INIT_SESSIONS.filter((s) => s.agent === "AP_BASE" && subs.ap.includes(s.courseId));
+      const satTasks = subs.dsat ? INIT_SESSIONS.filter((s) => s.agent === "DSAT") : [];
+      const admTasks = subs.admissions ? INIT_SESSIONS.filter((s) => s.agent === "ADMISSIONS") : [];
+      const currentSess = INIT_SESSIONS.find((s) => s.id === activeSessId) || apTasks[0];
+
+      const pushEvent = (type, from, to, text) => {
+        setEvents((prev) => [{ id: Date.now(), type, time: "Just now", from, to, text }, ...prev]);
+      };
+
+      const selectCourse = (cid) => {
+        setActiveAgent("AP_BASE");
+        setActiveCourse(cid);
+        setTier2(false);
+        const next = INIT_SESSIONS.find((s) => s.courseId === cid);
+        if (next) {
+          setActiveSessId(next.id);
+          setApMode(next.mode);
+        }
+      };
+
+      const selectAgent = (agent) => {
+        setActiveAgent(agent);
+        setTier2(false);
+        const next = INIT_SESSIONS.find((s) => s.agent === agent && (agent !== "AP_BASE" || s.courseId === activeCourse));
+        if (next) {
+          setActiveSessId(next.id);
+          if (next.agent === "AP_BASE") setApMode(next.mode);
+        }
+      };
+
+      const openSession = (s) => {
+        setActiveSessId(s.id);
+        setActiveAgent(s.agent);
+        setTier2(false);
+        if (s.agent === "AP_BASE") {
+          setActiveCourse(s.courseId);
+          setApMode(s.mode);
+        }
+        setMobileTab(s.agent === "DSAT" ? "sat" : s.agent === "ADMISSIONS" ? "adm" : "ap");
+      };
+
+      const toggleAp = (cid) => {
+        setSubs((prev) => {
+          const on = prev.ap.includes(cid);
+          const ap = on ? prev.ap.filter((x) => x !== cid) : [...prev.ap, cid];
+          return { ...prev, ap };
+        });
+        if (!subs.ap.includes(cid)) selectCourse(cid);
+        if (subs.ap.includes(cid) && activeCourse === cid) {
+          const rest = subs.ap.filter((x) => x !== cid);
+          if (rest[0]) selectCourse(rest[0]);
+        }
+      };
+
+      const scoreLabel = (cid) => {
+        const p = AP_PACKS[cid];
+        const shown = fixedFrq[cid] ? Math.min(5, p.predicted + 0.3).toFixed(1) : p.predicted.toFixed(1);
+        if (p.stable && !fixedFrq[cid]) return shown + "（稳 5 分）";
+        return shown + " → " + p.target.toFixed(1);
+      };
+
+      const goMobile = (tab, agent) => {
+        setMobileTab(tab);
+        if (agent) selectAgent(agent);
+      };
+
+      const tabBtn = (tab, agent, icon, label) => (
+        <button onClick={() => goMobile(tab, agent)}
+          className={"flex-1 min-h-[56px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition active:scale-95 " + (mobileTab === tab ? "text-indigo-600 dark:text-indigo-400" : "text-slate-500 dark:text-slate-400")}>
+          <span className="text-lg leading-none">{icon}</span>
+          <span>{label}</span>
+        </button>
+      );
+
+      return (
+        <div className="min-h-screen flex flex-col bg-[#F7F8FA] dark:bg-slate-950 transition-colors">
+          <header className="sticky top-0 z-40 shrink-0 bg-white/85 dark:bg-slate-900/85 backdrop-blur border-b border-slate-200/70 dark:border-slate-800 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-xs font-bold text-white shadow-sm shrink-0">OS</div>
+              <div className="min-w-0">
+                <div className="text-sm font-bold tracking-tight flex items-center gap-2">
+                  <span className="truncate">High School Student OS</span>
+                  <span className="hidden lg:inline text-[10px] font-mono font-medium text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 ring-1 ring-indigo-200 dark:ring-indigo-500/30 px-2 py-0.5 rounded-full">Multi-Agent Runtime v2.4</span>
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">1 Core Twin + Dynamic Subscribed Agents</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="hidden xl:flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mr-1">
+                <span>Alex · 11th</span>
+                <span className="text-slate-300 dark:text-slate-600">|</span>
+                <span>GPA <strong className="text-emerald-600 dark:text-emerald-400">3.94</strong></span>
+                <span className="text-slate-300 dark:text-slate-600">|</span>
+                <span>dSAT <strong className="text-indigo-600 dark:text-sky-400">1510 → 1550</strong></span>
+              </div>
+              <div className="hidden sm:flex bg-slate-100 dark:bg-slate-950 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full p-0.5 text-[11px]">
+                <button onClick={() => setView("student")} className={"px-2.5 py-1.5 rounded-full transition active:scale-95 " + (view === "student" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>学生视图</button>
+                <button onClick={() => setView("architect")} className={"px-2.5 py-1.5 rounded-full transition active:scale-95 " + (view === "architect" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>架构师视图</button>
+              </div>
+              <button onClick={() => setShowManifest(true)} className={"hidden md:inline-flex px-3 min-h-[36px] items-center rounded-full text-xs ring-1 ring-slate-300 dark:ring-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>Manifest 透视</button>
+              <button onClick={() => setShowSubModal(true)} className={"px-3 min-h-[36px] rounded-full text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm " + BTN}>订阅与课程包挂载 ({mountedCount})</button>
+              <button onClick={toggleDark} aria-label="切换深色模式" className={"w-9 h-9 shrink-0 rounded-full ring-1 ring-slate-300 dark:ring-slate-700 flex items-center justify-center text-sm hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>{dark ? "☀️" : "🌙"}</button>
+            </div>
+          </header>
+
+          <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)_300px] pb-[64px] md:pb-0">
+            <aside className={(mobileTab === "tasks" ? "block" : "hidden") + " md:block md:row-span-2 lg:row-span-1 overflow-y-auto p-3 space-y-3 md:border-r border-slate-200/70 dark:border-slate-800"}>
+              <div className="flex sm:hidden bg-slate-100 dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full p-0.5 text-[11px] mb-1">
+                <button onClick={() => setView("student")} className={"flex-1 px-2.5 py-2 rounded-full transition active:scale-95 " + (view === "student" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>学生视图</button>
+                <button onClick={() => setView("architect")} className={"flex-1 px-2.5 py-2 rounded-full transition active:scale-95 " + (view === "architect" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>架构师视图</button>
+              </div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">每个 Agent 下的任务</div>
+
+              <div className={"rounded-2xl ring-1 p-3 space-y-2.5 transition " + (activeAgent === "AP_BASE" ? "bg-indigo-50 dark:bg-indigo-950/30 ring-indigo-200 dark:ring-indigo-500/50" : CARD + " ring-slate-900/5")}>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold">AP Base Agent</span>
+                  <span className="text-[10px] text-indigo-600 dark:text-indigo-300">{apTasks.length} 个任务</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {subs.ap.map((cid) => (
+                    <button key={cid} onClick={() => selectCourse(cid)}
+                      className={"px-2.5 py-1 rounded-full text-[10px] ring-1 transition active:scale-95 " + (activeAgent === "AP_BASE" && activeCourse === cid ? "bg-indigo-600 text-white ring-indigo-500" : "bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-slate-800 hover:ring-indigo-300")}>
+                      {AP_PACKS[cid].icon} {AP_PACKS[cid].shortName}
+                    </button>
+                  ))}
+                  <button onClick={() => setShowSubModal(true)} className="px-2.5 py-1 rounded-full text-[10px] ring-1 ring-dashed ring-slate-300 dark:ring-slate-700 text-slate-500 dark:text-slate-400 transition active:scale-95">+ AP</button>
+                </div>
+                <div className="space-y-1.5">
+                  {apTasks.map((s) => (
+                    <TaskRow key={s.id} session={s} active={currentSess && currentSess.id === s.id} architect={architect} onOpen={openSession} />
+                  ))}
+                  {apTasks.length === 0 && <div className="text-[11px] text-slate-500">还没有挂载 AP 课程包。</div>}
+                </div>
+              </div>
+
+              {subs.dsat ? (
+                <div className={"rounded-2xl ring-1 p-3 space-y-2.5 transition " + (activeAgent === "DSAT" ? "bg-sky-50 dark:bg-sky-950/30 ring-sky-200 dark:ring-sky-500/50" : CARD + " ring-slate-900/5")}>
+                  <div className="flex justify-between items-center">
+                    <button onClick={() => selectAgent("DSAT")} className="text-xs font-semibold text-left">Digital SAT</button>
+                    <span className="text-[10px] font-mono text-sky-600 dark:text-sky-300">{satTasks.length} 个任务 · 1510</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {satTasks.map((s) => (
+                      <TaskRow key={s.id} session={s} active={currentSess && currentSess.id === s.id} architect={architect} onOpen={openSession} />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowSubModal(true)} className="w-full min-h-[44px] p-3 rounded-2xl ring-1 ring-dashed ring-slate-300 dark:ring-slate-700 text-xs text-slate-500 text-left transition active:scale-[0.99]">未订阅 · Digital SAT</button>
+              )}
+
+              {subs.admissions ? (
+                <div className={"rounded-2xl ring-1 p-3 space-y-2.5 transition " + (activeAgent === "ADMISSIONS" ? "bg-emerald-50 dark:bg-emerald-950/30 ring-emerald-200 dark:ring-emerald-500/50" : CARD + " ring-slate-900/5")}>
+                  <div className="flex justify-between items-center">
+                    <button onClick={() => selectAgent("ADMISSIONS")} className="text-xs font-semibold text-left">Admissions Agent</button>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-300">{admTasks.length} 个任务</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {admTasks.map((s) => (
+                      <TaskRow key={s.id} session={s} active={currentSess && currentSess.id === s.id} architect={architect} onOpen={openSession} />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowSubModal(true)} className="w-full min-h-[44px] p-3 rounded-2xl ring-1 ring-dashed ring-slate-300 dark:ring-slate-700 text-xs text-slate-500 text-left transition active:scale-[0.99]">未订阅 · Admissions</button>
+              )}
+            </aside>
+
+            <main className={(mobileTab === "tasks" || mobileTab === "events" ? "hidden" : "block") + " md:block overflow-y-auto p-3 sm:p-4 space-y-3"}>
+              {activeAgent === "AP_BASE" && subs.ap.length > 0 && (
+                <React.Fragment>
+                  <section className={CARD + " p-4 space-y-3"}>
+                    <div className="flex flex-wrap justify-between items-center gap-2">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Active Runtime</div>
+                        <div className="text-sm font-semibold">
+                          AP Base Agent <span className="text-slate-300 dark:text-slate-600">/</span> <span className="text-indigo-600 dark:text-indigo-300">{pack.icon} {pack.shortName} Pack</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400">预测分</div>
+                          <div className="text-2xl font-extrabold leading-none tracking-tight text-slate-900 dark:text-white">{pack.predicted.toFixed(1)}<span className="text-xs font-semibold text-slate-400 dark:text-slate-500"> / 5</span></div>
+                        </div>
+                        <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-full ring-1 ring-slate-200 dark:ring-slate-800 text-xs">
+                          <button onClick={() => setApMode("GPA_SYNC")} className={"px-3 py-1.5 rounded-full transition active:scale-95 " + modeClass("GPA_SYNC", apMode === "GPA_SYNC")}>日常 GPA 护航</button>
+                          <button onClick={() => setApMode("EXAM_CRUNCH")} className={"px-3 py-1.5 rounded-full transition active:scale-95 " + modeClass("EXAM_CRUNCH", apMode === "EXAM_CRUNCH")}>5月大考冲刺</button>
+                        </div>
+                      </div>
+                    </div>
+                    {architect ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] bg-slate-50 dark:bg-slate-950 p-3 rounded-xl ring-1 ring-slate-200/70 dark:ring-slate-800">
+                        <div>
+                          <div className="text-amber-600 dark:text-amber-300 font-semibold mb-1">Mounted Skills</div>
+                          {pack.skills.map((sk) => (
+                            <div key={sk.name} className={sk.modes.indexOf(apMode) >= 0 ? "text-amber-700 dark:text-amber-100" : "text-slate-400 dark:text-slate-600 line-through"}>{sk.name}</div>
+                          ))}
+                        </div>
+                        <div>
+                          <div className="text-sky-600 dark:text-sky-300 font-semibold mb-1">RAG Knowledge Packs</div>
+                          {pack.rag.map((r) => <div key={r} className="text-sky-700 dark:text-sky-100">{r}</div>)}
+                        </div>
+                        <div>
+                          <div className="text-emerald-600 dark:text-emerald-300 font-semibold mb-1">Connected MCP</div>
+                          {pack.mcp.map((m) => <div key={m} className="text-emerald-700 dark:text-emerald-100">{m}</div>)}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-600 dark:text-slate-300">{pack.currentUnit}</div>
+                    )}
+                    {currentSess && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div>
+                          <span className="text-slate-500">当前会话 </span>
+                          <span className="font-semibold">{currentSess.title}</span>
+                          {architect && <span className="font-mono text-slate-400 dark:text-slate-500"> · {currentSess.id}</span>}
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => pushEvent("vision.ocr", "AP Base [" + pack.id + "]", "Twin", "手写推导已识别为 LaTeX，等待分步验算")} className={"px-3 min-h-[36px] rounded-full ring-1 ring-slate-300 dark:ring-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>扫码上传手写推导</button>
+                          <button onClick={() => pushEvent("session.settled", "Planner", "Twin", currentSess.title + " 已结算，掌握度写回 Twin")} className={"px-3 min-h-[36px] rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium " + BTN}>完成并结算 Session</button>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className={CARD + " p-4"}>
+                    <div className="text-xs font-semibold mb-2.5">双轨进度 · {pack.currentUnit}</div>
+                    <Bar label="校内课堂进度 (GPA)" value={pack.schoolProgress} bar="bg-emerald-500" />
+                    <div className="h-2.5" />
+                    <Bar label="5月大考覆盖 (Exam)" value={pack.cbCoverage} bar="bg-rose-500" />
+                  </section>
+
+                  {apMode === "GPA_SYNC" ? (
+                    <GpaWorkspace pack={pack} fixed={!!fixedSteps[pack.id]} tier2={tier2} architect={architect}
+                      onTier2={() => setTier2(true)}
+                      onFix={() => {
+                        setFixedSteps((p) => Object.assign({}, p, { [pack.id]: true }));
+                        pushEvent("skill.weak", "AP Base [" + pack.id + "]", "Digital SAT", pack.shortName + " 订正薄弱步骤 -> 更新 Twin，并向 SAT 注入同源变式");
+                      }}
+                      onVocab={() => pushEvent("vocab.context", "AP Base [" + pack.id + "]", "Digital SAT", "已把史料原句与高亮词同步到 SAT 语境闪卡")}
+                    />
+                  ) : (
+                    <ExamWorkspace pack={pack} fixed={!!fixedFrq[pack.id]}
+                      onAdopt={() => {
+                        setFixedFrq((p) => Object.assign({}, p, { [pack.id]: true }));
+                        pushEvent("ap.predicted", "AP Base [" + pack.id + "]", "Admissions Agent", pack.shortName + " 采分点订正，预测分上调 -> 已更新 Reach 校匹配");
+                      }}
+                    />
+                  )}
+
+                  <form onSubmit={(e) => { e.preventDefault(); if (!draft.trim()) return; pushEvent("student.reply", "Alex", "AP Base", "学生用自己的话作答：" + draft.trim()); setDraft(""); }} className="flex gap-2">
+                    <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="用你自己的话回答追问..." className="flex-1 min-h-[44px] bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition" />
+                    <button className={"px-5 min-h-[44px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-sm " + BTN}>发送</button>
+                  </form>
+                </React.Fragment>
+              )}
+
+              {activeAgent === "DSAT" && subs.dsat && currentSess && (
+                <DsatPanel session={currentSess} onDesmos={() => pushEvent("tool.desmos", "Digital SAT", "Twin", "Desmos 作图求解已演示，复合函数掌握度 +1")} />
+              )}
+
+              {activeAgent === "ADMISSIONS" && subs.admissions && currentSess && (
+                <AdmissionsPanel session={currentSess} onNote={(text) => pushEvent("narrative.gap", "Admissions", "Planner", text)} />
+              )}
+            </main>
+
+            <aside className={(mobileTab === "events" ? "block" : "hidden") + " md:block md:col-span-2 lg:col-span-1 overflow-y-auto p-3 space-y-3 lg:border-l border-slate-200/70 dark:border-slate-800"}>
+              <section className={CARD + " p-4 space-y-2.5"}>
+                <div className="text-xs font-bold text-indigo-600 dark:text-indigo-300">Academic Digital Twin</div>
+                {architect && <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500">userProfiles/alex@hs.edu</div>}
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">AP 实时预测分</div>
+                {subs.ap.map((cid) => (
+                  <div key={cid} className="flex justify-between items-center text-xs bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800 px-3 py-2 rounded-xl">
+                    <span>{AP_PACKS[cid].icon} {AP_PACKS[cid].shortName}</span>
+                    <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">{scoreLabel(cid)}</span>
+                  </div>
+                ))}
+                {subs.dsat && (
+                  <div className="flex justify-between items-center text-xs bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800 px-3 py-2 rounded-xl">
+                    <span>Digital SAT</span>
+                    <span className="font-mono font-semibold text-indigo-600 dark:text-sky-400">1510 → 1550</span>
+                  </div>
+                )}
+                <div className="mt-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/30 text-[11px] text-amber-900 dark:text-amber-100 leading-relaxed">
+                  <div className="font-semibold text-amber-700 dark:text-amber-300 mb-1">Planner ROI</div>
+                  当前 dSAT 1510。本周投入 5 小时稳住 Calc BC 5 分档的录取杠杆，高于刷 SAT 低频词。
+                </div>
+              </section>
+
+              <section className="space-y-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cross-Domain Event Bus</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-2">
+                  {events.map((e) => (
+                    <article key={e.id} className={CARD + " p-3 text-[11px] space-y-1"}>
+                      <div className="flex justify-between gap-2">
+                        {architect ? <span className="font-mono text-indigo-600 dark:text-indigo-300">{e.type}</span> : <span className="text-indigo-600 dark:text-indigo-200">{plainEvent(e.type)}</span>}
+                        <span className="text-slate-400 dark:text-slate-500">{e.time}</span>
+                      </div>
+                      {architect && <div className="text-slate-400 dark:text-slate-500">{e.from} → {e.to}</div>}
+                      <div className="text-slate-700 dark:text-slate-200 leading-relaxed">{e.text}</div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </aside>
+          </div>
+
+          <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/92 dark:bg-slate-900/92 backdrop-blur border-t border-slate-200 dark:border-slate-800 flex px-1 pb-[env(safe-area-inset-bottom)]">
+            {tabBtn("tasks", null, "📋", "今日任务")}
+            {tabBtn("sat", "DSAT", "🎯", "SAT")}
+            {tabBtn("ap", "AP_BASE", "📚", "AP")}
+            {tabBtn("adm", "ADMISSIONS", "🎓", "申请")}
+            {tabBtn("events", null, "🔔", "事件")}
+          </nav>
+
+          {showSubModal && (
+            <Modal title="订阅与课程包热插拔" onClose={() => setShowSubModal(false)}>
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">顶层支柱</div>
+              <div className="flex gap-2 text-xs">
+                <button onClick={() => { setSubs((p) => ({ ...p, dsat: !p.dsat })); if (subs.dsat && activeAgent === "DSAT") selectAgent("AP_BASE"); }}
+                  className={"flex-1 min-h-[44px] p-3 rounded-2xl ring-1 text-left transition active:scale-[0.98] " + (subs.dsat ? "bg-sky-50 dark:bg-sky-950/50 ring-sky-400 dark:ring-sky-500" : "bg-slate-50 dark:bg-slate-950 ring-slate-200 dark:ring-slate-800 text-slate-500")}>
+                  Digital SAT<br />{subs.dsat ? "已挂载" : "未订阅"}
+                </button>
+                <button onClick={() => { setSubs((p) => ({ ...p, admissions: !p.admissions })); if (subs.admissions && activeAgent === "ADMISSIONS") selectAgent("AP_BASE"); }}
+                  className={"flex-1 min-h-[44px] p-3 rounded-2xl ring-1 text-left transition active:scale-[0.98] " + (subs.admissions ? "bg-emerald-50 dark:bg-emerald-950/40 ring-emerald-400 dark:ring-emerald-500" : "bg-slate-50 dark:bg-slate-950 ring-slate-200 dark:ring-slate-800 text-slate-500")}>
+                  Admissions<br />{subs.admissions ? "已挂载" : "未订阅"}
+                </button>
+              </div>
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 pt-2">AP 学科包 · 订阅才加载</div>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.keys(AP_PACKS).map((cid) => {
+                  const p = AP_PACKS[cid];
+                  const on = subs.ap.indexOf(cid) >= 0;
+                  return (
+                    <button key={cid} onClick={() => toggleAp(cid)} className={"min-h-[44px] p-3 rounded-2xl ring-1 text-left text-xs transition active:scale-[0.98] " + (on ? "bg-indigo-50 dark:bg-indigo-950/50 ring-indigo-400 dark:ring-indigo-500" : "bg-slate-50 dark:bg-slate-950 ring-slate-200 dark:ring-slate-800 text-slate-500")}>
+                      <div className="font-semibold">{p.icon} {p.shortName}</div>
+                      <div className="text-[10px] mt-1 text-slate-500 dark:text-slate-400">{p.skills.length} Skills · {p.rag.length} RAG · {p.mcp.length} MCP</div>
+                      <div className="text-[10px] mt-1">{on ? "已挂载" : "点击订阅"}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={() => setShowSubModal(false)} className={"w-full min-h-[44px] py-2 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm " + BTN}>确认并热重载工作台</button>
+            </Modal>
+          )}
+
+          {showManifest && (
+            <Modal title="Twin Manifest" onClose={() => setShowManifest(false)}>
+              <pre className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap font-mono">{JSON.stringify({
+                student: "alex@hs.edu",
+                grade: 11,
+                gpa: 3.94,
+                dsat: { current: 1510, target: 1550 },
+                subscribedAgents: { dsat: subs.dsat, admissions: subs.admissions },
+                apPacks: subs.ap,
+                active: { agent: activeAgent, course: activeCourse, mode: activeAgent === "AP_BASE" ? apMode : currentSess && currentSess.mode },
+              }, null, 2)}</pre>
+            </Modal>
+          )}
+        </div>
+      );
+    }
+
+    function Bar({ label, value, bar }) {
+      return (
+        <div>
+          <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1"><span>{label}</span><span className="font-mono font-semibold">{value}%</span></div>
+          <div className="h-2.5 rounded-full bg-slate-200/80 dark:bg-slate-800 overflow-hidden">
+            <div className={"h-full rounded-full transition-all duration-500 " + bar} style={{ width: value + "%" }} />
+          </div>
+        </div>
+      );
+    }
+
+    function GpaWorkspace({ pack, fixed, tier2, architect, onTier2, onFix, onVocab }) {
+      const prompt = gpaPrompt(pack, fixed);
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <section className={CARD + " p-4 text-xs space-y-2.5"}>
+            <div className="font-semibold text-emerald-600 dark:text-emerald-300">苏格拉底引导 · 不直接给答案</div>
+            <p className="text-slate-600 dark:text-slate-300 leading-relaxed">{prompt}</p>
+            {!tier2 ? (
+              <button onClick={onTier2} className={"px-3 min-h-[36px] rounded-full ring-1 ring-amber-300 dark:ring-amber-500/40 text-amber-700 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 " + BTN}>展开 Tier 2 提示</button>
+            ) : (
+              <p className="text-amber-800 dark:text-amber-100/90 leading-relaxed">{tier2Text(pack)}</p>
+            )}
+          </section>
+          <section className={CARD + " p-4 text-xs space-y-2.5"}>
+            <div className="font-semibold text-sky-600 dark:text-sky-300">{canvasTitle(pack)}</div>
+            <CanvasBody pack={pack} fixed={fixed} architect={architect} onFix={onFix} onVocab={onVocab} />
+          </section>
+        </div>
+      );
+    }
+
+    function CanvasBody({ pack, fixed, onFix, onVocab }) {
+      if (pack.canvas === "history" || pack.canvas === "lang") {
+        return (
+          <div className="space-y-2">
+            <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+              “This, then, is held to be the duty of the man of Wealth: first, to set an example of modest, <span className="bg-amber-200/60 dark:bg-amber-400/20 text-amber-800 dark:text-amber-200 px-1 rounded">unostentatious</span> living...”
+            </p>
+            <div className="text-[10px] text-slate-400 dark:text-slate-500">Andrew Carnegie, The Gospel of Wealth (1889)</div>
+            <button onClick={onVocab} className={"w-full min-h-[40px] py-1.5 rounded-full bg-sky-600 hover:bg-sky-500 text-white font-semibold " + BTN}>提取高亮词和原句，同步到 Digital SAT</button>
+          </div>
+        );
+      }
+      if (pack.canvas === "code") {
+        return (
+          <div className="space-y-2 font-mono">
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800">for (int i = 0; i &lt;= list.size(); i++)</div>
+            <div className={"p-2.5 rounded-xl ring-1 " + (fixed ? "ring-emerald-300 dark:ring-emerald-500 bg-emerald-50 dark:bg-transparent text-emerald-700 dark:text-emerald-200" : "ring-rose-300 dark:ring-rose-500 bg-rose-50 dark:bg-transparent text-rose-700 dark:text-rose-200")}>
+              {fixed ? "i < list.size()  · 边界已改" : "i <= list.size()  · 会越界"}
+            </div>
+            <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已修正并写回 Twin" : "修正边界并触发跨域事件"}</button>
+          </div>
+        );
+      }
+      if (pack.canvas === "physics") {
+        return (
+          <div className="space-y-2 font-mono">
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800">W = ∫ F · dr ✓</div>
+            <div className={"p-2.5 rounded-xl ring-1 " + (fixed ? "ring-emerald-300 dark:ring-emerald-500 bg-emerald-50 dark:bg-transparent text-emerald-700 dark:text-emerald-200" : "ring-rose-300 dark:ring-rose-500 bg-rose-50 dark:bg-transparent text-rose-700 dark:text-rose-200")}>
+              {fixed ? "P = dW/dt = F · v ✓" : "P = F  · 漏了速度"}
+            </div>
+            <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已修正并写回 Twin" : "修正此步并触发跨域事件"}</button>
+          </div>
+        );
+      }
+      return (
+        <div className="space-y-2 font-mono">
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800">Step 1: r = 1/2 h ✓</div>
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800">Step 2: V = (π/12) h³ ✓</div>
+          <div className={"p-2.5 rounded-xl ring-1 " + (fixed ? "ring-emerald-300 dark:ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-200" : "ring-rose-300 dark:ring-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-200")}>
+            {fixed ? "Step 3: dV/dt = (π/4) h² · dh/dt ✓" : "Step 3: dV/dt = (π/4) h²  · 漏乘 dh/dt"}
+          </div>
+          <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已修正并写回 Twin" : "修正 Step 3 并同步至 Twin"}</button>
+        </div>
+      );
+    }
+
+    function ExamWorkspace({ pack, fixed, onAdopt }) {
+      const rubric = rubricFor(pack, fixed);
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+          <section className={CARD + " lg:col-span-7 ring-rose-200 dark:ring-rose-500/40 p-4 text-xs space-y-2.5"}>
+            <div className="font-semibold text-rose-600 dark:text-rose-300">采分点精批</div>
+            <p className="text-slate-500 dark:text-slate-400">{pack.shortName} · {pack.currentUnit}</p>
+            <div className={"p-3 rounded-xl ring-1 " + (fixed ? "bg-emerald-50 dark:bg-emerald-950/30 ring-emerald-200 dark:ring-emerald-500/40" : "bg-rose-50 dark:bg-rose-950/40 ring-rose-200 dark:ring-rose-500/40")}>
+              <div className="font-semibold mb-1">{fixed ? "这一分已经拿到" : "这一分还没拿到"}</div>
+              <p className="text-slate-700 dark:text-slate-200 leading-relaxed">{fixed ? rubric.fixedLine : rubric.missLine}</p>
+            </div>
+            {!fixed && (
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/30 text-amber-900 dark:text-amber-50 leading-relaxed">
+                {rubric.advice}
+              </div>
+            )}
+            {!fixed && (
+              <button onClick={onAdopt} className={"px-4 min-h-[40px] py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold " + BTN}>采纳改写并重算 AP 预测分</button>
+            )}
+            {fixed && <div className="text-emerald-600 dark:text-emerald-300">预测分已写回 Twin，选校矩阵会跟着更新。</div>}
+          </section>
+          <section className={CARD + " lg:col-span-5 p-4 text-xs space-y-2"}>
+            <div className="font-semibold text-slate-800 dark:text-slate-200">Rubric 核验</div>
+            {rubric.rows.map((row) => (
+              <div key={row.name} className="flex justify-between border-b border-slate-100 dark:border-slate-800 py-1.5">
+                <span>{row.name}</span>
+                <span className={row.got === row.max ? "text-emerald-600 dark:text-emerald-400 font-mono font-semibold" : "text-rose-500 dark:text-rose-400 font-mono font-semibold"}>{row.got}/{row.max}</span>
+              </div>
+            ))}
+          </section>
+        </div>
+      );
+    }
+
+    function TaskRow({ session, active, architect, onOpen }) {
+      const course = AP_PACKS[session.courseId];
+      const tone = session.mode === "EXAM_CRUNCH" ? "text-rose-500 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400";
+      return (
+        <button onClick={() => onOpen(session)}
+          className={"w-full min-h-[44px] text-left px-3 py-2 rounded-xl ring-1 transition active:scale-[0.99] " + (active ? "bg-white dark:bg-slate-800 ring-indigo-400 dark:ring-indigo-500 shadow-sm" : "bg-white/60 dark:bg-slate-950/60 ring-slate-200/80 dark:ring-slate-800 hover:ring-indigo-300 dark:hover:ring-indigo-500/50")}>
+          <div className="flex justify-between gap-2 text-[10px]">
+            <span className="text-slate-500 dark:text-slate-400">{course ? course.icon + " " + course.shortName : MODE_LABEL[session.mode]}{architect ? " #" + session.num : ""}</span>
+            <span className={tone}>{session.duration}</span>
+          </div>
+          <div className="text-[11px] font-semibold text-slate-800 dark:text-white leading-snug">{session.title}</div>
+        </button>
+      );
+    }
+
+    function DsatPanel({ session, onDesmos }) {
+      const kind = session.kind || "math";
+      return (
+        <section className={CARD + " ring-sky-200 dark:ring-sky-500/40 p-4 sm:p-5 space-y-3 text-sm"}>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-sky-600 dark:text-sky-400 font-semibold">Digital SAT · {session.title}</div>
+            <h2 className="text-lg font-bold tracking-tight">{kindTitle(kind)}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{session.desc}</p>
+          </div>
+          {kind === "math" && (
+            <div className="bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800 rounded-xl p-3.5 text-xs leading-relaxed">
+              If f(x) = (2x + 1)³, what is f′(2)?
+              <div className="mt-2 text-slate-500 dark:text-slate-400">A 18 · B 54 · C 150 · D 250</div>
+            </div>
+          )}
+          {kind === "rw" && (
+            <div className="bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800 rounded-xl p-3.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+              Passage A 假设温度上升会加快反应。Passage B 只报告了 20°C 与 30°C 的测量。题目问的是作者的假设，还是实验结论？
+            </div>
+          )}
+          {kind === "vocab" && (
+            <div className="bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800 rounded-xl p-3.5 text-xs leading-relaxed">
+              <div className="text-amber-700 dark:text-amber-200 font-semibold">unostentatious</div>
+              <p className="text-slate-600 dark:text-slate-300 mt-1">“modest, unostentatious living” — Carnegie, 1889. 用这个原句出一张闪卡，而不是单独背释义。</p>
+            </div>
+          )}
+          {kind === "mock" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800">Module 1 · 路由模块<br /><span className="text-slate-500 dark:text-slate-400">22 题，决定下一模块难度</span></div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-sky-300 dark:ring-sky-800">Module 2 · 较难<br /><span className="text-slate-500 dark:text-slate-400">上一模块正确率足够，进入难题模块</span></div>
+            </div>
+          )}
+          {kind === "math" && <button onClick={onDesmos} className={"px-4 min-h-[40px] py-1.5 rounded-full bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold " + BTN}>用 Desmos 演示两条函数图像</button>}
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">分数按 Digital SAT 1600 记。</p>
+        </section>
+      );
+    }
+
+    function kindTitle(kind) {
+      if (kind === "rw") return "阅读错因：假设 vs 结论";
+      if (kind === "vocab") return "语境闪卡";
+      if (kind === "mock") return "两阶段自适应模考";
+      if (kind === "matrix") return "选校矩阵";
+      if (kind === "activities") return "150 字符活动描述";
+      if (kind === "spike") return "申请主线";
+      return "复合函数 · Desmos";
+    }
+
+    function AdmissionsPanel({ session, onNote }) {
+      const kind = session.kind || "interview";
+      return (
+        <section className={CARD + " ring-emerald-200 dark:ring-emerald-500/40 p-4 sm:p-5 space-y-3 text-sm"}>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400 font-semibold">Admissions · {MODE_LABEL[session.mode]}</div>
+            <h2 className="text-lg font-bold tracking-tight">{session.title}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{session.desc}</p>
+          </div>
+          {kind === "matrix" && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 ring-1 ring-rose-200 dark:ring-rose-500/30">Reach<br />CMU SCS</div>
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 ring-1 ring-amber-200 dark:ring-amber-500/30">Match<br />UCSD CSE</div>
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-200 dark:ring-emerald-500/30">Safety<br />Purdue CS</div>
+            </div>
+          )}
+          {kind === "activities" && (
+            <div className="text-xs space-y-2">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800 text-slate-500 dark:text-slate-400">原描述：帮助学弟学妹学编程，组织了几次活动。</div>
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300 dark:ring-emerald-700">Led 12 weekly Java labs for 28 students; 19 finished a published ArrayList project.</div>
+              <div className="text-slate-500">148 / 150 字符。事实需学生确认后才保存。</div>
+            </div>
+          )}
+          {kind !== "matrix" && kind !== "activities" && (
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">你写到机器人视觉。招生官还看不出这件事和社区有什么关系。那次调试发生在谁身上，你当时改了哪一个判断？</p>
+          )}
+          <button onClick={() => onNote(kind === "spike" ? "主线缺口：有 AP CSA 与数学，缺少能支撑 AI 伦理叙事的人文活动。" : "已把「" + session.title + "」记入本周计划。")} className={"px-4 min-h-[40px] py-1.5 rounded-full ring-1 ring-emerald-500 dark:ring-emerald-600 text-xs font-medium text-emerald-700 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 " + BTN}>把这条记入本周任务</button>
+        </section>
+      );
+    }
+
+    function Modal({ title, onClose, children }) {
+      return (
+        <div className="fixed inset-0 bg-slate-950/50 dark:bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 rounded-t-3xl sm:rounded-3xl shadow-xl max-w-lg w-full p-5 space-y-3 max-h-[88vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <div className="text-sm font-bold">{title}</div>
+              <button onClick={onClose} className={"min-h-[36px] px-3 rounded-full text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>关闭</button>
+            </div>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    function gpaPrompt(pack, fixed) {
+      if (pack.canvas === "calc") {
+        return fixed
+          ? "Step 3 已经补上 dh/dt。用一句话说明：为什么 h 必须写成 h(t)，而不是常数？"
+          : "你在右侧 Step 3 写出 dV/dt = (π/4) h²。想一想：h 是常数，还是时间 t 的函数 h(t)？";
+      }
+      if (pack.canvas === "history") return "卡内基说富人有责任做示范。他在为哪一种行为辩护，又把谁排除在外？";
+      if (pack.canvas === "code") return "循环条件写成 i <= list.size()。最后一次循环时，i 指向哪里？";
+      if (pack.canvas === "physics") return "功率不是力本身。力已经在做功，还要再乘上哪个随时间变化的量？";
+      return "这篇演讲的中心论点是什么？找出一个作者用来压住反方的词。";
+    }
+
+    function tier2Text(pack) {
+      if (pack.canvas === "calc") return "提示：体积是高度的函数，高度又是时间的函数。外层对 h 求导之后，还要乘 dh/dt。";
+      if (pack.canvas === "history") return "提示：先标出他在替谁说话，再找一个被他称为“不负责任”的群体。";
+      if (pack.canvas === "code") return "提示：合法下标是 0 到 size()-1。等于 size() 时 get 会抛异常。";
+      if (pack.canvas === "physics") return "提示：P = dW/dt。功对时间求导之后，力还要点乘速度。";
+      return "提示：先用自己的话复述论点，再指出一个被作者重定义的词。";
+    }
+
+    function canvasTitle(pack) {
+      if (pack.canvas === "calc") return "STEM 推导画布";
+      if (pack.canvas === "history" || pack.canvas === "lang") return "史料原文";
+      if (pack.canvas === "code") return "代码追踪";
+      return "受力与能量";
+    }
+
+    function rubricFor(pack, fixed) {
+      if (pack.family === "humanities") {
+        return {
+          missLine: "文章直接从卡内基的引言开始，没有把镀金时代的劳资冲突放进上下文。",
+          fixedLine: "1877 年铁路罢工之后，卡内基把私人财富写成公共责任，这是在回应全国对工业巨头的不信任。",
+          advice: "补上一个早于文献的具体背景（年代 + 冲突），这一句就可以拿到 Contextualization 的 1 分。",
+          rows: [
+            { name: "Thesis", got: 1, max: 1 },
+            { name: "Contextualization", got: fixed ? 1 : 0, max: 1 },
+            { name: "Evidence", got: 2, max: 2 },
+          ],
+        };
+      }
+      return {
+        missLine: "dV/dt = (π/4) h²。体积对高度求导之后，没有乘上 dh/dt。",
+        fixedLine: "dV/dt = (π/4) h² · dh/dt。链式法则过程分可以拿到。",
+        advice: "把高度写成 h(t)，并乘上内层导数。这一行就是过程分。",
+        rows: [
+          { name: "列式", got: 1, max: 1 },
+          { name: "链式法则", got: fixed ? 1 : 0, max: 1 },
+          { name: "单位与结论", got: 1, max: 1 },
+        ],
+      };
+    }
+
+    function plainEvent(type) {
+      if (type === "skill.weak") return "薄弱点已同步到 SAT";
+      if (type === "calendar.pressure") return "本周课业变重";
+      if (type === "ap.predicted") return "预测分更新了选校";
+      if (type === "vocab.context") return "词汇已送去 SAT";
+      if (type === "narrative.gap") return "申请主线有缺口";
+      if (type === "session.settled") return "这一节已完成";
+      if (type === "vision.ocr") return "手写已识别";
+      if (type === "student.reply") return "你的回答";
+      if (type === "tool.desmos") return "Desmos 演示";
+      return "Twin 更新";
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
