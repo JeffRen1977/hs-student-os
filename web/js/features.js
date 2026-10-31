@@ -1,8 +1,8 @@
-// features.js — cross-agent features: header, TodayTasks (Planner task list),
-// Twin summary, cross-domain event feed, subscription + manifest modals,
-// mobile bottom Tab bar.
+// features.js — cross-agent features: header, TodayTasks (task list), Twin summary,
+// server event feed, course catalog + manifest modals, mobile bottom Tab bar.
 
-function Header({ S, student }) {
+function Header({ S }) {
+  const profile = S.twin.profile;
   return (
     <header className="sticky top-0 z-40 shrink-0 bg-white/85 dark:bg-slate-900/85 backdrop-blur border-b border-slate-200/70 dark:border-slate-800 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3">
       <div className="flex items-center gap-3 min-w-0">
@@ -10,166 +10,218 @@ function Header({ S, student }) {
         <div className="min-w-0">
           <div className="text-sm font-bold tracking-tight flex items-center gap-2">
             <span className="truncate">High School Student OS</span>
-            <span className="hidden lg:inline text-[10px] font-mono font-medium text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 ring-1 ring-indigo-200 dark:ring-indigo-500/30 px-2 py-0.5 rounded-full">Multi-Agent Runtime v2.4</span>
+            {S.demo && <span className="text-[10px] font-mono font-semibold text-amber-700 dark:text-amber-200 bg-amber-100 dark:bg-amber-500/15 ring-1 ring-amber-300 dark:ring-amber-500/30 px-2 py-0.5 rounded-full">DEMO</span>}
           </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">1 Core Twin + Dynamic Subscribed Agents</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">1 Student Record + Per-Course Agents</div>
         </div>
       </div>
       <div className="flex items-center gap-2">
         <div className="hidden xl:flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mr-1">
-          <span>{student.name} · {student.grade}th</span>
-          <span className="text-slate-300 dark:text-slate-600">|</span>
-          <span>GPA <strong className="text-emerald-600 dark:text-emerald-400">{student.gpa}</strong></span>
-          <span className="text-slate-300 dark:text-slate-600">|</span>
-          <span>dSAT <strong className="text-indigo-600 dark:text-sky-400">{student.satCurrent} → {student.satTarget}</strong></span>
+          <span>{profile.displayName} · {profile.grade}th</span>
+          {S.twin.goals.satTarget && (
+            <React.Fragment>
+              <span className="text-slate-300 dark:text-slate-600">|</span>
+              <span>SAT 目标 <strong className="text-indigo-600 dark:text-sky-400">{S.twin.goals.satTarget}</strong></span>
+            </React.Fragment>
+          )}
         </div>
         <div className="hidden sm:flex bg-slate-100 dark:bg-slate-950 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full p-0.5 text-[11px]">
           <button onClick={() => S.setView("student")} className={"px-2.5 py-1.5 rounded-full transition active:scale-95 " + (S.view === "student" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>学生视图</button>
           <button onClick={() => S.setView("architect")} className={"px-2.5 py-1.5 rounded-full transition active:scale-95 " + (S.view === "architect" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>架构师视图</button>
         </div>
-        <button onClick={() => S.setShowManifest(true)} className={"hidden md:inline-flex px-3 min-h-[36px] items-center rounded-full text-xs ring-1 ring-slate-300 dark:ring-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>Manifest 透视</button>
-        <button onClick={() => S.setShowSubModal(true)} className={"px-3 min-h-[36px] rounded-full text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm " + BTN}>订阅与课程包挂载 ({S.mountedCount})</button>
+        <button onClick={() => S.setShowManifest(true)} className={"hidden md:inline-flex px-3 min-h-[36px] items-center rounded-full text-xs ring-1 ring-slate-300 dark:ring-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>Twin 摘要</button>
+        <button onClick={() => S.setShowCatalog(true)} className={"px-3 min-h-[36px] rounded-full text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm " + BTN}>课程目录 ({S.enrolledIds.length} 已注册)</button>
         <button onClick={S.toggleDark} aria-label="切换深色模式" className={"w-9 h-9 shrink-0 rounded-full ring-1 ring-slate-300 dark:ring-slate-700 flex items-center justify-center text-sm hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>{S.dark ? "☀️" : "🌙"}</button>
       </div>
     </header>
   );
 }
 
-function TaskRow({ session, active, architect, onOpen, packs }) {
-  const course = packs[session.courseId];
-  const tone = session.mode === "EXAM_CRUNCH" ? "text-rose-500 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400";
+const TASK_STATUS_LABEL = { PLANNED: "未开始", IN_PROGRESS: "进行中", COMPLETED: "已完成", SKIPPED: "已跳过" };
+
+function TaskRow({ task, run, active, architect, onOpen, S }) {
+  const meta = HSData.getPackMeta(task.courseId, S.courseName(task.courseId));
+  const tone = task.mode === "EXAM_CRUNCH" ? "text-rose-500 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400";
   return (
-    <button onClick={() => onOpen(session)}
+    <button onClick={() => onOpen(task)}
       className={"w-full min-h-[44px] text-left px-3 py-2 rounded-xl ring-1 transition active:scale-[0.99] " + (active ? "bg-white dark:bg-slate-800 ring-indigo-400 dark:ring-indigo-500 shadow-sm" : "bg-white/60 dark:bg-slate-950/60 ring-slate-200/80 dark:ring-slate-800 hover:ring-indigo-300 dark:hover:ring-indigo-500/50")}>
       <div className="flex justify-between gap-2 text-[10px]">
-        <span className="text-slate-500 dark:text-slate-400">{course ? course.icon + " " + course.shortName : MODE_LABEL[session.mode]}{architect ? " #" + session.num : ""}</span>
-        <span className={tone}>{session.duration}</span>
+        <span className="text-slate-500 dark:text-slate-400">{meta.icon} {meta.shortName} · {TASK_STATUS_LABEL[task.status]}{architect ? " · " + task.taskId : ""}</span>
+        <span className={tone}>{task.durationMin}m</span>
       </div>
-      <div className="text-[11px] font-semibold text-slate-800 dark:text-white leading-snug">{session.title}</div>
+      <div className="text-[11px] font-semibold text-slate-800 dark:text-white leading-snug">{task.title}</div>
+      {run && <div className="mt-1"><RunStatusBadge run={run} architect={architect} /></div>}
     </button>
   );
 }
 
-function TodayTasks({ S, packs }) {
+function PreviewRow({ preview, active, onOpen }) {
+  return (
+    <button onClick={() => onOpen(preview)}
+      className={"w-full min-h-[44px] text-left px-3 py-2 rounded-xl ring-1 ring-dashed transition active:scale-[0.99] " + (active ? "bg-white dark:bg-slate-800 ring-indigo-400" : "bg-white/40 dark:bg-slate-950/40 ring-slate-300 dark:ring-slate-700")}>
+      <div className="flex justify-between gap-2 text-[10px] text-slate-400"><span>预览 · 规划中</span><span>{preview.durationMin}m</span></div>
+      <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 leading-snug">{preview.title}</div>
+    </button>
+  );
+}
+
+function TodayTasks({ S }) {
   const architect = S.architect;
-  const currentSess = S.currentSess;
   return (
     <aside className={(S.mobileTab === "tasks" ? "block" : "hidden") + " md:block md:row-span-2 lg:row-span-1 overflow-y-auto p-3 space-y-3 md:border-r border-slate-200/70 dark:border-slate-800"}>
       <div className="flex sm:hidden bg-slate-100 dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full p-0.5 text-[11px] mb-1">
         <button onClick={() => S.setView("student")} className={"flex-1 px-2.5 py-2 rounded-full transition active:scale-95 " + (S.view === "student" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>学生视图</button>
         <button onClick={() => S.setView("architect")} className={"flex-1 px-2.5 py-2 rounded-full transition active:scale-95 " + (S.view === "architect" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>架构师视图</button>
       </div>
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">每个 Agent 下的任务</div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">今日任务</div>
 
       <div className={"rounded-2xl ring-1 p-3 space-y-2.5 transition " + (S.activeAgent === "AP_BASE" ? "bg-indigo-50 dark:bg-indigo-950/30 ring-indigo-200 dark:ring-indigo-500/50" : CARD + " ring-slate-900/5")}>
         <div className="flex justify-between items-center">
-          <span className="text-xs font-semibold">AP Base Agent</span>
+          <span className="text-xs font-semibold">AP 课程</span>
           <span className="text-[10px] text-indigo-600 dark:text-indigo-300">{S.apTasks.length} 个任务</span>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {S.subs.ap.map((cid) => (
-            <button key={cid} onClick={() => S.selectCourse(cid)}
-              className={"px-2.5 py-1 rounded-full text-[10px] ring-1 transition active:scale-95 " + (S.activeAgent === "AP_BASE" && S.activeCourse === cid ? "bg-indigo-600 text-white ring-indigo-500" : "bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-slate-800 hover:ring-indigo-300")}>
-              {packs[cid].icon} {packs[cid].shortName}
-            </button>
-          ))}
-          <button onClick={() => S.setShowSubModal(true)} className="px-2.5 py-1 rounded-full text-[10px] ring-1 ring-dashed ring-slate-300 dark:ring-slate-700 text-slate-500 dark:text-slate-400 transition active:scale-95">+ AP</button>
+          {S.enrolledIds.map((cid) => {
+            const meta = HSData.getPackMeta(cid, S.courseName(cid));
+            return (
+              <button key={cid} onClick={() => S.selectCourse(cid)}
+                className={"px-2.5 py-1 rounded-full text-[10px] ring-1 transition active:scale-95 " + (S.activeAgent === "AP_BASE" && S.activeCourse === cid ? "bg-indigo-600 text-white ring-indigo-500" : "bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-slate-800 hover:ring-indigo-300")}>
+                {meta.icon} {meta.shortName}
+              </button>
+            );
+          })}
+          <button onClick={() => S.setShowCatalog(true)} className="px-2.5 py-1 rounded-full text-[10px] ring-1 ring-dashed ring-slate-300 dark:ring-slate-700 text-slate-500 dark:text-slate-400 transition active:scale-95">+ 课程</button>
         </div>
         <div className="space-y-1.5">
-          {S.apTasks.map((s) => (
-            <TaskRow key={s.id} session={s} active={currentSess && currentSess.id === s.id} architect={architect} onOpen={S.openSession} packs={packs} />
+          {S.apTasks.map((t) => (
+            <TaskRow key={t.taskId} task={t} run={S.runForTask(t.taskId)} active={S.currentTask && S.currentTask.taskId === t.taskId} architect={architect} onOpen={S.openTask} S={S} />
           ))}
-          {S.apTasks.length === 0 && <div className="text-[11px] text-slate-500">还没有挂载 AP 课程包。</div>}
+          {S.apTasks.length === 0 && <div className="text-[11px] text-slate-500">还没有已注册课程的任务。</div>}
         </div>
       </div>
 
-      {S.subs.dsat ? (
-        <div className={"rounded-2xl ring-1 p-3 space-y-2.5 transition " + (S.activeAgent === "DSAT" ? "bg-sky-50 dark:bg-sky-950/30 ring-sky-200 dark:ring-sky-500/50" : CARD + " ring-slate-900/5")}>
+      {S.satPreviews.length > 0 && (
+        <div className={CARD + " p-3 space-y-2.5"}>
           <div className="flex justify-between items-center">
             <button onClick={() => S.selectAgent("DSAT")} className="text-xs font-semibold text-left">Digital SAT</button>
-            <span className="text-[10px] font-mono text-sky-600 dark:text-sky-300">{S.satTasks.length} 个任务 · 1510</span>
+            <span className="text-[10px] text-slate-400">规划中（M3）</span>
           </div>
           <div className="space-y-1.5">
-            {S.satTasks.map((s) => (
-              <TaskRow key={s.id} session={s} active={currentSess && currentSess.id === s.id} architect={architect} onOpen={S.openSession} packs={packs} />
-            ))}
+            {S.satPreviews.map((p) => <PreviewRow key={p.id} preview={p} active={S.currentPreview && S.currentPreview.id === p.id} onOpen={S.openPreview} />)}
           </div>
         </div>
-      ) : (
-        <button onClick={() => S.setShowSubModal(true)} className="w-full min-h-[44px] p-3 rounded-2xl ring-1 ring-dashed ring-slate-300 dark:ring-slate-700 text-xs text-slate-500 text-left transition active:scale-[0.99]">未订阅 · Digital SAT</button>
       )}
 
-      {S.subs.admissions ? (
-        <div className={"rounded-2xl ring-1 p-3 space-y-2.5 transition " + (S.activeAgent === "ADMISSIONS" ? "bg-emerald-50 dark:bg-emerald-950/30 ring-emerald-200 dark:ring-emerald-500/50" : CARD + " ring-slate-900/5")}>
+      {S.admPreviews.length > 0 && (
+        <div className={CARD + " p-3 space-y-2.5"}>
           <div className="flex justify-between items-center">
-            <button onClick={() => S.selectAgent("ADMISSIONS")} className="text-xs font-semibold text-left">Admissions Agent</button>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-300">{S.admTasks.length} 个任务</span>
+            <button onClick={() => S.selectAgent("ADMISSIONS")} className="text-xs font-semibold text-left">Admissions</button>
+            <span className="text-[10px] text-slate-400">规划中（M5）</span>
           </div>
           <div className="space-y-1.5">
-            {S.admTasks.map((s) => (
-              <TaskRow key={s.id} session={s} active={currentSess && currentSess.id === s.id} architect={architect} onOpen={S.openSession} packs={packs} />
-            ))}
+            {S.admPreviews.map((p) => <PreviewRow key={p.id} preview={p} active={S.currentPreview && S.currentPreview.id === p.id} onOpen={S.openPreview} />)}
           </div>
         </div>
-      ) : (
-        <button onClick={() => S.setShowSubModal(true)} className="w-full min-h-[44px] p-3 rounded-2xl ring-1 ring-dashed ring-slate-300 dark:ring-slate-700 text-xs text-slate-500 text-left transition active:scale-[0.99]">未订阅 · Admissions</button>
       )}
     </aside>
   );
 }
 
-function TwinSummary({ S, packs, student }) {
+const MASTERY_LABEL = { insufficient_evidence: "证据不足", emerging: "起步", developing: "发展中", proficient: "熟练" };
+
+function TwinSummary({ S }) {
+  const mastery = Object.entries(S.twin.masterySummary || {});
   return (
     <section className={CARD + " p-4 space-y-2.5"}>
-      <div className="text-xs font-bold text-indigo-600 dark:text-indigo-300">Academic Digital Twin</div>
-      {S.architect && <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500">userProfiles/{student.email}</div>}
-      <div className="text-[11px] text-slate-500 dark:text-slate-400">AP 实时预测分</div>
-      {S.subs.ap.map((cid) => (
-        <div key={cid} className="flex justify-between items-center text-xs bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800 px-3 py-2 rounded-xl">
-          <span>{packs[cid].icon} {packs[cid].shortName}</span>
-          <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">{S.scoreLabel(cid)}</span>
+      <div className="text-xs font-bold text-indigo-600 dark:text-indigo-300">学生记录</div>
+      {S.architect && <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500">students/{S.twin.studentId} · v{S.twin.version}</div>}
+      <div className="text-[11px] text-slate-500 dark:text-slate-400">AP 考试预测</div>
+      {S.enrolledIds.map((cid) => {
+        const meta = HSData.getPackMeta(cid, S.courseName(cid));
+        return (
+          <div key={cid} className="flex justify-between items-center text-xs bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800 px-3 py-2 rounded-xl">
+            <span>{meta.icon} {meta.shortName}</span>
+            <PredictionBadge entry={(S.twin.predictionSummary || {})[cid]} />
+          </div>
+        );
+      })}
+      <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">技能掌握度（独立证据数）</div>
+      {mastery.length === 0 && <div className="text-[11px] text-slate-400">还没有评估证据。</div>}
+      {mastery.map(([skillId, m]) => (
+        <div key={skillId} className="flex justify-between items-center text-[11px] px-1">
+          <span className="font-mono text-slate-600 dark:text-slate-300 truncate">{skillId.split(".").slice(1).join(".")}</span>
+          <span className="text-slate-500 dark:text-slate-400">{MASTERY_LABEL[m.level] || m.level} · {m.independentEvidenceCount}</span>
         </div>
       ))}
-      {S.subs.dsat && (
-        <div className="flex justify-between items-center text-xs bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800 px-3 py-2 rounded-xl">
-          <span>Digital SAT</span>
-          <span className="font-mono font-semibold text-indigo-600 dark:text-sky-400">{student.satCurrent} → {student.satTarget}</span>
-        </div>
-      )}
-      <div className="mt-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/30 text-[11px] text-amber-900 dark:text-amber-100 leading-relaxed">
-        <div className="font-semibold text-amber-700 dark:text-amber-300 mb-1">Planner ROI</div>
-        当前 dSAT 1510。本周投入 5 小时稳住 Calc BC 5 分档的录取杠杆，高于刷 SAT 低频词。
+      <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200 dark:ring-slate-800 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+        <div className="font-semibold text-slate-600 dark:text-slate-300 mb-1">Planner</div>
+        Planner 尚未接入（M3）。任务的排序与理由将由服务端生成并说明来源。
       </div>
     </section>
   );
 }
 
 function plainEvent(type) {
-  if (type === "skill.weak") return "薄弱点已同步到 SAT";
-  if (type === "calendar.pressure") return "本周课业变重";
-  if (type === "ap.predicted") return "预测分更新了选校";
-  if (type === "vocab.context") return "词汇已送去 SAT";
-  if (type === "narrative.gap") return "申请主线有缺口";
-  if (type === "session.settled") return "这一节已完成";
-  if (type === "vision.ocr") return "手写已识别";
-  if (type === "student.reply") return "你的回答";
-  if (type === "tool.desmos") return "Desmos 演示";
-  return "Twin 更新";
+  return {
+    "course.enrolled": "已注册课程",
+    "course.unenrolled": "已取消注册",
+    "session.started": "开始了一次练习",
+    "session.completed": "这一节已完成",
+    "session.abandoned": "这一节已放弃",
+    "run.queued": "已提交，排队中",
+    "run.started": "开始批改",
+    "run.waiting_input": "需要你确认",
+    "run.completed": "批改执行完成",
+    "run.failed": "批改失败",
+    "run.cancelled": "已取消",
+    "assessment.completed": "评估结果已生成",
+    "mastery.updated": "掌握度已更新",
+    "prerequisite.suspected": "建议做一次 SAT 诊断",
+    "prerequisite.confirmed": "诊断确认了前置技能",
+    "prerequisite.unsupported": "诊断未支持该推测",
+    "plan.updated": "计划已更新",
+  }[type] || "学习记录更新";
+}
+
+function describeEvent(e) {
+  const p = e.payload || {};
+  if (e.type === "course.enrolled" || e.type === "course.unenrolled") return p.courseId;
+  if (e.type === "run.failed") return "错误 " + p.errorCode + (p.retryable ? "，可以重试" : "");
+  if (e.type === "assessment.completed") return p.status === "accepted" ? "评估已接受" : "证据不足，未更新掌握度";
+  if (p.taskId) return p.taskId;
+  return "";
+}
+
+function formatTime(iso) {
+  try {
+    return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch (_e) {
+    return iso;
+  }
 }
 
 function EventFeed({ S }) {
+  const events = S.events.slice().reverse();
   return (
     <section className="space-y-2">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cross-Domain Event Bus</div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">学习事件</div>
+      {S.demoNotes.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] text-amber-700 dark:text-amber-300">本地演示操作 · 未保存到服务器</div>
+          {S.demoNotes.map((n) => (
+            <article key={n.id} className="p-2.5 rounded-xl ring-1 ring-dashed ring-amber-300 dark:ring-amber-500/40 text-[11px] text-slate-600 dark:text-slate-300">{n.text}</article>
+          ))}
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-2">
-        {S.events.map((e) => (
-          <article key={e.id} className={CARD + " p-3 text-[11px] space-y-1"}>
+        {events.length === 0 && <div className="text-[11px] text-slate-400">还没有事件。</div>}
+        {events.map((e) => (
+          <article key={e.eventId} className={CARD + " p-3 text-[11px] space-y-1"}>
             <div className="flex justify-between gap-2">
-              {S.architect ? <span className="font-mono text-indigo-600 dark:text-indigo-300">{e.type}</span> : <span className="text-indigo-600 dark:text-indigo-200">{plainEvent(e.type)}</span>}
-              <span className="text-slate-400 dark:text-slate-500">{e.time}</span>
+              {S.architect ? <span className="font-mono text-indigo-600 dark:text-indigo-300">#{e.sequence} {e.type}</span> : <span className="text-indigo-600 dark:text-indigo-200">{plainEvent(e.type)}</span>}
+              <span className="text-slate-400 dark:text-slate-500">{formatTime(e.occurredAt)}</span>
             </div>
-            {S.architect && <div className="text-slate-400 dark:text-slate-500">{e.from} → {e.to}</div>}
-            <div className="text-slate-700 dark:text-slate-200 leading-relaxed">{e.text}</div>
+            <div className="text-slate-700 dark:text-slate-200 leading-relaxed">{describeEvent(e)}</div>
           </article>
         ))}
       </div>
@@ -177,10 +229,10 @@ function EventFeed({ S }) {
   );
 }
 
-function TwinAside({ S, packs, student }) {
+function TwinAside({ S }) {
   return (
     <aside className={(S.mobileTab === "events" ? "block" : "hidden") + " md:block md:col-span-2 lg:col-span-1 overflow-y-auto p-3 space-y-3 lg:border-l border-slate-200/70 dark:border-slate-800"}>
-      <TwinSummary S={S} packs={packs} student={student} />
+      <TwinSummary S={S} />
       <EventFeed S={S} />
     </aside>
   );
@@ -197,58 +249,56 @@ function MobileTabs({ S }) {
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/92 dark:bg-slate-900/92 backdrop-blur border-t border-slate-200 dark:border-slate-800 flex px-1 pb-[env(safe-area-inset-bottom)]">
       {tabBtn("tasks", null, "📋", "今日任务")}
-      {tabBtn("sat", "DSAT", "🎯", "SAT")}
       {tabBtn("ap", "AP_BASE", "📚", "AP")}
-      {tabBtn("adm", "ADMISSIONS", "🎓", "申请")}
-      {tabBtn("events", null, "🔔", "事件")}
+      {S.satPreviews.length > 0 && tabBtn("sat", "DSAT", "🎯", "SAT")}
+      {S.admPreviews.length > 0 && tabBtn("adm", "ADMISSIONS", "🎓", "申请")}
+      {tabBtn("events", null, "🔔", "记录")}
     </nav>
   );
 }
 
-function SubModal({ S, packs }) {
+// Course catalog (API.md §1.7): availability and entitlement decide what can be added.
+function catalogState(course) {
+  if (course.availability !== "active") return { label: "即将上线", can: false };
+  if (!course.entitled) return { label: "需要开通权限", can: false };
+  if (course.enrolled) return { label: "已注册 · 点击移除", can: true };
+  return { label: "点击添加", can: true };
+}
+
+function CatalogModal({ S }) {
   return (
-    <Modal title="订阅与课程包热插拔" onClose={() => S.setShowSubModal(false)}>
-      <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">顶层支柱</div>
-      <div className="flex gap-2 text-xs">
-        <button onClick={() => { S.setSubs((p) => ({ ...p, dsat: !p.dsat })); if (S.subs.dsat && S.activeAgent === "DSAT") S.selectAgent("AP_BASE"); }}
-          className={"flex-1 min-h-[44px] p-3 rounded-2xl ring-1 text-left transition active:scale-[0.98] " + (S.subs.dsat ? "bg-sky-50 dark:bg-sky-950/50 ring-sky-400 dark:ring-sky-500" : "bg-slate-50 dark:bg-slate-950 ring-slate-200 dark:ring-slate-800 text-slate-500")}>
-          Digital SAT<br />{S.subs.dsat ? "已挂载" : "未订阅"}
-        </button>
-        <button onClick={() => { S.setSubs((p) => ({ ...p, admissions: !p.admissions })); if (S.subs.admissions && S.activeAgent === "ADMISSIONS") S.selectAgent("AP_BASE"); }}
-          className={"flex-1 min-h-[44px] p-3 rounded-2xl ring-1 text-left transition active:scale-[0.98] " + (S.subs.admissions ? "bg-emerald-50 dark:bg-emerald-950/40 ring-emerald-400 dark:ring-emerald-500" : "bg-slate-50 dark:bg-slate-950 ring-slate-200 dark:ring-slate-800 text-slate-500")}>
-          Admissions<br />{S.subs.admissions ? "已挂载" : "未订阅"}
-        </button>
-      </div>
-      <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 pt-2">AP 学科包 · 订阅才加载</div>
+    <Modal title="课程目录" onClose={() => S.setShowCatalog(false)}>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">只有已开放、且你已获得权限的课程才能添加。权限由后台管理，选择课程不等于开通权限。</p>
+      {!S.demo && <p className="text-[11px] text-amber-700 dark:text-amber-300">注册接口将在 M1 接入。</p>}
       <div className="grid grid-cols-2 gap-2">
-        {Object.keys(packs).map((cid) => {
-          const p = packs[cid];
-          const on = S.subs.ap.indexOf(cid) >= 0;
+        {S.catalog.map((c) => {
+          const meta = HSData.getPackMeta(c.courseId, c.name);
+          const state = catalogState(c);
+          const enabled = state.can && S.demo;
           return (
-            <button key={cid} onClick={() => S.toggleAp(cid)} className={"min-h-[44px] p-3 rounded-2xl ring-1 text-left text-xs transition active:scale-[0.98] " + (on ? "bg-indigo-50 dark:bg-indigo-950/50 ring-indigo-400 dark:ring-indigo-500" : "bg-slate-50 dark:bg-slate-950 ring-slate-200 dark:ring-slate-800 text-slate-500")}>
-              <div className="font-semibold">{p.icon} {p.shortName}</div>
-              <div className="text-[10px] mt-1 text-slate-500 dark:text-slate-400">{p.skills.length} Skills · {p.rag.length} RAG · {p.mcp.length} MCP</div>
-              <div className="text-[10px] mt-1">{on ? "已挂载" : "点击订阅"}</div>
+            <button key={c.courseId} disabled={!enabled} onClick={() => S.toggleEnrollment(c.courseId)}
+              className={"min-h-[44px] p-3 rounded-2xl ring-1 text-left text-xs transition " + (c.enrolled ? "bg-indigo-50 dark:bg-indigo-950/50 ring-indigo-400 dark:ring-indigo-500" : "bg-slate-50 dark:bg-slate-950 ring-slate-200 dark:ring-slate-800") + (enabled ? " active:scale-[0.98]" : " opacity-60 cursor-not-allowed")}>
+              <div className="font-semibold">{meta.icon} {c.name}</div>
+              <div className="text-[10px] mt-1 text-slate-500 dark:text-slate-400 line-clamp-2">{c.description}</div>
+              <div className="text-[10px] mt-1">{state.label}</div>
             </button>
           );
         })}
       </div>
-      <button onClick={() => S.setShowSubModal(false)} className={"w-full min-h-[44px] py-2 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm " + BTN}>确认并热重载工作台</button>
+      <button onClick={() => S.setShowCatalog(false)} className={"w-full min-h-[44px] py-2 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm " + BTN}>完成</button>
     </Modal>
   );
 }
 
-function ManifestModal({ S, student }) {
+function ManifestModal({ S }) {
   return (
-    <Modal title="Twin Manifest" onClose={() => S.setShowManifest(false)}>
+    <Modal title="Twin 摘要（GET /api/twin）" onClose={() => S.setShowManifest(false)}>
       <pre className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap font-mono">{JSON.stringify({
-        student: student.email,
-        grade: student.grade,
-        gpa: student.gpa,
-        dsat: { current: student.satCurrent, target: student.satTarget },
-        subscribedAgents: { dsat: S.subs.dsat, admissions: S.subs.admissions },
-        apPacks: S.subs.ap,
-        active: { agent: S.activeAgent, course: S.activeCourse, mode: S.activeAgent === "AP_BASE" ? S.apMode : S.currentSess && S.currentSess.mode },
+        twin: S.twin,
+        entitlements: S.entitlements,
+        enrolledCourses: S.enrolledIds,
+        lastAppliedEventSequence: S.lastSequence,
+        active: { agent: S.activeAgent, course: S.activeCourse, task: S.currentTask && S.currentTask.taskId, session: S.currentSession && S.currentSession.sessionId, run: S.currentRun && S.currentRun.runId },
       }, null, 2)}</pre>
     </Modal>
   );

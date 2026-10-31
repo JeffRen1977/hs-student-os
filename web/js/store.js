@@ -1,27 +1,52 @@
 // store.js — app state shape + actions, isolated from components.
-// useAppState() is the only place React state lives; components receive
-// the returned object (conventionally `S`) plus data via props.
-const { useState } = React;
+// useAppState() is the only place React state lives; components receive the returned
+// object (conventionally `S`). Server data arrives already loaded from the provider
+// (see app.js); Task, Session and Run are kept as separate collections.
+const { useState, useMemo } = React;
 
-function useAppState(deps) {
-  const packs = deps.packs;
-  const sessions = deps.sessions;
+const DRAFTS = HSProvider.createDraftStore(
+  typeof localStorage !== "undefined" ? localStorage : HSProvider.memoryStorage()
+);
 
-  const [view, setView] = useState("architect");
-  const [subs, setSubs] = useState({ dsat: true, admissions: true, ap: ["calc_bc", "apush", "csa"] });
+function indexBy(list, key) {
+  const out = {};
+  (list || []).forEach((item) => { out[item[key]] = item; });
+  return out;
+}
+
+function useAppState(data) {
+  const demo = data.mode === "demo";
+  const twin = data.twin;
+
+  const [view, setView] = useState("student");
+  const [catalog, setCatalog] = useState(data.catalog);
   const [activeAgent, setActiveAgent] = useState("AP_BASE");
-  const [activeCourse, setActiveCourse] = useState("calc_bc");
+  const enrolledIds = catalog.filter((c) => c.enrolled && c.availability === "active").map((c) => c.courseId);
+  const [activeCourse, setActiveCourse] = useState(enrolledIds[0] || null);
   const [apMode, setApMode] = useState("GPA_SYNC");
-  const [activeSessId, setActiveSessId] = useState("sess_101");
-  const [showSubModal, setShowSubModal] = useState(false);
+  const firstTaskId = data.tasks[0] ? data.tasks[0].taskId : null;
+  const [activeItemId, setActiveItemId] = useState(firstTaskId);
+  const [showCatalog, setShowCatalog] = useState(false);
   const [showManifest, setShowManifest] = useState(false);
   const [fixedSteps, setFixedSteps] = useState({});
   const [fixedFrq, setFixedFrq] = useState({});
   const [tier2, setTier2] = useState(false);
-  const [draft, setDraft] = useState("");
   const [dark, setDark] = useState(false);
   const [mobileTab, setMobileTab] = useState("tasks");
-  const [events, setEvents] = useState(deps.events);
+  const [eventLog, setEventLog] = useState(data.eventLog);
+  // Local-only demo interactions. Kept apart from the server event log on purpose:
+  // the browser never creates domain events.
+  const [demoNotes, setDemoNotes] = useState([]);
+  const initialDraft = firstTaskId ? DRAFTS.load(firstTaskId) : null;
+  const [draftText, setDraftText] = useState(initialDraft ? initialDraft.text : "");
+  const [draftSavedAt, setDraftSavedAt] = useState(initialDraft ? initialDraft.savedAt : null);
+
+  const sessionsByTask = useMemo(() => {
+    const out = {};
+    data.sessions.forEach((s) => { if (s.status === "OPEN") out[s.taskId] = s; });
+    return out;
+  }, [data.sessions]);
+  const runsById = useMemo(() => indexBy(data.runs, "runId"), [data.runs]);
 
   const toggleDark = () => {
     const next = !dark;
@@ -30,68 +55,90 @@ function useAppState(deps) {
   };
 
   const architect = view === "architect";
-  const pack = packs[activeCourse] || packs.calc_bc;
-  const mountedCount = subs.ap.length + (subs.dsat ? 1 : 0) + (subs.admissions ? 1 : 0);
-
-  const apTasks = sessions.filter((s) => s.agent === "AP_BASE" && subs.ap.includes(s.courseId));
-  const satTasks = subs.dsat ? sessions.filter((s) => s.agent === "DSAT") : [];
-  const admTasks = subs.admissions ? sessions.filter((s) => s.agent === "ADMISSIONS") : [];
-  const currentSess = sessions.find((s) => s.id === activeSessId) || apTasks[0];
-
-  const pushEvent = (type, from, to, text) => {
-    setEvents((prev) => [{ id: Date.now(), type, time: "Just now", from, to, text }, ...prev]);
+  const courseName = (cid) => {
+    const c = catalog.find((x) => x.courseId === cid);
+    return c ? c.name : cid;
   };
+  const pack = activeCourse ? HSData.getPackMeta(activeCourse, courseName(activeCourse)) : null;
+
+  const apTasks = data.tasks.filter((t) => t.agent === "AP_BASE" && enrolledIds.includes(t.courseId));
+  const satPreviews = demo ? data.previews.filter((p) => p.agent === "DSAT") : [];
+  const admPreviews = demo ? data.previews.filter((p) => p.agent === "ADMISSIONS") : [];
+  const currentTask = apTasks.find((t) => t.taskId === activeItemId) || null;
+  const currentPreview = data.previews.find((p) => p.id === activeItemId) || null;
+  const currentSession = currentTask ? sessionsByTask[currentTask.taskId] || null : null;
+  const runForSession = (s) => (s && data.sessionRunIds[s.sessionId] ? runsById[data.sessionRunIds[s.sessionId]] || null : null);
+  const currentRun = runForSession(currentSession);
+  const runForTask = (taskId) => runForSession(sessionsByTask[taskId]);
+
+  const draftKey = currentTask ? currentTask.taskId : "general";
+
+  const noteDemo = (type, text) => {
+    setDemoNotes((prev) => [{ id: Date.now() + Math.random(), type, text, at: new Date().toISOString() }, ...prev].slice(0, 20));
+  };
+
+  const applyServerEvents = (events) => setEventLog((log) => HSProvider.mergeEvents(log, events));
 
   const selectCourse = (cid) => {
     setActiveAgent("AP_BASE");
     setActiveCourse(cid);
     setTier2(false);
-    const next = sessions.find((s) => s.courseId === cid);
-    if (next) {
-      setActiveSessId(next.id);
-      setApMode(next.mode);
-    }
+    const next = data.tasks.find((t) => t.courseId === cid);
+    if (next) openTask(next);
   };
 
   const selectAgent = (agent) => {
     setActiveAgent(agent);
     setTier2(false);
-    const next = sessions.find((s) => s.agent === agent && (agent !== "AP_BASE" || s.courseId === activeCourse));
-    if (next) {
-      setActiveSessId(next.id);
-      if (next.agent === "AP_BASE") setApMode(next.mode);
+    if (agent === "AP_BASE") {
+      if (apTasks[0]) openTask(apTasks[0]);
+      return;
     }
+    const preview = data.previews.find((p) => p.agent === agent);
+    if (preview) setActiveItemId(preview.id);
   };
 
-  const openSession = (s) => {
-    setActiveSessId(s.id);
-    setActiveAgent(s.agent);
+  function openTask(task) {
+    setActiveItemId(task.taskId);
+    setActiveAgent("AP_BASE");
+    setActiveCourse(task.courseId);
+    setApMode(task.mode);
     setTier2(false);
-    if (s.agent === "AP_BASE") {
-      setActiveCourse(s.courseId);
-      setApMode(s.mode);
-    }
-    setMobileTab(s.agent === "DSAT" ? "sat" : s.agent === "ADMISSIONS" ? "adm" : "ap");
+    const saved = DRAFTS.load(task.taskId);
+    setDraftText(saved ? saved.text : "");
+    setDraftSavedAt(saved ? saved.savedAt : null);
+    setMobileTab("ap");
+  }
+
+  const openPreview = (p) => {
+    setActiveItemId(p.id);
+    setActiveAgent(p.agent);
+    setTier2(false);
+    setMobileTab(p.agent === "DSAT" ? "sat" : "adm");
   };
 
-  const toggleAp = (cid) => {
-    setSubs((prev) => {
-      const on = prev.ap.includes(cid);
-      const ap = on ? prev.ap.filter((x) => x !== cid) : [...prev.ap, cid];
-      return { ...prev, ap };
-    });
-    if (!subs.ap.includes(cid)) selectCourse(cid);
-    if (subs.ap.includes(cid) && activeCourse === cid) {
-      const rest = subs.ap.filter((x) => x !== cid);
-      if (rest[0]) selectCourse(rest[0]);
-    }
+  const setDraft = (text) => {
+    setDraftText(text);
+    const saved = DRAFTS.save(draftKey, text);
+    setDraftSavedAt(saved ? saved.savedAt : null);
   };
 
-  const scoreLabel = (cid) => {
-    const p = packs[cid];
-    const shown = fixedFrq[cid] ? Math.min(5, p.predicted + 0.3).toFixed(1) : p.predicted.toFixed(1);
-    if (p.stable && !fixedFrq[cid]) return shown + "（稳 5 分）";
-    return shown + " → " + p.target.toFixed(1);
+  const clearDraft = () => {
+    DRAFTS.clear(draftKey);
+    setDraftText("");
+    setDraftSavedAt(null);
+  };
+
+  // Demo only: enrollment is simulated locally. In API mode this becomes
+  // POST /api/courses/enroll|unenroll with an Idempotency-Key (M1 Step 11).
+  const toggleEnrollment = (cid) => {
+    const course = catalog.find((c) => c.courseId === cid);
+    if (!demo || !course || course.availability !== "active" || !course.entitled) return;
+    const next = !course.enrolled;
+    setCatalog((prev) => prev.map((c) => (c.courseId === cid ? Object.assign({}, c, { enrolled: next }) : c)));
+    noteDemo(next ? "course.enrolled" : "course.unenrolled", (next ? "演示：已在本地注册 " : "演示：已在本地取消注册 ") + course.name + "（未调用服务器）");
+    if (next) selectCourse(cid);
+    else if (activeCourse === cid) setActiveCourse(enrolledIds.filter((x) => x !== cid)[0] || null);
   };
 
   const goMobile = (tab, agent) => {
@@ -100,16 +147,20 @@ function useAppState(deps) {
   };
 
   return {
-    view, setView, subs, setSubs,
+    demo, twin, entitlements: data.entitlements,
+    view, setView, catalog, enrolledIds,
     activeAgent, setActiveAgent, activeCourse, setActiveCourse,
-    apMode, setApMode, activeSessId, setActiveSessId,
-    showSubModal, setShowSubModal, showManifest, setShowManifest,
+    apMode, setApMode, activeItemId,
+    showCatalog, setShowCatalog, showManifest, setShowManifest,
     fixedSteps, setFixedSteps, fixedFrq, setFixedFrq,
-    tier2, setTier2, draft, setDraft,
+    tier2, setTier2,
+    draft: draftText, draftSavedAt, setDraft, clearDraft,
     dark, toggleDark, mobileTab, setMobileTab,
-    events, setEvents,
-    architect, pack, mountedCount,
-    apTasks, satTasks, admTasks, currentSess,
-    pushEvent, selectCourse, selectAgent, openSession, toggleAp, scoreLabel, goMobile,
+    events: eventLog.events, lastSequence: eventLog.lastSequence, applyServerEvents,
+    demoNotes, noteDemo,
+    architect, pack, courseName,
+    apTasks, satPreviews, admPreviews,
+    currentTask, currentPreview, currentSession, currentRun, runForTask,
+    selectCourse, selectAgent, openTask, openPreview, toggleEnrollment, goMobile,
   };
 }

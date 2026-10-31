@@ -1,0 +1,81 @@
+{
+  "caseId": "prereq-repeated-algebra-errors",
+  "version": "1",
+  "category": "supporting",
+  "mappingSetId": "calc-bc-to-dsat",
+  "mappingSetVersion": "0.1.0",
+  "observations": [
+    {
+      "questionRef": {
+        "questionId": "q_calc_bc_002",
+        "version": "1"
+      },
+      "studentAnswer": {
+        "text": "2xy + x² dy/dx + 3y² dy/dx = 0, so dy/dx = −2xy − x² / 3y²."
+      },
+      "assessmentStatus": "accepted",
+      "serverHintCount": 0,
+      "errorDescription": "Correct implicit differentiation, then isolates dy/dx by dividing only one term (invalid algebra).",
+      "skillEvidence": [
+        {
+          "skillId": "calc_bc.implicit-differentiation",
+          "observation": "correct_independent"
+        },
+        {
+          "skillId": "calc_bc.algebraic-manipulation",
+          "observation": "incorrect"
+        }
+      ]
+    },
+    {
+      "questionRef": {
+        "questionId": "q_calc_bc_006",
+        "version": "1"
+      },
+      "studentAnswer": {
+        "text": "dy/dx = 3t²/(2t) = 3t/2. d²y/dx² = (3/2)/(2t) = 3/2 − 2t."
+      },
+      "assessmentStatus": "accepted",
+      "serverHintCount": 0,
+      "errorDescription": "Correct parametric method, then simplifies (3/2)/(2t) as a difference — invalid algebra.",
+      "skillEvidence": [
+        {
+          "skillId": "calc_bc.parametric-derivatives",
+          "observation": "correct_independent"
+        },
+        {
+          "skillId": "calc_bc.algebraic-manipulation",
+          "observation": "incorrect"
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "events": [
+      {
+        "type": "prerequisite.suspected",
+        "mappingId": "map_alg_equiv_expr"
+      }
+    ],
+    "forbiddenEvents": [
+      {
+        "type": "prerequisite.confirmed",
+        "mappingId": "map_alg_equiv_expr"
+      }
+    ]
+  },
+  "rationale": "Two accepted, independent assessments show the same kind of algebra error after correct calculus steps. This meets the conditions to *suspect* a shared prerequisite and recommend a SAT diagnostic. Confirmation requires the separate diagnostic.",
+  "provenance": {
+    "synthetic": true,
+    "source": {
+      "type": "original",
+      "author": "HS Student OS content team",
+      "license": "Original work; internal use (synthetic draft)"
+    }
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

@@ -14,23 +14,55 @@ python3 -m http.server 8000 -d web
 
 然后打开 http://localhost:8000（serve 默认端口以其输出为准）。
 
+## 运行模式
+
+| URL | 数据来源 | 说明 |
+|---|---|---|
+| `/` | 后端 API（`window.HS_API_BASE_URL`，默认 `http://localhost:8787`） | 登录（M1 Step 8）接入前停在“需要登录 / 未连接”页面。**API 失败不会改用演示数据。** |
+| `/?demo=true` | `fixtures/demo.json`（合成数据，API v0.3 形状） | 顶部有 DEMO 横幅；所有操作只在本机模拟，不保存、不评估。 |
+
 ## 模块地图
 
 | 文件 | 职责 |
 |---|---|
-| `index.html` | 薄壳：CDN（Tailwind / React / ReactDOM / Babel）、root 容器、按依赖顺序加载模块。无业务逻辑。 |
-| `js/theme.js` | 普通脚本（非 Babel）：Tailwind 配置（darkMode: 'class'、Inter）+ 设计令牌 + 共享类名 helper（`CARD`、`BTN`、`modeClass`）。须紧跟 Tailwind CDN 加载。 |
-| `js/data.js` | 全部 mock 数据（AP_PACKS、INIT_SESSIONS、INIT_EVENTS、MODE_LABEL、STUDENT）+ 数据提供层 `window.HSData`（getPacks / getSessions / getEvents / getModeLabel / getStudent）。组件只能经此接口取数据。 |
-| `js/store.js` | 应用状态与动作：`useAppState()` 独占全部 React state（视图 / Agent / 课程 / 模式 / 会话 / 订阅 / 事件流 / fixed 标记 / 草稿 / 深色 / 移动端 Tab）与动作（pushEvent、selectCourse、selectAgent、openSession、toggleAp、scoreLabel、goMobile、toggleDark）及派生数据（任务分组、mountedCount、pack、currentSess）。 |
-| `js/ui.js` | 共享 UI 原语：`Card`、`Badge`、`Bar`（进度条）、`Modal`、`BigScore`（预测分大数字）、`ModeToggle`（GPA/冲刺切换）。 |
-| `js/agents/ap.js` | AP Base Agent 面板：运行时头部（Skills/RAG/MCP 挂载透视）、双轨进度、GPA 工作区（苏格拉底 + 四种学科画布）、考试工作区（采分点精批 + Rubric 核验）、作答输入框；含 gpaPrompt / tier2Text / canvasTitle / rubricFor 内容函数。 |
-| `js/agents/dsat.js` | Digital SAT 面板：math / rw / vocab / mock 四种任务形态 + kindTitle。 |
-| `js/agents/admissions.js` | Admissions 面板：interview / matrix（Reach·Match·Safety）/ activities（150 字符）/ spike。 |
-| `js/features.js` | 跨 Agent 功能：`Header`（含视图切换、深色开关）、`TodayTasks`（按 Agent 分组的任务列表 + TaskRow）、`TwinSummary`（预测分总览 + Planner ROI）、`EventFeed`（跨域事件流 + plainEvent）、`TwinAside`、`MobileTabs`（移动端底部 Tab）、`SubModal`（订阅与课程包热插拔）、`ManifestModal`（Twin Manifest 透视）。 |
-| `js/app.js` | App 根组件 + `AGENT_MODULES` 注册表（agentId → 面板模块）。新增 Agent = 在 `js/agents/` 加一个模块文件 + 在注册表加一行，与后端 `/api/agents` 注册表一一对应。 |
+| `index.html` | 薄壳：CDN（Tailwind / React / ReactDOM / Babel）、root 容器、按依赖顺序加载模块。 |
+| `js/theme.js` | 普通脚本：Tailwind 配置、设计令牌、共享类名 helper（`CARD`、`BTN`、`modeClass`）。 |
+| `js/data-provider.js` | 普通脚本（无 JSX），浏览器中为 `window.HSProvider`，Node 中可 `require`。异步数据提供层：API/演示两种 provider、请求状态、错误类型、Idempotency-Key、事件去重、本地草稿、Run 状态展示。 |
+| `fixtures/demo.json` | 演示数据。由 `server/tests/contract/test_web_demo_fixtures.py` 按后端 Pydantic schema 校验。 |
+| `js/data.js` | 仅展示元数据（图标、简称、模式标签）。`window.HSData.getPackMeta / getModeLabel`。不含任何学生数据或分数。 |
+| `js/store.js` | `useAppState(data)`：全部 React state。Task、Session、Run 分开保存；服务端事件日志（去重）与本地演示操作（`demoNotes`）分开。 |
+| `js/ui.js` | 共享 UI：`Card`、`Badge`、`Modal`、`PredictionBadge`（固定显示“暂无预测”）、`RunStatusBadge`、`DemoBanner`、`StatusScreen`、`ModeToggle`。 |
+| `js/agents/ap.js` | AP 课程面板：Task / Session / Run 状态卡、GPA 工作区、考试工作区、作答输入（本地草稿）。 |
+| `js/agents/dsat.js`、`js/agents/admissions.js` | 规划中功能的预览面板，仅在演示模式出现。 |
+| `js/features.js` | `Header`、`TodayTasks`、`TwinSummary`（预测与掌握度）、`EventFeed`（服务端事件）、`CatalogModal`（课程目录）、`ManifestModal`、`MobileTabs`。 |
+| `js/app.js` | 选择 provider → `bootstrap()` → 根据请求状态渲染 `StatusScreen` 或 `Workspace`。`AGENT_MODULES` 注册表。 |
+| `tests/` | `node --test web/tests/`（无需 npm install）。 |
 
-数据流：`data.js (HSData)` → `app.js` 取数 → `store.js (useAppState)` 管状态 → 各面板/功能组件纯展示 + 回调。
+## 数据接缝
 
-## 接后端的唯一接缝
+### 旧接口（已替换）
 
-目前**没有任何 fetch / API 调用**，数据全部来自 `data.js` 的同步 mock。按 `../doc/API.md` 接后端时，只改 `data.js` 一个文件：把 `HSData` 的实现换成（或包装为）对 `GET /api/twin`、`/api/packs`、`/api/tasks`、`/api/twin/events` 的请求，并把 `store.js` 里 `pushEvent` 等动作改为同时上报 `POST /api/twin/events` / `session start` / `settle`——组件与其它模块零改动。
+原型的 `window.HSData` 同步返回内嵌 mock：`getPacks()`（含 `predicted/target` 预测分）、`getSessions()`（Task 与 Session 混为一条记录）、`getEvents()`（客户端拼出的事件，`from/to/text`）、`getModeLabel()`、`getStudent()`（以 email 为标识，含 GPA/SAT 当前分）。`store.js` 的 `pushEvent` 在浏览器内直接生成“领域事件”，`scoreLabel` 在订正后把预测分 +0.3。这些都违反 API v0.3，已移除。
+
+### 新接口（`HSProvider`）
+
+```js
+provider.fetchTwin()                 // GET /api/twin
+provider.fetchEntitlements()         // GET /api/me/entitlements
+provider.fetchPacks()                // GET /api/packs
+provider.fetchCatalog()              // GET /api/courses/catalog
+provider.fetchTasks({date, cursor})  // GET /api/tasks
+provider.fetchSessions({taskId})     // GET /api/sessions
+provider.fetchSession(sessionId)     // GET /api/sessions/{id}
+provider.fetchRun(runId)             // GET /api/runs/{id}
+provider.fetchEvents(afterSequence)  // GET /api/events?after=
+HSProvider.bootstrap(provider)       // 启动顺序（API.md §5）
+```
+
+- 每个请求的状态为 `idle / loading / success / error`；`deriveScreen()` 决定显示加载、未连接、需要登录、错误或工作台。
+- 错误为 `ApiError {code, status, retryable, requestId}`，服务端错误信封原样保留。
+- 命令请求用 `createActionKeys().keyFor(actionId)`：同一操作重试复用同一个 Idempotency-Key。
+- 事件经 `mergeEvents()` 按 eventId 与 sequence 去重并排序，记录最后应用的 sequence。
+- 草稿只存本机（`createDraftStore`），界面明确显示“尚未发送”。
+
+写命令（注册课程、创建 Session、提交答案、取消 Run）在 M1/M2 接入；演示模式下这些按钮只写本地演示记录。

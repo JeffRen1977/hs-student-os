@@ -1,0 +1,28 @@
+{
+  "courseId": "calc_bc",
+  "name": "AP Calculus BC",
+  "description": "Covers limits, derivatives, integrals, parametric equations, and series.",
+  "category": "AP",
+  "version": "1.0.0",
+  "availability": "active",
+  "agentType": "AP_BASE",
+  "supportedTaskTypes": [
+    "SOCRATIC_STUDY",
+    "FRQ_PRACTICE"
+  ],
+  "supportedModes": [
+    "GPA_SYNC",
+    "EXAM_CRUNCH"
+  ],
+  "skills": [
+    "socratic-guidance",
+    "rubric-assessment"
+  ],
+  "tools": [
+    "math-verify",
+    "content-retrieval"
+  ],
+  "modelTier": "balanced",
+  "contextBudgetTokens": 8000,
+  "systemPromptPath": "system_prompt.md"
+}

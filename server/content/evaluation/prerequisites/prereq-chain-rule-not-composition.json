@@ -1,0 +1,54 @@
+{
+  "caseId": "prereq-chain-rule-not-composition",
+  "version": "1",
+  "category": "counterexample",
+  "mappingSetId": "calc-bc-to-dsat",
+  "mappingSetVersion": "0.1.0",
+  "observations": [
+    {
+      "questionRef": {
+        "questionId": "q_calc_bc_001",
+        "version": "1"
+      },
+      "studentAnswer": {
+        "text": "The outside is sin and the inside is x³ + 1. The derivative of sin is cos, so h'(x) = cos(x³ + 1)."
+      },
+      "assessmentStatus": "accepted",
+      "serverHintCount": 0,
+      "errorDescription": "Decomposes the composite correctly but omits the inner derivative.",
+      "skillEvidence": [
+        {
+          "skillId": "calc_bc.function-composition",
+          "observation": "correct_independent"
+        },
+        {
+          "skillId": "calc_bc.chain-rule",
+          "observation": "incorrect"
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "events": [],
+    "forbiddenEvents": [
+      {
+        "type": "prerequisite.suspected",
+        "mappingId": "map_composition_functions"
+      }
+    ]
+  },
+  "rationale": "This matches the listed counterexample for map_composition_functions: the decomposition is correct, so the gap is the chain rule, not composition.",
+  "provenance": {
+    "synthetic": true,
+    "source": {
+      "type": "original",
+      "author": "HS Student OS content team",
+      "license": "Original work; internal use (synthetic draft)"
+    }
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

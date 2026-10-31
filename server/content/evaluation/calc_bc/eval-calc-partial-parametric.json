@@ -1,0 +1,62 @@
+{
+  "caseId": "eval-calc-partial-parametric",
+  "version": "1",
+  "category": "partial",
+  "questionRef": {
+    "questionId": "q_calc_bc_006",
+    "version": "1"
+  },
+  "rubricRef": {
+    "rubricId": "calc-006",
+    "version": "1"
+  },
+  "studentAnswer": {
+    "text": "dy/dx = (dy/dt)/(dx/dt) = 3t²/(2t) = 3t/2. Then d²y/dx² = d/dt(3t/2) = 3/2."
+  },
+  "sessionContext": {
+    "serverHintCount": 0,
+    "hintSummaries": []
+  },
+  "expected": {
+    "status": "accepted",
+    "rubricResults": [
+      {
+        "criterionId": "first-derivative",
+        "earned": 1
+      },
+      {
+        "criterionId": "second-derivative-method",
+        "earned": 0
+      },
+      {
+        "criterionId": "simplify",
+        "earned": 0
+      }
+    ],
+    "skillEvidence": [
+      {
+        "skillId": "calc_bc.parametric-derivatives",
+        "observation": "partially_correct"
+      }
+    ],
+    "uncertaintyLevel": "low",
+    "feedbackFocus": [
+      "d²y/dx² must be divided by dx/dt = 2t",
+      "First derivative is correct"
+    ]
+  },
+  "rationale": "The first derivative is correct; the second derivative misses division by dx/dt, a common parametric error. The simplify criterion depends on the method and earns no credit.",
+  "provenance": {
+    "synthetic": true,
+    "source": {
+      "type": "original",
+      "author": "HS Student OS content team",
+      "license": "Original work; internal use (synthetic draft)"
+    }
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

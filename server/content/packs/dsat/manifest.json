@@ -1,0 +1,11 @@
+{
+  "courseId": "dsat",
+  "name": "Digital SAT",
+  "description": "Digital SAT Math and Reading & Writing preparation. Diagnostics enabled in M3.",
+  "category": "SAT",
+  "version": "0.1.0",
+  "availability": "planned",
+  "agentType": "DSAT",
+  "supportedTaskTypes": [],
+  "supportedModes": []
+}

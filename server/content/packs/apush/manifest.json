@@ -1,0 +1,11 @@
+{
+  "courseId": "apush",
+  "name": "AP US History",
+  "description": "American history from the pre-Columbian era to the present.",
+  "category": "AP",
+  "version": "0.1.0",
+  "availability": "planned",
+  "agentType": "AP_BASE",
+  "supportedTaskTypes": [],
+  "supportedModes": []
+}

@@ -1,0 +1,26 @@
+{
+  "questionId": "q_calc_bc_004",
+  "version": "1",
+  "courseId": "calc_bc",
+  "topic": "L'Hôpital's rule",
+  "skillIds": [
+    "calc_bc.lhopital"
+  ],
+  "difficulty": "easy",
+  "prompt": "Evaluate lim(x→0) (e^(2x) − 1) / x. Justify any rule you use.",
+  "expectedAnswer": "The limit has form 0/0; by L'Hôpital's rule it equals lim(x→0) 2e^(2x) / 1 = 2.",
+  "rubricRef": {
+    "rubricId": "calc-004",
+    "version": "1"
+  },
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

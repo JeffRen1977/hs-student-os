@@ -23,6 +23,8 @@
 </head>
 <body class="bg-[#F7F8FA] text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased">
   <div id="root"></div>
+  <!-- Plain script (no JSX): async data-provider seam, also unit-tested under Node. -->
+  <script src="js/data-provider.js"></script>
   <!-- Modules load in dependency order: data -> store -> ui -> agents -> features -> app -->
   <script type="text/babel" src="js/data.js"></script>
   <script type="text/babel" src="js/store.js"></script>

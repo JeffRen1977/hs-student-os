@@ -1,0 +1,27 @@
+{
+  "questionId": "q_calc_bc_001",
+  "version": "1",
+  "courseId": "calc_bc",
+  "topic": "Chain rule with a composite function",
+  "skillIds": [
+    "calc_bc.function-composition",
+    "calc_bc.chain-rule"
+  ],
+  "difficulty": "easy",
+  "prompt": "Let h(x) = sin(x³ + 1). Find h'(x) and identify the inner and outer functions.",
+  "expectedAnswer": "Inner g(x) = x³ + 1, outer f(u) = sin u; h'(x) = 3x² cos(x³ + 1).",
+  "rubricRef": {
+    "rubricId": "calc-001",
+    "version": "1"
+  },
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

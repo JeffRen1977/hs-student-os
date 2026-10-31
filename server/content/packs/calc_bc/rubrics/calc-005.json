@@ -1,0 +1,51 @@
+{
+  "rubricId": "calc-005",
+  "version": "1",
+  "courseId": "calc_bc",
+  "criteria": [
+    {
+      "criterionId": "choose-parts",
+      "description": "Chooses u = x and dv = eˣ dx (or another workable choice) and finds du and v.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "States u, dv, du, and v"
+      ],
+      "skillIds": [
+        "calc_bc.integration-by-parts"
+      ]
+    },
+    {
+      "criterionId": "apply-formula",
+      "description": "Applies uv − ∫ v du correctly.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Shows x eˣ − ∫ eˣ dx"
+      ],
+      "skillIds": [
+        "calc_bc.integration-by-parts"
+      ]
+    },
+    {
+      "criterionId": "final-answer",
+      "description": "States (x − 1)eˣ + C, including the constant of integration.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Equivalent antiderivative",
+        "Includes + C"
+      ],
+      "skillIds": [
+        "calc_bc.integration-by-parts"
+      ]
+    }
+  ],
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

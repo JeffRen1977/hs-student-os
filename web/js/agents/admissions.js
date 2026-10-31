@@ -1,6 +1,7 @@
-// agents/admissions.js — Admissions Agent panel (interview / matrix / activities / spike).
+// agents/admissions.js — Admissions panel (interview / matrix / activities / spike). Preview only (M5).
 
-function AdmissionsPanel({ session, onNote }) {
+function AdmissionsPanel({ preview, onNote }) {
+  const session = preview;
   const kind = session.kind || "interview";
   return (
     <section className={CARD + " ring-emerald-200 dark:ring-emerald-500/40 p-4 sm:p-5 space-y-3 text-sm"}>
@@ -26,7 +27,7 @@ function AdmissionsPanel({ session, onNote }) {
       {kind !== "matrix" && kind !== "activities" && (
         <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">你写到机器人视觉。招生官还看不出这件事和社区有什么关系。那次调试发生在谁身上，你当时改了哪一个判断？</p>
       )}
-      <button onClick={() => onNote(kind === "spike" ? "主线缺口：有 AP CSA 与数学，缺少能支撑 AI 伦理叙事的人文活动。" : "已把「" + session.title + "」记入本周计划。")} className={"px-4 min-h-[40px] py-1.5 rounded-full ring-1 ring-emerald-500 dark:ring-emerald-600 text-xs font-medium text-emerald-700 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 " + BTN}>把这条记入本周任务</button>
+      <button onClick={() => onNote(kind === "spike" ? "主线缺口：有 AP CSA 与数学，缺少能支撑 AI 伦理叙事的人文活动。" : "演示：「" + session.title + "」未加入计划（规划功能）。")} className={"px-4 min-h-[40px] py-1.5 rounded-full ring-1 ring-emerald-500 dark:ring-emerald-600 text-xs font-medium text-emerald-700 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 " + BTN}>把这条记入本周任务（演示）</button>
     </section>
   );
 }

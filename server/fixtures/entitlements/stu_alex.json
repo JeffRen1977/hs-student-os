@@ -1,0 +1,5 @@
+{
+  "synthetic": true,
+  "studentId": "stu_alex",
+  "entitlements": {"apCourses": ["calc_bc"], "dsat": true, "admissions": false}
+}

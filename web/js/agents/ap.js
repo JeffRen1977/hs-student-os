@@ -1,24 +1,28 @@
-// agents/ap.js — AP Base Agent panel: runtime header, dual-track progress,
-// GPA workspace (Socratic + subject canvas) and Exam workspace (FRQ rubric).
+// agents/ap.js — AP Base Agent panel: course header, Task/Session/Run status,
+// GPA workspace (Socratic + subject canvas), Exam workspace (FRQ rubric), answer input.
+// Canvas content is illustrative; interactions are local demo notes only.
 
 function ApPanel({ S }) {
   const pack = S.pack;
-  const currentSess = S.currentSess;
+  const task = S.currentTask;
+  const session = S.currentSession;
+  const run = S.currentRun;
   const architect = S.architect;
+  const demoOnly = (text) => () => S.noteDemo("demo.note", text);
   return (
     <React.Fragment>
       <section className={CARD + " p-4 space-y-3"}>
         <div className="flex flex-wrap justify-between items-center gap-2">
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Active Runtime</div>
+            <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Course Agent</div>
             <div className="text-sm font-semibold">
-              AP Base Agent <span className="text-slate-300 dark:text-slate-600">/</span> <span className="text-indigo-600 dark:text-indigo-300">{pack.icon} {pack.shortName} Pack</span>
+              AP Base Agent <span className="text-slate-300 dark:text-slate-600">/</span> <span className="text-indigo-600 dark:text-indigo-300">{pack.icon} {pack.shortName}</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <div className="text-[10px] text-slate-500 dark:text-slate-400">预测分</div>
-              <BigScore value={pack.predicted} />
+              <div className="text-[10px] text-slate-500 dark:text-slate-400">AP 预测</div>
+              <PredictionBadge entry={(S.twin.predictionSummary || {})[pack.id]} />
             </div>
             <ModeToggle apMode={S.apMode} setApMode={S.setApMode} />
           </div>
@@ -26,43 +30,24 @@ function ApPanel({ S }) {
         {architect ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] bg-slate-50 dark:bg-slate-950 p-3 rounded-xl ring-1 ring-slate-200/70 dark:ring-slate-800">
             <div>
-              <div className="text-amber-600 dark:text-amber-300 font-semibold mb-1">Mounted Skills</div>
+              <div className="text-amber-600 dark:text-amber-300 font-semibold mb-1">Skills</div>
               {pack.skills.map((sk) => (
                 <div key={sk.name} className={sk.modes.indexOf(S.apMode) >= 0 ? "text-amber-700 dark:text-amber-100" : "text-slate-400 dark:text-slate-600 line-through"}>{sk.name}</div>
               ))}
             </div>
             <div>
-              <div className="text-sky-600 dark:text-sky-300 font-semibold mb-1">RAG Knowledge Packs</div>
+              <div className="text-sky-600 dark:text-sky-300 font-semibold mb-1">Content</div>
               {pack.rag.map((r) => <div key={r} className="text-sky-700 dark:text-sky-100">{r}</div>)}
             </div>
             <div>
-              <div className="text-emerald-600 dark:text-emerald-300 font-semibold mb-1">Connected MCP</div>
-              {pack.mcp.map((m) => <div key={m} className="text-emerald-700 dark:text-emerald-100">{m}</div>)}
+              <div className="text-emerald-600 dark:text-emerald-300 font-semibold mb-1">Tools (server-side)</div>
+              {pack.tools.map((m) => <div key={m} className="text-emerald-700 dark:text-emerald-100">{m}</div>)}
             </div>
           </div>
         ) : (
-          <div className="text-xs text-slate-600 dark:text-slate-300">{pack.currentUnit}</div>
+          pack.currentUnit && <div className="text-xs text-slate-600 dark:text-slate-300">{pack.currentUnit}</div>
         )}
-        {currentSess && (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div>
-              <span className="text-slate-500">当前会话 </span>
-              <span className="font-semibold">{currentSess.title}</span>
-              {architect && <span className="font-mono text-slate-400 dark:text-slate-500"> · {currentSess.id}</span>}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => S.pushEvent("vision.ocr", "AP Base [" + pack.id + "]", "Twin", "手写推导已识别为 LaTeX，等待分步验算")} className={"px-3 min-h-[36px] rounded-full ring-1 ring-slate-300 dark:ring-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>扫码上传手写推导</button>
-              <button onClick={() => S.pushEvent("session.settled", "Planner", "Twin", currentSess.title + " 已结算，掌握度写回 Twin")} className={"px-3 min-h-[36px] rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium " + BTN}>完成并结算 Session</button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section className={CARD + " p-4"}>
-        <div className="text-xs font-semibold mb-2.5">双轨进度 · {pack.currentUnit}</div>
-        <Bar label="校内课堂进度 (GPA)" value={pack.schoolProgress} bar="bg-emerald-500" />
-        <div className="h-2.5" />
-        <Bar label="5月大考覆盖 (Exam)" value={pack.cbCoverage} bar="bg-rose-500" />
+        {task && <TaskSessionRunCard S={S} task={task} session={session} run={run} architect={architect} demoOnly={demoOnly} />}
       </section>
 
       {S.apMode === "GPA_SYNC" ? (
@@ -70,24 +55,79 @@ function ApPanel({ S }) {
           onTier2={() => S.setTier2(true)}
           onFix={() => {
             S.setFixedSteps((p) => Object.assign({}, p, { [pack.id]: true }));
-            S.pushEvent("skill.weak", "AP Base [" + pack.id + "]", "Digital SAT", pack.shortName + " 订正薄弱步骤 -> 更新 Twin，并向 SAT 注入同源变式");
+            S.noteDemo("demo.note", "演示：订正只在本地显示。是否需要 SAT 诊断由服务端在评估被接受后判断。");
           }}
-          onVocab={() => S.pushEvent("vocab.context", "AP Base [" + pack.id + "]", "Digital SAT", "已把史料原句与高亮词同步到 SAT 语境闪卡")}
+          onVocab={demoOnly("演示：语境词同步属于规划功能，未保存。")}
         />
       ) : (
         <ExamWorkspace pack={pack} fixed={!!S.fixedFrq[pack.id]}
           onAdopt={() => {
             S.setFixedFrq((p) => Object.assign({}, p, { [pack.id]: true }));
-            S.pushEvent("ap.predicted", "AP Base [" + pack.id + "]", "Admissions Agent", pack.shortName + " 采分点订正，预测分上调 -> 已更新 Reach 校匹配");
+            S.noteDemo("demo.note", "演示：改写已在本地采纳。AP 预测保持“暂无”（未校准），一次订正不会改变预测。");
           }}
         />
       )}
 
-      <form onSubmit={(e) => { e.preventDefault(); if (!S.draft.trim()) return; S.pushEvent("student.reply", "Alex", "AP Base", "学生用自己的话作答：" + S.draft.trim()); S.setDraft(""); }} className="flex gap-2">
-        <input value={S.draft} onChange={(e) => S.setDraft(e.target.value)} placeholder="用你自己的话回答追问..." className="flex-1 min-h-[44px] bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition" />
-        <button className={"px-5 min-h-[44px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-sm " + BTN}>发送</button>
-      </form>
+      <AnswerComposer S={S} />
     </React.Fragment>
+  );
+}
+
+// Task (plan) → Session (this attempt) → Run (one backend execution), shown separately.
+function TaskSessionRunCard({ task, session, run, architect, demoOnly }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800">
+        <div className="text-slate-400">任务</div>
+        <div className="font-semibold text-slate-800 dark:text-slate-100">{task.title}</div>
+        <div className="text-slate-500">{TASK_STATUS_LABEL[task.status]}{architect ? " · " + task.taskId : ""}</div>
+      </div>
+      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800">
+        <div className="text-slate-400">本次练习</div>
+        {session ? (
+          <React.Fragment>
+            <div className="font-semibold text-slate-800 dark:text-slate-100">{session.status === "OPEN" ? "进行中" : session.status}</div>
+            <div className="text-slate-500">{session.completion.eligible ? "可以完成" : "完成前需要被接受的评估"}{architect ? " · " + session.sessionId : ""}</div>
+          </React.Fragment>
+        ) : (
+          <div className="text-slate-500">尚未开始</div>
+        )}
+      </div>
+      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800 space-y-1">
+        <div className="text-slate-400">批改</div>
+        {run ? <RunStatusBadge run={run} architect={architect} /> : <div className="text-slate-500">没有进行中的批改</div>}
+        {run && run.status === "WAITING_INPUT" && run.inputRequest && <div className="text-amber-700 dark:text-amber-200">{run.inputRequest.prompt}</div>}
+        {run && run.status === "FAILED" && run.error && <div className="text-rose-600 dark:text-rose-300">{run.error.code}</div>}
+        {run && run.status === "WAITING_INPUT" && (
+          <button onClick={demoOnly("演示：确认识别结果会以新的证据版本提交（POST /api/runs/{id}/input），本地未发送。")} className={"px-3 min-h-[32px] rounded-full ring-1 ring-amber-300 text-amber-800 dark:text-amber-200 " + BTN}>确认识别结果</button>
+        )}
+        {run && run.status === "FAILED" && run.error && run.error.retryable && (
+          <button onClick={demoOnly("演示：重试会使用同一个 Idempotency-Key 重新提交，本地未发送。")} className={"px-3 min-h-[32px] rounded-full ring-1 ring-rose-300 text-rose-700 dark:text-rose-200 " + BTN}>重试</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Answer input. Text is kept as a local draft until the server accepts a submission.
+function AnswerComposer({ S }) {
+  const send = (e) => {
+    e.preventDefault();
+    if (!S.draft.trim()) return;
+    if (S.demo) {
+      S.noteDemo("demo.note", "演示：答案未发送到服务器，也未被评估。");
+      S.clearDraft();
+    }
+    // API mode: POST /api/sessions/{id}/submissions with an Idempotency-Key (M1 Step 14).
+  };
+  return (
+    <form onSubmit={send} className="space-y-1">
+      <div className="flex gap-2">
+        <input value={S.draft} onChange={(e) => S.setDraft(e.target.value)} placeholder="用你自己的话回答追问..." className="flex-1 min-h-[44px] bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition" />
+        <button disabled={!S.demo} className={"px-5 min-h-[44px] rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-semibold shadow-sm " + BTN}>发送</button>
+      </div>
+      {S.draftSavedAt && <div className="text-[10px] text-slate-400 px-4">草稿仅保存在本机，尚未发送。</div>}
+    </form>
   );
 }
 
@@ -120,7 +160,7 @@ function CanvasBody({ pack, fixed, onFix, onVocab }) {
           “This, then, is held to be the duty of the man of Wealth: first, to set an example of modest, <span className="bg-amber-200/60 dark:bg-amber-400/20 text-amber-800 dark:text-amber-200 px-1 rounded">unostentatious</span> living...”
         </p>
         <div className="text-[10px] text-slate-400 dark:text-slate-500">Andrew Carnegie, The Gospel of Wealth (1889)</div>
-        <button onClick={onVocab} className={"w-full min-h-[40px] py-1.5 rounded-full bg-sky-600 hover:bg-sky-500 text-white font-semibold " + BTN}>提取高亮词和原句，同步到 Digital SAT</button>
+        <button onClick={onVocab} className={"w-full min-h-[40px] py-1.5 rounded-full bg-sky-600 hover:bg-sky-500 text-white font-semibold " + BTN}>提取高亮词和原句（规划中）</button>
       </div>
     );
   }
@@ -131,7 +171,7 @@ function CanvasBody({ pack, fixed, onFix, onVocab }) {
         <div className={"p-2.5 rounded-xl ring-1 " + (fixed ? "ring-emerald-300 dark:ring-emerald-500 bg-emerald-50 dark:bg-transparent text-emerald-700 dark:text-emerald-200" : "ring-rose-300 dark:ring-rose-500 bg-rose-50 dark:bg-transparent text-rose-700 dark:text-rose-200")}>
           {fixed ? "i < list.size()  · 边界已改" : "i <= list.size()  · 会越界"}
         </div>
-        <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已修正并写回 Twin" : "修正边界并触发跨域事件"}</button>
+        <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已在本地修正" : "修正边界"}</button>
       </div>
     );
   }
@@ -142,7 +182,7 @@ function CanvasBody({ pack, fixed, onFix, onVocab }) {
         <div className={"p-2.5 rounded-xl ring-1 " + (fixed ? "ring-emerald-300 dark:ring-emerald-500 bg-emerald-50 dark:bg-transparent text-emerald-700 dark:text-emerald-200" : "ring-rose-300 dark:ring-rose-500 bg-rose-50 dark:bg-transparent text-rose-700 dark:text-rose-200")}>
           {fixed ? "P = dW/dt = F · v ✓" : "P = F  · 漏了速度"}
         </div>
-        <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已修正并写回 Twin" : "修正此步并触发跨域事件"}</button>
+        <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已在本地修正" : "修正此步"}</button>
       </div>
     );
   }
@@ -153,7 +193,7 @@ function CanvasBody({ pack, fixed, onFix, onVocab }) {
       <div className={"p-2.5 rounded-xl ring-1 " + (fixed ? "ring-emerald-300 dark:ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-200" : "ring-rose-300 dark:ring-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-200")}>
         {fixed ? "Step 3: dV/dt = (π/4) h² · dh/dt ✓" : "Step 3: dV/dt = (π/4) h²  · 漏乘 dh/dt"}
       </div>
-      <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已修正并写回 Twin" : "修正 Step 3 并同步至 Twin"}</button>
+      <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已在本地修正" : "修正 Step 3"}</button>
     </div>
   );
 }
@@ -175,9 +215,9 @@ function ExamWorkspace({ pack, fixed, onAdopt }) {
           </div>
         )}
         {!fixed && (
-          <button onClick={onAdopt} className={"px-4 min-h-[40px] py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold " + BTN}>采纳改写并重算 AP 预测分</button>
+          <button onClick={onAdopt} className={"px-4 min-h-[40px] py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold " + BTN}>采纳改写</button>
         )}
-        {fixed && <div className="text-emerald-600 dark:text-emerald-300">预测分已写回 Twin，选校矩阵会跟着更新。</div>}
+        {fixed && <div className="text-emerald-600 dark:text-emerald-300">这一步已订正。正式评分以服务端评估为准，AP 预测保持“暂无”。</div>}
       </section>
       <section className={CARD + " lg:col-span-5 p-4 text-xs space-y-2"}>
         <div className="font-semibold text-slate-800 dark:text-slate-200">Rubric 核验</div>

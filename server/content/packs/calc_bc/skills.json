@@ -1,0 +1,51 @@
+{
+  "courseId": "calc_bc",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "skillId": "calc_bc.function-composition",
+      "name": "Function composition",
+      "description": "Identify inner and outer functions and reason about f(g(x))."
+    },
+    {
+      "skillId": "calc_bc.chain-rule",
+      "name": "Chain rule",
+      "description": "Differentiate composite functions, including the derivative of the inner function."
+    },
+    {
+      "skillId": "calc_bc.implicit-differentiation",
+      "name": "Implicit differentiation",
+      "description": "Differentiate relations in x and y treating y as a function of x."
+    },
+    {
+      "skillId": "calc_bc.algebraic-manipulation",
+      "name": "Algebraic manipulation",
+      "description": "Rearrange, factor, and solve expressions correctly after a calculus step."
+    },
+    {
+      "skillId": "calc_bc.related-rates",
+      "name": "Related rates",
+      "description": "Relate rates of change through a differentiated geometric or physical equation."
+    },
+    {
+      "skillId": "calc_bc.lhopital",
+      "name": "L'Hôpital's rule",
+      "description": "Recognize indeterminate forms and apply L'Hôpital's rule correctly."
+    },
+    {
+      "skillId": "calc_bc.integration-by-parts",
+      "name": "Integration by parts",
+      "description": "Choose u and dv and apply the integration-by-parts formula."
+    },
+    {
+      "skillId": "calc_bc.parametric-derivatives",
+      "name": "Parametric derivatives",
+      "description": "Compute dy/dx and d²y/dx² for parametric curves."
+    },
+    {
+      "skillId": "calc_bc.series-convergence",
+      "name": "Series convergence",
+      "description": "Select and justify a convergence test for an infinite series."
+    }
+  ]
+}

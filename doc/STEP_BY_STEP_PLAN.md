@@ -1,19 +1,37 @@
 # High School Student OS — Step-by-Step Implementation Plan v4.0
 
-Updated: 2026-10-30. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). These are planned steps, not a report of completed implementation.
+Updated: 2026-10-31. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). Checked boxes mark sub-tasks implemented in the working tree; each step's **Status** line records what was actually verified.
 
 The first product slice is **Calculus practice → supported assessment → saved evidence → SAT prerequisite diagnostic → justified follow-up → an explained plan**. M0–M4 deliver the pilot; M5 contains independently selectable extensions.
 
 ## Current state
 
-The checkout contains:
-- `doc/` — architecture, API, backend design, competitive review, implementation plan (this file)
-- `web/` — vanilla JS frontend prototype with mock data (`data.js`), agent panels (`agents/`), store, UI, and theme
-- No `server/` directory, no `pyproject.toml`, no Python backend, no FastAPI, no Firebase configuration
-- The web frontend uses `window.HSData` as a data-provider seam, consuming embedded mock data synchronously
-- Mock data includes uncalibrated predictions (4.5/4.8) and old API patterns (email identity, scoreDelta, merged Task/Session)
+### Implementation status (as of 2026-10-31)
 
-The plan below starts from this actual state. Each step is a reviewable change with verification criteria.
+| Milestone | Steps | Status |
+|---|---|---|
+| M0 Contracts and baseline | 1–7 | **Implemented; verification partial** — emulator tests not yet run, content not yet human-reviewed | Implemented; emulator + content review pending |
+| M1 Reliable foundation | 8–15 | Not started | Not started |
+| M2 Calculus learning loop | 16–21 | Not started | Not started |
+| M3 Validated SAT transfer | 22–27 | Not started | Not started |
+| M4 Proactive planning and pilot | 28–33 | Not started | Not started |
+| M5 Optional expansion | 34–38 | Not started | Not started |
+
+Last local verification (`make check`): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **225 passed, 2 skipped** (emulator tests skip without emulators), web `node --test` **19 passed**.
+
+Open items before M0 can be called complete:
+- **Emulator verification (Step 5):** `make emulators` / `make test-emulator` have not been run on this machine (no Java runtime installed; Firebase emulators need Java 11+). `tests/emulator/test_seed_emulator.py` is written but currently skips.
+- **Content review (Steps 4, 7):** questions, rubrics, and evaluation cases are `draft`; prerequisite mappings are `candidate`. None has a named reviewer yet. Evaluation thresholds in `dimensions.json` are unset until a content reviewer sets them.
+
+### Checkout contents
+
+- `doc/` — architecture, API, backend design, competitive review, implementation plan (this file)
+- `server/` — FastAPI skeleton (`/api/health`, error envelope, request IDs, environment config that rejects emulator hosts and mock providers in staging/production), Pydantic v2 schemas, domain types and repository protocols, content/fixture/evaluation registries, Firebase adapter, emulator seed script, synthetic fixtures, Calc BC content pack, evaluation baseline, and tests
+- `Makefile` — `install`, `dev`, `server`, `web`, `emulators`, `seed`, `typecheck`, `lint`, `format`, `test*`, `check`
+- `web/` — vanilla JS frontend. The async `data-provider.js` (Bearer auth, Idempotency-Key, request states, event dedupe) is the new seam; `?demo=true` loads `web/fixtures/demo.json` (validated against backend schemas). Predictions show "unavailable", and Task/Session/Run are kept as separate state. `window.HSData` now holds display metadata only.
+- Not built yet: auth middleware, Firestore repositories, any domain route beyond health, workers, LLM gateway
+
+Each step below is a reviewable change with verification criteria.
 
 ## Working rules
 
@@ -32,8 +50,8 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Establish a runnable, type-checked backend project from scratch.
 
-- [ ] 1.1 Create `server/pyproject.toml` with Python 3.12+ requirement, dependencies: fastapi, uvicorn, pydantic v2, firebase-admin, google-cloud-firestore, google-cloud-tasks, anthropic; dev dependencies: pytest, pytest-asyncio, httpx (for TestClient), mypy, ruff
-- [ ] 1.2 Create the directory structure:
+- [x] 1.1 Create `server/pyproject.toml` with Python 3.12+ requirement, dependencies: fastapi, uvicorn, pydantic v2, firebase-admin, google-cloud-firestore, google-cloud-tasks, anthropic; dev dependencies: pytest, pytest-asyncio, httpx (for TestClient), mypy, ruff
+- [x] 1.2 Create the directory structure:
   ```
   server/
     app/
@@ -49,15 +67,17 @@ The plan below starts from this actual state. Each step is a reviewable change w
     fixtures/         # synthetic data only
     tests/            # unit, contract, emulator, e2e, evaluation
   ```
-- [ ] 1.3 Implement a minimal FastAPI application (`app/main.py`) with:
+- [x] 1.3 Implement a minimal FastAPI application (`app/main.py`) with:
   - Health route `GET /api/health` → `{ "status": "ok", "version": "0.1.0" }`
   - Pydantic error formatting
   - Environment config loader (via pydantic-settings) that rejects mock providers/emulator hosts in production mode
-- [ ] 1.4 Add development commands via `pyproject.toml` scripts or Makefile: `dev` (uvicorn --reload), `typecheck` (mypy), `lint` (ruff), `test` (pytest)
-- [ ] 1.5 Create `server/.env.example` with placeholder variable names (no real credentials)
-- [ ] 1.6 Create a root-level script or Makefile to run both server and web dev locally
+- [x] 1.4 Add development commands via `pyproject.toml` scripts or Makefile: `dev` (uvicorn --reload), `typecheck` (mypy), `lint` (ruff), `test` (pytest)
+- [x] 1.5 Create `server/.env.example` with placeholder variable names (no real credentials)
+- [x] 1.6 Create a root-level script or Makefile to run both server and web dev locally
 
 **Verify:** `mypy app/` passes. `uvicorn app.main:app --reload` starts FastAPI and responds to `GET /api/health`. Production config rejects emulator hosts. All test commands exist (some may have zero tests).
+
+**Status:** ✅ Done. `make typecheck`, `make lint`, and `make test` pass; `tests/contract/test_app.py` covers `/api/health`; `tests/unit/test_config.py` covers rejecting emulator hosts and mock providers in production.
 
 ---
 
@@ -65,18 +85,20 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Establish the API contract as Pydantic v2 models with validation before writing any handlers.
 
-- [ ] 2.1 Define `app/schemas/student.py` — Student, Profile, Goals, Preferences, Entitlements with field-level constraints (str max_length, int ge/le, Literal enums)
-- [ ] 2.2 Define `app/schemas/task.py` — Task with TaskStatus literal (`PLANNED`, `IN_PROGRESS`, `COMPLETED`, `SKIPPED`), required fields, reason structure
-- [ ] 2.3 Define `app/schemas/session.py` — Session with SessionStatus literal (`OPEN`, `COMPLETED`, `ABANDONED`), contextVersion, completion eligibility
-- [ ] 2.4 Define `app/schemas/run.py` — Run with RunStatus literal (`QUEUED`, `RUNNING`, `WAITING_INPUT`, `SUCCEEDED`, `FAILED`, `CANCELLED`), kind, inputRequest, result
-- [ ] 2.5 Define `app/schemas/submission.py` — immutable submission with questionId, questionVersion, answer, supersedesSubmissionId
-- [ ] 2.6 Define `app/schemas/assessment.py` — assessment with rubricResults, skillEvidence, hintUsage, uncertainty, provenance, status (`accepted`, `insufficient_evidence`)
-- [ ] 2.7 Define `app/schemas/event.py` — event with sequence, schemaVersion, type enum, causationId, typed payloads
-- [ ] 2.8 Define `app/schemas/error.py` — standard error envelope with code, message, requestId, retryable
-- [ ] 2.9 Define `app/schemas/common.py` — shared types: pagination (cursor/limit), idempotency key, If-Match version, ISO 8601 datetime, IANA timezone
-- [ ] 2.10 Write schema validation tests: valid examples parse; invalid inputs (client score fields, entitlement edits, forged assessment status, arbitrary event publication, malformed relationships, extra fields) fail via Pydantic `model_config = ConfigDict(extra="forbid")`
+- [x] 2.1 Define `app/schemas/student.py` — Student, Profile, Goals, Preferences, Entitlements with field-level constraints (str max_length, int ge/le, Literal enums)
+- [x] 2.2 Define `app/schemas/task.py` — Task with TaskStatus literal (`PLANNED`, `IN_PROGRESS`, `COMPLETED`, `SKIPPED`), required fields, reason structure
+- [x] 2.3 Define `app/schemas/session.py` — Session with SessionStatus literal (`OPEN`, `COMPLETED`, `ABANDONED`), contextVersion, completion eligibility
+- [x] 2.4 Define `app/schemas/run.py` — Run with RunStatus literal (`QUEUED`, `RUNNING`, `WAITING_INPUT`, `SUCCEEDED`, `FAILED`, `CANCELLED`), kind, inputRequest, result
+- [x] 2.5 Define `app/schemas/submission.py` — immutable submission with questionId, questionVersion, answer, supersedesSubmissionId
+- [x] 2.6 Define `app/schemas/assessment.py` — assessment with rubricResults, skillEvidence, hintUsage, uncertainty, provenance, status (`accepted`, `insufficient_evidence`)
+- [x] 2.7 Define `app/schemas/event.py` — event with sequence, schemaVersion, type enum, causationId, typed payloads
+- [x] 2.8 Define `app/schemas/error.py` — standard error envelope with code, message, requestId, retryable
+- [x] 2.9 Define `app/schemas/common.py` — shared types: pagination (cursor/limit), idempotency key, If-Match version, ISO 8601 datetime, IANA timezone
+- [x] 2.10 Write schema validation tests: valid examples parse; invalid inputs (client score fields, entitlement edits, forged assessment status, arbitrary event publication, malformed relationships, extra fields) fail via Pydantic `model_config = ConfigDict(extra="forbid")`
 
 **Verify:** All Pydantic models compile. Valid API examples from API.md pass validation. Forbidden client mutations (scoreDelta, entitlement writes, direct mastery writes, event POST) are rejected by Pydantic.
+
+**Status:** ✅ Done. `tests/contract/test_schemas.py` validates the API.md examples (`tests/contract/api_examples.py`) and rejects forbidden client fields.
 
 ---
 
@@ -84,19 +106,21 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Define typed domain models and repository interfaces using dataclasses, enums, and Protocol classes.
 
-- [ ] 3.1 Create `app/domain/types/student.py` — Student, Profile, Goals, Preferences, Entitlements, MasterySummary, PredictionSummary (as dataclasses or Pydantic BaseModel)
-- [ ] 3.2 Create `app/domain/types/task.py` — Task, TaskStatus (StrEnum), TaskReason, TaskPatch
-- [ ] 3.3 Create `app/domain/types/session.py` — Session, SessionStatus (StrEnum), CompletionEligibility
-- [ ] 3.4 Create `app/domain/types/run.py` — Run, RunStatus (StrEnum), RunKind, InputRequest, RunResult
-- [ ] 3.5 Create `app/domain/types/submission.py` — Submission, SubmissionInput
-- [ ] 3.6 Create `app/domain/types/assessment.py` — Assessment, AssessmentStatus, RubricResult, SkillEvidence, HintUsage, Uncertainty, Provenance
-- [ ] 3.7 Create `app/domain/types/event.py` — DomainEvent, EventType (StrEnum), typed event payloads
-- [ ] 3.8 Create `app/domain/types/actor.py` — ActorContext (actor_id, student_id, role, permissions scope)
-- [ ] 3.9 Create `app/domain/types/course.py` — CourseEnrollment, EnrollmentStatus, CourseCatalogEntry (availability + entitlement status for this student), AgentConfig (skills, modes, description)
-- [ ] 3.10 Create `app/domain/types/common.py` — PaginatedResponse[T] (generic), IdempotencyRecord, VersionedResource
-- [ ] 3.11 Create repository protocols in `app/domain/ports/` — StudentRepository, TaskRepository, SessionRepository, RunRepository, SubmissionRepository, AssessmentRepository, EventRepository, IdempotencyRepository, CourseRepository (using `typing.Protocol`)
+- [x] 3.1 Create `app/domain/types/student.py` — Student, Profile, Goals, Preferences, Entitlements, MasterySummary, PredictionSummary (as dataclasses or Pydantic BaseModel)
+- [x] 3.2 Create `app/domain/types/task.py` — Task, TaskStatus (StrEnum), TaskReason, TaskPatch
+- [x] 3.3 Create `app/domain/types/session.py` — Session, SessionStatus (StrEnum), CompletionEligibility
+- [x] 3.4 Create `app/domain/types/run.py` — Run, RunStatus (StrEnum), RunKind, InputRequest, RunResult
+- [x] 3.5 Create `app/domain/types/submission.py` — Submission, SubmissionInput
+- [x] 3.6 Create `app/domain/types/assessment.py` — Assessment, AssessmentStatus, RubricResult, SkillEvidence, HintUsage, Uncertainty, Provenance
+- [x] 3.7 Create `app/domain/types/event.py` — DomainEvent, EventType (StrEnum), typed event payloads
+- [x] 3.8 Create `app/domain/types/actor.py` — ActorContext (actor_id, student_id, role, permissions scope)
+- [x] 3.9 Create `app/domain/types/course.py` — CourseEnrollment, EnrollmentStatus, CourseCatalogEntry (availability + entitlement status for this student), AgentConfig (skills, modes, description)
+- [x] 3.10 Create `app/domain/types/common.py` — PaginatedResponse[T] (generic), IdempotencyRecord, VersionedResource
+- [x] 3.11 Create repository protocols in `app/domain/ports/` — StudentRepository, TaskRepository, SessionRepository, RunRepository, SubmissionRepository, AssessmentRepository, EventRepository, IdempotencyRepository, CourseRepository (using `typing.Protocol`)
 
 **Verify:** `mypy app/` passes. Types match the Pydantic schemas from Step 2. Repository protocols use ActorContext for all operations.
+
+**Status:** ✅ Done. Also added `app/domain/types/transitions.py` (state-machine transition tables). `tests/contract/test_schema_domain_parity.py` checks that types and schemas match; `tests/unit/test_domain_types.py` covers transitions.
 
 ---
 
@@ -104,19 +128,21 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Create fixture data for two isolated test students and the first content pack.
 
-- [ ] 4.1 Create `fixtures/students/student-a.json` — studentId `stu_alex`, grade 11, timezone `America/Los_Angeles`, calc_bc selected, prediction `unavailable`
-- [ ] 4.2 Create `fixtures/students/student-b.json` — studentId `stu_beth`, grade 10, timezone `America/New_York`, calc_bc selected, different preferences
-- [ ] 4.3 Create `fixtures/entitlements/` — student A has `calc_bc` + `dsat`; student B has only `calc_bc`
-- [ ] 4.4 Create `content/packs/calc_bc/manifest.json` — courseId, name, version `1.0.0`, availability `active`, supported task types, supported modes
-- [ ] 4.5 Create `content/packs/calc_bc/questions/` — 5–8 original/reusable Calculus questions with:
+- [x] 4.1 Create `fixtures/students/student-a.json` — studentId `stu_alex`, grade 11, timezone `America/Los_Angeles`, calc_bc selected, prediction `unavailable`
+- [x] 4.2 Create `fixtures/students/student-b.json` — studentId `stu_beth`, grade 10, timezone `America/New_York`, calc_bc selected, different preferences
+- [x] 4.3 Create `fixtures/entitlements/` — student A has `calc_bc` + `dsat`; student B has only `calc_bc`
+- [x] 4.4 Create `content/packs/calc_bc/manifest.json` — courseId, name, version `1.0.0`, availability `active`, supported task types, supported modes
+- [x] 4.5 Create `content/packs/calc_bc/questions/` — 5–8 original/reusable Calculus questions with:
   - questionId, version, topic, difficulty, prompt text, expected answer, rubric reference
-- [ ] 4.6 Create `content/packs/calc_bc/rubrics/` — rubric definitions with criterionId, description, maxPoints, evidence requirements
-- [ ] 4.7 Create `content/packs/apush/manifest.json` — availability `planned` (cannot open sessions)
-- [ ] 4.8 Create `content/packs/physics_c/manifest.json` — availability `planned`
-- [ ] 4.9 Create `content/mappings/calc-to-sat-prerequisites.json` — versioned mapping candidates with source AP skill, target SAT skill, conditions, counterexamples
-- [ ] 4.10 Write fixture validation tests: all fixtures pass their JSON schemas; student IDs are isolated; planned packs are recognized but cannot be treated as active
+- [x] 4.6 Create `content/packs/calc_bc/rubrics/` — rubric definitions with criterionId, description, maxPoints, evidence requirements
+- [x] 4.7 Create `content/packs/apush/manifest.json` — availability `planned` (cannot open sessions)
+- [x] 4.8 Create `content/packs/physics_c/manifest.json` — availability `planned`
+- [x] 4.9 Create `content/mappings/calc-to-sat-prerequisites.json` — versioned mapping candidates with source AP skill, target SAT skill, conditions, counterexamples
+- [x] 4.10 Write fixture validation tests: all fixtures pass their JSON schemas; student IDs are isolated; planned packs are recognized but cannot be treated as active
 
 **Verify:** Fixture schemas pass validation. No real student information. Exam predictions are `unavailable`. Entitlements are separate from selectedCourses. Planned packs are distinct from active packs.
+
+**Status:** ✅ Implemented, tests pass (`tests/unit/test_fixtures.py`, `tests/unit/test_content.py`). Also added a planned `dsat` pack manifest with `skills.json`, plus `calc_bc/skills.json` and `system_prompt.md`. ⚠️ Questions and rubrics are `draft` and mappings are `candidate`, with no named reviewer yet. They need content review before Step 17 relies on them.
 
 ---
 
@@ -124,17 +150,19 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Configure Firebase Auth and Firestore emulators so all subsequent backend work uses real transaction semantics.
 
-- [ ] 5.1 Create `server/firebase.json` with Auth and Firestore emulator configuration (ports, project ID)
-- [ ] 5.2 Create `server/.firebaserc` with local dev project alias
-- [ ] 5.3 Create a seed script (`server/scripts/seed_emulator.py`) that:
+- [x] 5.1 Create `server/firebase.json` with Auth and Firestore emulator configuration (ports, project ID)
+- [x] 5.2 Create `server/.firebaserc` with local dev project alias
+- [x] 5.3 Create a seed script (`server/scripts/seed_emulator.py`) that:
   - Creates Auth emulator users for student A and B with known UIDs
   - Writes fixture data into Firestore emulator collections following the data model from BACKEND.md §3
-- [ ] 5.4 Create `app/adapters/firebase.py` — Firebase Admin SDK initialization with explicit emulator detection
-- [ ] 5.5 Add Makefile target or script `make emulators` to launch Firebase emulators
-- [ ] 5.6 Add Makefile target or script `make seed` to run the seed script against running emulators
-- [ ] 5.7 Verify that production startup rejects emulator environment variables
+- [x] 5.4 Create `app/adapters/firebase.py` — Firebase Admin SDK initialization with explicit emulator detection
+- [x] 5.5 Add Makefile target or script `make emulators` to launch Firebase emulators
+- [x] 5.6 Add Makefile target or script `make seed` to run the seed script against running emulators
+- [x] 5.7 Verify that production startup rejects emulator environment variables
 
 **Verify:** `make emulators` launches Auth + Firestore. `make seed` populates two students. Firestore data is queryable. Production config check rejects `FIRESTORE_EMULATOR_HOST`.
+
+**Status:** 🟡 Implemented, not verified against live emulators. `firebase.json`, `.firebaserc`, `firestore.rules`, the seed script, and the Makefile targets exist; the unit tests (`test_firebase_adapter.py`, `test_config.py`) pass. `tests/emulator/test_seed_emulator.py` skips because no Java runtime is installed. Next: install Java 11+ and run `make test-emulator`.
 
 ---
 
@@ -142,20 +170,22 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Prepare the web frontend to consume the new API contract without breaking the existing demo.
 
-- [ ] 6.1 Document the current `window.HSData` interface: `getPacks()`, `getSessions()`, `getStudent()`, `getEvents()`
-- [ ] 6.2 Define new async data-provider signatures in `web/js/data-provider.js`:
+- [x] 6.1 Document the current `window.HSData` interface: `getPacks()`, `getSessions()`, `getStudent()`, `getEvents()`
+- [x] 6.2 Define new async data-provider signatures in `web/js/data-provider.js`:
   - `fetchTwin()`, `fetchEntitlements()`, `fetchPacks()`, `fetchTasks()`, `fetchSession(sessionId)`, `fetchRun(runId)`, `fetchEvents(afterSequence)`
-- [ ] 6.3 Add request states: `loading`, `error`, `success` — components must handle all three
-- [ ] 6.4 Add an explicit demo mode flag that uses fixtures only when `?demo=true` is set
+- [x] 6.3 Add request states: `loading`, `error`, `success` — components must handle all three
+- [x] 6.4 Add an explicit demo mode flag that uses fixtures only when `?demo=true` is set
   - API errors must never silently substitute demo data for real student data
-- [ ] 6.5 Map old data shapes to new API shapes:
+- [x] 6.5 Map old data shapes to new API shapes:
   - Remove `predicted`/`target` score fields (replace with `unavailable`)
   - Separate Task from Session in the UI state
   - Show queued/running/waiting/failed Run states
-- [ ] 6.6 Add Idempotency-Key generation utility for retrying the same user action
-- [ ] 6.7 Add event deduplication by eventId/sequence in the client store
+- [x] 6.6 Add Idempotency-Key generation utility for retrying the same user action
+- [x] 6.7 Add event deduplication by eventId/sequence in the client store
 
 **Verify:** Demo mode works with `?demo=true`. Normal mode shows a clear "not connected" state. No prediction scores displayed. Component tests cover offline draft, API failure, and explicit demo states.
+
+**Status:** ✅ Done. `web/tests/data-provider.test.js` (19 tests, `make test-web`) covers demo flag, NOT_CONNECTED with no demo fallback, offline drafts, idempotency keys, event dedupe, and Run states. Old interface documented in `web/README.md`. `server/tests/contract/test_web_demo_fixtures.py` validates `web/fixtures/demo.json` against backend schemas. Not yet checked by hand in a browser.
 
 ---
 
@@ -163,21 +193,23 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Establish reviewed test cases that will judge whether the AI grading is acceptable.
 
-- [ ] 7.1 Create `content/evaluation/calc_bc/` with annotated answer examples:
+- [x] 7.1 Create `content/evaluation/calc_bc/` with annotated answer examples:
   - Correct answer (full marks, independent)
   - Incorrect answer (specific rubric failures)
   - Partially correct answer (some criteria met)
   - Assisted answer (correct after hints — must track hint dependency)
   - Ambiguous answer (evidence unclear, expected: `insufficient_evidence`)
   - Answer with insufficient work shown
-- [ ] 7.2 For each example, record: content source, permission/license, reviewer, rubric version, expected assessment output, expected skill evidence
-- [ ] 7.3 Create counterexamples for prerequisite mappings:
+- [x] 7.2 For each example, record: content source, permission/license, reviewer, rubric version, expected assessment output, expected skill evidence
+- [x] 7.3 Create counterexamples for prerequisite mappings:
   - AP calc error that does NOT imply a SAT prerequisite weakness (e.g., L'Hôpital-specific error)
   - AP calc error that DOES suggest a shared prerequisite issue (e.g., basic algebraic manipulation)
-- [ ] 7.4 Define evaluation dimensions: rubric accuracy, evidence quality, false acceptance rate, false insufficient rate, hint-dependency tracking, feedback usefulness
-- [ ] 7.5 Create `content/evaluation/report-template.md` — versioned evaluation report template with columns for each dimension, reviewer sign-off, and pass/fail thresholds (thresholds TBD by content reviewer, not inferred from examples)
+- [x] 7.4 Define evaluation dimensions: rubric accuracy, evidence quality, false acceptance rate, false insufficient rate, hint-dependency tracking, feedback usefulness
+- [x] 7.5 Create `content/evaluation/report-template.md` — versioned evaluation report template with columns for each dimension, reviewer sign-off, and pass/fail thresholds (thresholds TBD by content reviewer, not inferred from examples)
 
 **Verify:** Each evaluation case has a reviewable expected outcome with provenance. Counterexamples exist for prerequisite mappings. This is a content gate — no model quality evaluation yet.
+
+**Status:** 🟡 Structure done, review pending. 6 Calc BC cases, 4 prerequisite cases (2 counterexamples), `dimensions.json` (7 dimensions), and `report-template.md` are in `server/content/evaluation/`; `tests/unit/test_evaluation_content.py` passes. The content gate stays open until a reviewer signs off each case and sets the thresholds.
 
 ---
 
@@ -994,14 +1026,14 @@ Each extension is independently selected and verified. None are prerequisites fo
 
 ## Delivery Map
 
-| Milestone | Steps | Key Exit Criteria |
-|---|---|---|
-| M0 Contracts and baseline | 1–7 | Buildable skeleton, schemas, fixtures, evaluation cases, Firebase emulators, frontend contract |
-| M1 Reliable foundation | 8–15 | Independent auth, Firestore repos, course enrollment, Task/Session/Run lifecycle, queue/outbox/worker, two-student isolation |
-| M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report |
-| M3 Validated SAT transfer | 22–27 | Prerequisite mappings, SAT diagnostic, event consumers, planner, cross-domain E2E, frontend display |
-| M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate |
-| M5 Optional expansion | 34–38 | Individually validated extensions (APUSH, admissions, parent, predictions, infrastructure) |
+| Milestone | Steps | Key Exit Criteria | Status |
+|---|---|---|---|
+| M0 Contracts and baseline | 1–7 | Buildable skeleton, schemas, fixtures, evaluation cases, Firebase emulators, frontend contract | Implemented; emulator + content review pending |
+| M1 Reliable foundation | 8–15 | Independent auth, Firestore repos, course enrollment, Task/Session/Run lifecycle, queue/outbox/worker, two-student isolation | Not started |
+| M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Not started |
+| M3 Validated SAT transfer | 22–27 | Prerequisite mappings, SAT diagnostic, event consumers, planner, cross-domain E2E, frontend display | Not started |
+| M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate | Not started |
+| M5 Optional expansion | 34–38 | Individually validated extensions (APUSH, admissions, parent, predictions, infrastructure) | Not started |
 
 ## Superseded patterns
 

@@ -1,0 +1,50 @@
+{
+  "rubricId": "calc-004",
+  "version": "1",
+  "courseId": "calc_bc",
+  "criteria": [
+    {
+      "criterionId": "identify-indeterminate",
+      "description": "Verifies the limit has the indeterminate form 0/0 before applying L'Hôpital's rule.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "States numerator and denominator both approach 0"
+      ],
+      "skillIds": [
+        "calc_bc.lhopital"
+      ]
+    },
+    {
+      "criterionId": "differentiate-separately",
+      "description": "Differentiates numerator and denominator separately (not the quotient rule).",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Shows 2e^(2x) over 1"
+      ],
+      "skillIds": [
+        "calc_bc.lhopital"
+      ]
+    },
+    {
+      "criterionId": "final-answer",
+      "description": "States the limit equals 2.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Final value 2"
+      ],
+      "skillIds": [
+        "calc_bc.lhopital"
+      ]
+    }
+  ],
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

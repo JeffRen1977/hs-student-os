@@ -1,0 +1,50 @@
+{
+  "rubricId": "calc-001",
+  "version": "1",
+  "courseId": "calc_bc",
+  "criteria": [
+    {
+      "criterionId": "identify-inner-outer",
+      "description": "Identifies g(x) = x³ + 1 as the inner function and sin as the outer function.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Names or clearly uses the inner function x³ + 1"
+      ],
+      "skillIds": [
+        "calc_bc.function-composition"
+      ]
+    },
+    {
+      "criterionId": "apply-chain-rule",
+      "description": "Multiplies the outer derivative evaluated at the inner function by g'(x).",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Shows cos(x³ + 1) multiplied by 3x²"
+      ],
+      "skillIds": [
+        "calc_bc.chain-rule"
+      ]
+    },
+    {
+      "criterionId": "final-answer",
+      "description": "States h'(x) = 3x² cos(x³ + 1).",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Final expression equivalent to 3x² cos(x³ + 1)"
+      ],
+      "skillIds": [
+        "calc_bc.chain-rule"
+      ]
+    }
+  ],
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

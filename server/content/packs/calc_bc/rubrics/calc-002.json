@@ -1,0 +1,51 @@
+{
+  "rubricId": "calc-002",
+  "version": "1",
+  "courseId": "calc_bc",
+  "criteria": [
+    {
+      "criterionId": "differentiate-implicitly",
+      "description": "Differentiates both sides, using the product rule on x²y and treating y as a function of x.",
+      "maxPoints": 2,
+      "evidenceRequirements": [
+        "Shows 2xy + x² dy/dx",
+        "Shows 3y² dy/dx"
+      ],
+      "skillIds": [
+        "calc_bc.implicit-differentiation"
+      ]
+    },
+    {
+      "criterionId": "isolate-derivative",
+      "description": "Collects dy/dx terms and solves for dy/dx correctly.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Factors dy/dx(x² + 3y²) = −2xy or equivalent"
+      ],
+      "skillIds": [
+        "calc_bc.algebraic-manipulation"
+      ]
+    },
+    {
+      "criterionId": "final-answer",
+      "description": "States dy/dx = −2xy / (x² + 3y²) or an equivalent form.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Final expression equivalent to −2xy/(x² + 3y²)"
+      ],
+      "skillIds": [
+        "calc_bc.implicit-differentiation"
+      ]
+    }
+  ],
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

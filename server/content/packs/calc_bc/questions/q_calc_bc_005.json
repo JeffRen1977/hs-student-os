@@ -1,0 +1,26 @@
+{
+  "questionId": "q_calc_bc_005",
+  "version": "1",
+  "courseId": "calc_bc",
+  "topic": "Integration by parts",
+  "skillIds": [
+    "calc_bc.integration-by-parts"
+  ],
+  "difficulty": "medium",
+  "prompt": "Evaluate ∫ x eˣ dx.",
+  "expectedAnswer": "With u = x, dv = eˣ dx: x eˣ − ∫ eˣ dx = (x − 1)eˣ + C.",
+  "rubricRef": {
+    "rubricId": "calc-005",
+    "version": "1"
+  },
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

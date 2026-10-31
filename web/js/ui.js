@@ -37,11 +37,69 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-// Big predicted-score numeral (e.g. "4.5 / 5").
-function BigScore({ value }) {
+// Exam prediction. Always "unavailable" until a calibrated pipeline exists (M5).
+function PredictionBadge({ entry }) {
   return (
-    <div className="text-2xl font-extrabold leading-none tracking-tight text-slate-900 dark:text-white">
-      {value.toFixed(1)}<span className="text-xs font-semibold text-slate-400 dark:text-slate-500"> / 5</span>
+    <div className="text-xs font-semibold text-slate-500 dark:text-slate-400" title="预测分需要独立校准后才会提供">
+      {HSProvider.predictionLabel(entry)}
+    </div>
+  );
+}
+
+const RUN_TONE = {
+  slate: "bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700",
+  indigo: "bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-200 dark:ring-indigo-500/40",
+  amber: "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/30",
+  emerald: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-500/40",
+  rose: "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-500/40",
+};
+
+// QUEUED / RUNNING / WAITING_INPUT / SUCCEEDED / FAILED / CANCELLED for one Run.
+function RunStatusBadge({ run, architect }) {
+  const view = HSProvider.describeRun(run);
+  if (!view) return null;
+  return (
+    <Badge className={RUN_TONE[view.tone]}>
+      {view.label}
+      {view.retryable ? " · 可重试" : ""}
+      {architect ? " · " + run.status : ""}
+    </Badge>
+  );
+}
+
+function DemoBanner() {
+  return (
+    <div className="shrink-0 px-3 sm:px-4 py-1.5 text-[11px] bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-100 border-b border-amber-200 dark:border-amber-500/30">
+      <strong>DEMO 演示模式</strong> · 合成数据，操作只在本机模拟，不会保存或评估。去掉 URL 中的 <code>?demo=true</code> 即退出。
+    </div>
+  );
+}
+
+// Full-page loading / not connected / not signed in / error states.
+function StatusScreen({ screen, error, onRetry }) {
+  const copy = {
+    loading: { title: "正在连接 Student OS…", body: "正在读取你的学习记录。" },
+    not_connected: { title: "未连接到 Student OS 服务", body: "无法连接后端 API。你的学习数据不会用演示数据代替。请确认服务已启动后重试。" },
+    not_signed_in: { title: "需要登录", body: "登录功能将在 M1 接入。登录前不会显示任何学生数据。" },
+    error: { title: "加载失败", body: "服务器返回了错误。没有显示任何替代数据。" },
+  }[screen] || { title: "加载失败", body: "" };
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-[#F7F8FA] dark:bg-slate-950">
+      <div className={CARD + " max-w-md w-full p-6 space-y-3"} role={screen === "loading" ? "status" : "alert"}>
+        <div className="text-sm font-bold">{copy.title}</div>
+        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{copy.body}</p>
+        {error && (
+          <div className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
+            {error.code}{error.requestId ? " · " + error.requestId : ""}
+          </div>
+        )}
+        {screen !== "loading" && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button onClick={onRetry} className={"px-4 min-h-[40px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold " + BTN}>重试</button>
+            <a href="?demo=true" className="px-4 min-h-[40px] inline-flex items-center rounded-full ring-1 ring-slate-300 dark:ring-slate-700 text-xs text-slate-600 dark:text-slate-300">打开演示模式（合成数据）</a>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,57 @@
+{
+  "caseId": "eval-calc-ambiguous-series",
+  "version": "1",
+  "category": "ambiguous",
+  "questionRef": {
+    "questionId": "q_calc_bc_007",
+    "version": "1"
+  },
+  "rubricRef": {
+    "rubricId": "calc-007",
+    "version": "1"
+  },
+  "studentAnswer": {
+    "text": "n/3^n → 1/3 so it works"
+  },
+  "sessionContext": {
+    "serverHintCount": 0,
+    "hintSummaries": []
+  },
+  "expected": {
+    "status": "insufficient_evidence",
+    "rubricResults": [
+      {
+        "criterionId": "choose-test",
+        "earned": 0
+      },
+      {
+        "criterionId": "compute-limit",
+        "earned": 0
+      },
+      {
+        "criterionId": "conclusion",
+        "earned": 0
+      }
+    ],
+    "skillEvidence": [],
+    "uncertaintyLevel": "high",
+    "feedbackFocus": [
+      "Ask which test is being used and what quantity approaches 1/3",
+      "Ask what 'it works' means: converges or diverges"
+    ]
+  },
+  "rationale": "No test is named, the expression whose limit is 1/3 is unclear (the terms themselves tend to 0), and the conclusion is not stated. The evidence cannot support a skill observation.",
+  "provenance": {
+    "synthetic": true,
+    "source": {
+      "type": "original",
+      "author": "HS Student OS content team",
+      "license": "Original work; internal use (synthetic draft)"
+    }
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

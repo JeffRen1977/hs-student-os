@@ -1,0 +1,68 @@
+{
+  "version": "1",
+  "dimensions": [
+    {
+      "dimensionId": "rubric-accuracy",
+      "name": "Rubric accuracy",
+      "definition": "Agreement between model and reviewer points for each rubric criterion.",
+      "measurement": "Share of (case, criterion) pairs where model earned == expected earned",
+      "direction": "higher_is_better",
+      "threshold": null,
+      "thresholdSetBy": null
+    },
+    {
+      "dimensionId": "evidence-quality",
+      "name": "Evidence quality",
+      "definition": "Model evidenceRefs point to spans of the student answer that support the awarded points.",
+      "measurement": "Reviewer-rated share of awarded criteria with a valid supporting span",
+      "direction": "higher_is_better",
+      "threshold": null,
+      "thresholdSetBy": null
+    },
+    {
+      "dimensionId": "false-acceptance-rate",
+      "name": "False acceptance rate",
+      "definition": "Cases expected insufficient_evidence that the model marked accepted.",
+      "measurement": "accepted ∧ expected insufficient_evidence / expected insufficient_evidence",
+      "direction": "lower_is_better",
+      "threshold": null,
+      "thresholdSetBy": null
+    },
+    {
+      "dimensionId": "false-insufficient-rate",
+      "name": "False insufficient rate",
+      "definition": "Cases expected accepted that the model marked insufficient_evidence.",
+      "measurement": "insufficient_evidence ∧ expected accepted / expected accepted",
+      "direction": "lower_is_better",
+      "threshold": null,
+      "thresholdSetBy": null
+    },
+    {
+      "dimensionId": "hint-dependency-tracking",
+      "name": "Hint-dependency tracking",
+      "definition": "Hint-assisted work is never recorded as independent evidence.",
+      "measurement": "Share of assisted cases whose skill evidence uses correct_with_hint (any correct_independent is a failure)",
+      "direction": "higher_is_better",
+      "threshold": null,
+      "thresholdSetBy": null
+    },
+    {
+      "dimensionId": "feedback-usefulness",
+      "name": "Feedback usefulness",
+      "definition": "Feedback addresses the expected feedbackFocus points without giving away full solutions.",
+      "measurement": "Reviewer rating per case on a 1–4 scale",
+      "direction": "higher_is_better",
+      "threshold": null,
+      "thresholdSetBy": null
+    },
+    {
+      "dimensionId": "prerequisite-precision",
+      "name": "Prerequisite precision",
+      "definition": "Counterexample cases produce no forbidden prerequisite events.",
+      "measurement": "Share of prerequisite cases with no forbidden events emitted",
+      "direction": "higher_is_better",
+      "threshold": null,
+      "thresholdSetBy": null
+    }
+  ]
+}

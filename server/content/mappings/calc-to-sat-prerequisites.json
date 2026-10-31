@@ -1,0 +1,59 @@
+{
+  "mappingSetId": "calc-bc-to-dsat",
+  "version": "0.1.0",
+  "sourceCourseId": "calc_bc",
+  "targetCourseId": "dsat",
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "mappings": [
+    {
+      "mappingId": "map_alg_equiv_expr",
+      "sourceSkillId": "calc_bc.algebraic-manipulation",
+      "targetSkillId": "dsat.advanced-math.equivalent-expressions",
+      "rationale": "Errors isolating or simplifying an expression after a correct calculus step can reflect a shared algebra prerequisite.",
+      "conditions": [
+        "The calculus step (derivative or antiderivative) is correct and the error occurs in the subsequent algebra",
+        "The same algebra error type appears in at least two accepted, independent assessments"
+      ],
+      "counterexamples": [
+        "A single sign slip or transcription error in otherwise correct algebra",
+        "Errors that occur only in calculus-specific steps such as applying L'Hôpital's rule",
+        "Hint-assisted attempts, which are not independent evidence"
+      ],
+      "status": "candidate"
+    },
+    {
+      "mappingId": "map_composition_functions",
+      "sourceSkillId": "calc_bc.function-composition",
+      "targetSkillId": "dsat.advanced-math.nonlinear-functions",
+      "rationale": "Misidentifying the inner function in a composite can reflect a general function-composition gap.",
+      "conditions": [
+        "The student misidentifies the inner/outer function, not just the derivative rule",
+        "Observed in at least two accepted, independent assessments"
+      ],
+      "counterexamples": [
+        "Correct decomposition but a forgotten inner derivative (chain-rule-specific error)",
+        "An error isolated to trigonometric derivative recall"
+      ],
+      "status": "candidate"
+    },
+    {
+      "mappingId": "map_rates_units",
+      "sourceSkillId": "calc_bc.related-rates",
+      "targetSkillId": "dsat.problem-solving.rates-ratios",
+      "rationale": "Unit and rate-setup errors in related-rates problems can reflect a shared rates/units prerequisite.",
+      "conditions": [
+        "The error is in the units or rate setup, not in differentiation",
+        "Observed in at least two accepted, independent assessments"
+      ],
+      "counterexamples": [
+        "Substituting values before differentiating (a calculus-procedure error)",
+        "Omitting units only in the final sentence while the setup is correct"
+      ],
+      "status": "candidate"
+    }
+  ]
+}

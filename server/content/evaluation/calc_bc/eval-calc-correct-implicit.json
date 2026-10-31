@@ -1,0 +1,65 @@
+{
+  "caseId": "eval-calc-correct-implicit",
+  "version": "1",
+  "category": "correct",
+  "questionRef": {
+    "questionId": "q_calc_bc_002",
+    "version": "1"
+  },
+  "rubricRef": {
+    "rubricId": "calc-002",
+    "version": "1"
+  },
+  "studentAnswer": {
+    "text": "Differentiate both sides with respect to x. Product rule on x²y: 2xy + x²(dy/dx). Then 3y²(dy/dx). So 2xy + x² dy/dx + 3y² dy/dx = 0. Factor: dy/dx (x² + 3y²) = −2xy, so dy/dx = −2xy / (x² + 3y²)."
+  },
+  "sessionContext": {
+    "serverHintCount": 0,
+    "hintSummaries": []
+  },
+  "expected": {
+    "status": "accepted",
+    "rubricResults": [
+      {
+        "criterionId": "differentiate-implicitly",
+        "earned": 2
+      },
+      {
+        "criterionId": "isolate-derivative",
+        "earned": 1
+      },
+      {
+        "criterionId": "final-answer",
+        "earned": 1
+      }
+    ],
+    "skillEvidence": [
+      {
+        "skillId": "calc_bc.implicit-differentiation",
+        "observation": "correct_independent"
+      },
+      {
+        "skillId": "calc_bc.algebraic-manipulation",
+        "observation": "correct_independent"
+      }
+    ],
+    "uncertaintyLevel": "low",
+    "feedbackFocus": [
+      "Confirm each step is justified; no correction needed"
+    ]
+  },
+  "rationale": "Every rubric step is shown and correct with no hints, so this is independent evidence.",
+  "provenance": {
+    "synthetic": true,
+    "source": {
+      "type": "original",
+      "author": "HS Student OS content team",
+      "license": "Original work; internal use (synthetic draft)"
+    }
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "rubricId": "calc-006",
+  "version": "1",
+  "courseId": "calc_bc",
+  "criteria": [
+    {
+      "criterionId": "first-derivative",
+      "description": "Computes dy/dx = (dy/dt)/(dx/dt) = 3t/2.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Shows 3t² divided by 2t",
+        "Simplifies to 3t/2"
+      ],
+      "skillIds": [
+        "calc_bc.parametric-derivatives"
+      ]
+    },
+    {
+      "criterionId": "second-derivative-method",
+      "description": "Differentiates dy/dx with respect to t and divides by dx/dt (not just differentiating 3t/2).",
+      "maxPoints": 2,
+      "evidenceRequirements": [
+        "Shows division by dx/dt = 2t"
+      ],
+      "skillIds": [
+        "calc_bc.parametric-derivatives"
+      ]
+    },
+    {
+      "criterionId": "simplify",
+      "description": "Simplifies to 3/(4t).",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Final expression equivalent to 3/(4t)"
+      ],
+      "skillIds": [
+        "calc_bc.algebraic-manipulation"
+      ]
+    }
+  ],
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

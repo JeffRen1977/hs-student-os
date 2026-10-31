@@ -1,0 +1,65 @@
+{
+  "caseId": "eval-calc-assisted-related-rates",
+  "version": "1",
+  "category": "assisted",
+  "questionRef": {
+    "questionId": "q_calc_bc_003",
+    "version": "1"
+  },
+  "rubricRef": {
+    "rubricId": "calc-003",
+    "version": "1"
+  },
+  "studentAnswer": {
+    "text": "A = πr², so dA/dt = 2πr · dr/dt. With r = 5 and dr/dt = 2: dA/dt = 2π(5)(2) = 20π cm²/s."
+  },
+  "sessionContext": {
+    "serverHintCount": 2,
+    "hintSummaries": [
+      "Asked which formula relates area and radius",
+      "Reminded the student to differentiate before substituting r = 5"
+    ]
+  },
+  "expected": {
+    "status": "accepted",
+    "rubricResults": [
+      {
+        "criterionId": "relate-quantities",
+        "earned": 1
+      },
+      {
+        "criterionId": "substitute-values",
+        "earned": 1
+      },
+      {
+        "criterionId": "answer-with-units",
+        "earned": 1
+      }
+    ],
+    "skillEvidence": [
+      {
+        "skillId": "calc_bc.related-rates",
+        "observation": "correct_with_hint"
+      }
+    ],
+    "uncertaintyLevel": "limited",
+    "feedbackFocus": [
+      "Acknowledge the correct result",
+      "Suggest an unassisted follow-up problem to confirm independence"
+    ]
+  },
+  "rationale": "The final work is fully correct, but the student received two server hints first. It must be recorded as hint-assisted, not independent mastery.",
+  "provenance": {
+    "synthetic": true,
+    "source": {
+      "type": "original",
+      "author": "HS Student OS content team",
+      "license": "Original work; internal use (synthetic draft)"
+    }
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

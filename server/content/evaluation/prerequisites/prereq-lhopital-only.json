@@ -1,0 +1,50 @@
+{
+  "caseId": "prereq-lhopital-only",
+  "version": "1",
+  "category": "counterexample",
+  "mappingSetId": "calc-bc-to-dsat",
+  "mappingSetVersion": "0.1.0",
+  "observations": [
+    {
+      "questionRef": {
+        "questionId": "q_calc_bc_004",
+        "version": "1"
+      },
+      "studentAnswer": {
+        "text": "Use the quotient rule: [(2e^(2x))·x − (e^(2x) − 1)·1] / x², then plug in 0 to get 0/0, so the limit does not exist."
+      },
+      "assessmentStatus": "accepted",
+      "serverHintCount": 0,
+      "errorDescription": "Applies the quotient rule instead of differentiating numerator and denominator separately — an error specific to L'Hôpital's rule.",
+      "skillEvidence": [
+        {
+          "skillId": "calc_bc.lhopital",
+          "observation": "incorrect"
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "events": [],
+    "forbiddenEvents": [
+      {
+        "type": "prerequisite.suspected",
+        "mappingId": "map_alg_equiv_expr"
+      }
+    ]
+  },
+  "rationale": "The error is in a calculus-only procedure. There is no SAT prerequisite mapping for L'Hôpital's rule, and the algebra itself is correct.",
+  "provenance": {
+    "synthetic": true,
+    "source": {
+      "type": "original",
+      "author": "HS Student OS content team",
+      "license": "Original work; internal use (synthetic draft)"
+    }
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

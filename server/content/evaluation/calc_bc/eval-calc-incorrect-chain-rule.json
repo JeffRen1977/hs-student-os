@@ -1,0 +1,66 @@
+{
+  "caseId": "eval-calc-incorrect-chain-rule",
+  "version": "1",
+  "category": "incorrect",
+  "questionRef": {
+    "questionId": "q_calc_bc_001",
+    "version": "1"
+  },
+  "rubricRef": {
+    "rubricId": "calc-001",
+    "version": "1"
+  },
+  "studentAnswer": {
+    "text": "The outside is sin and the inside is x³ + 1. The derivative of sin is cos, so h'(x) = cos(x³ + 1)."
+  },
+  "sessionContext": {
+    "serverHintCount": 0,
+    "hintSummaries": []
+  },
+  "expected": {
+    "status": "accepted",
+    "rubricResults": [
+      {
+        "criterionId": "identify-inner-outer",
+        "earned": 1
+      },
+      {
+        "criterionId": "apply-chain-rule",
+        "earned": 0
+      },
+      {
+        "criterionId": "final-answer",
+        "earned": 0
+      }
+    ],
+    "skillEvidence": [
+      {
+        "skillId": "calc_bc.function-composition",
+        "observation": "correct_independent"
+      },
+      {
+        "skillId": "calc_bc.chain-rule",
+        "observation": "incorrect"
+      }
+    ],
+    "uncertaintyLevel": "low",
+    "feedbackFocus": [
+      "The derivative of the inner function (3x²) is missing",
+      "Ask the student what the chain rule multiplies by"
+    ]
+  },
+  "rationale": "The student decomposes the function correctly but omits g'(x). This is a chain-rule error, not a function-composition error.",
+  "provenance": {
+    "synthetic": true,
+    "source": {
+      "type": "original",
+      "author": "HS Student OS content team",
+      "license": "Original work; internal use (synthetic draft)"
+    }
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

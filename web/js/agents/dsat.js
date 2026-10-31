@@ -1,6 +1,7 @@
-// agents/dsat.js — Digital SAT Agent panel (math / RW / vocab / mock).
+// agents/dsat.js — Digital SAT panel (math / RW / vocab / mock). Preview only until M3.
 
-function DsatPanel({ session, onDesmos }) {
+function DsatPanel({ preview, onDesmos }) {
+  const session = preview;
   const kind = session.kind || "math";
   return (
     <section className={CARD + " ring-sky-200 dark:ring-sky-500/40 p-4 sm:p-5 space-y-3 text-sm"}>
@@ -33,7 +34,7 @@ function DsatPanel({ session, onDesmos }) {
         </div>
       )}
       {kind === "math" && <button onClick={onDesmos} className={"px-4 min-h-[40px] py-1.5 rounded-full bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold " + BTN}>用 Desmos 演示两条函数图像</button>}
-      <p className="text-[11px] text-slate-400 dark:text-slate-500">分数按 Digital SAT 1600 记。</p>
+      <p className="text-[11px] text-slate-400 dark:text-slate-500">规划中的练习形态预览（M3）。不产生学习记录，也不更新掌握度。</p>
     </section>
   );
 }

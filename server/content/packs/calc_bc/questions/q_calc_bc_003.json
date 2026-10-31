@@ -1,0 +1,26 @@
+{
+  "questionId": "q_calc_bc_003",
+  "version": "1",
+  "courseId": "calc_bc",
+  "topic": "Related rates: expanding circle",
+  "skillIds": [
+    "calc_bc.related-rates"
+  ],
+  "difficulty": "easy",
+  "prompt": "The radius of a circle increases at 2 cm/s. How fast is the area increasing when the radius is 5 cm? Include units.",
+  "expectedAnswer": "dA/dt = 2πr dr/dt = 2π(5)(2) = 20π cm²/s.",
+  "rubricRef": {
+    "rubricId": "calc-003",
+    "version": "1"
+  },
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "questionId": "q_calc_bc_006",
+  "version": "1",
+  "courseId": "calc_bc",
+  "topic": "Second derivative of a parametric curve",
+  "skillIds": [
+    "calc_bc.parametric-derivatives",
+    "calc_bc.algebraic-manipulation"
+  ],
+  "difficulty": "hard",
+  "prompt": "A curve is defined by x = t², y = t³ for t > 0. Find dy/dx and d²y/dx² in terms of t.",
+  "expectedAnswer": "dy/dx = 3t² / 2t = 3t/2; d²y/dx² = (d/dt(3t/2)) / (dx/dt) = (3/2) / (2t) = 3/(4t).",
+  "rubricRef": {
+    "rubricId": "calc-006",
+    "version": "1"
+  },
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

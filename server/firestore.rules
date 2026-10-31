@@ -1,0 +1,10 @@
+rules_version = '2';
+// Browsers never read or write authoritative learning data directly.
+// All access goes through the API/worker (Admin SDK) with explicit ownership checks.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "questionId": "q_calc_bc_002",
+  "version": "1",
+  "courseId": "calc_bc",
+  "topic": "Implicit differentiation",
+  "skillIds": [
+    "calc_bc.implicit-differentiation",
+    "calc_bc.algebraic-manipulation"
+  ],
+  "difficulty": "medium",
+  "prompt": "Find dy/dx for the curve x²y + y³ = 7.",
+  "expectedAnswer": "dy/dx = −2xy / (x² + 3y²).",
+  "rubricRef": {
+    "rubricId": "calc-002",
+    "version": "1"
+  },
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "synthetic": true,
+  "studentId": "stu_beth",
+  "email": "beth.synthetic@example.test",
+  "profile": {
+    "displayName": "Beth",
+    "grade": 10,
+    "school": "Synthetic Academy",
+    "targetMajor": "Biology",
+    "targetSchools": []
+  },
+  "goals": {
+    "satTarget": null,
+    "apTargets": {"calc_bc": 4}
+  },
+  "preferences": {
+    "timezone": "America/New_York",
+    "weeklyAvailableMinutes": 180,
+    "selectedCourses": ["calc_bc"],
+    "notifications": {"enabled": true, "channels": ["email"], "quietHours": {"start": "22:00", "end": "07:00"}}
+  },
+  "enrollments": [
+    {"courseId": "calc_bc", "status": "active", "enrolledAt": "2026-10-05T13:00:00Z"}
+  ],
+  "predictionSummary": {
+    "calc_bc": {"status": "unavailable", "reason": "not_calibrated"}
+  }
+}

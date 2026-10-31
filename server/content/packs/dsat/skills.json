@@ -1,0 +1,26 @@
+{
+  "courseId": "dsat",
+  "version": "0.1.0",
+  "skills": [
+    {
+      "skillId": "dsat.algebra.linear-equations",
+      "name": "Linear equations in one variable",
+      "description": "Solve and interpret linear equations."
+    },
+    {
+      "skillId": "dsat.advanced-math.equivalent-expressions",
+      "name": "Equivalent expressions",
+      "description": "Rewrite, factor, and simplify algebraic expressions."
+    },
+    {
+      "skillId": "dsat.advanced-math.nonlinear-functions",
+      "name": "Nonlinear functions",
+      "description": "Interpret and evaluate nonlinear functions, including compositions."
+    },
+    {
+      "skillId": "dsat.problem-solving.rates-ratios",
+      "name": "Ratios, rates, and units",
+      "description": "Set up and reason with rates, ratios, and unit conversions."
+    }
+  ]
+}

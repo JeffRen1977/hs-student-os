@@ -1,0 +1,466 @@
+{
+  "_comment": "DEMO ONLY. Synthetic data in API v0.3 shapes, loaded only with ?demo=true. Validated by server/tests/contract/test_web_demo_fixtures.py.",
+  "twin": {
+    "studentId": "stu_alex",
+    "version": 1,
+    "profile": {
+      "displayName": "Alex",
+      "grade": 11,
+      "school": "Synthetic High School",
+      "targetMajor": "Computer Science",
+      "targetSchools": []
+    },
+    "goals": {
+      "satTarget": 1550,
+      "apTargets": {
+        "calc_bc": 5
+      }
+    },
+    "preferences": {
+      "timezone": "America/Los_Angeles",
+      "weeklyAvailableMinutes": 300,
+      "selectedCourses": [
+        "calc_bc"
+      ],
+      "notifications": {
+        "enabled": false,
+        "channels": [],
+        "quietHours": {
+          "start": "21:00",
+          "end": "08:00"
+        }
+      }
+    },
+    "masterySummary": {
+      "calc_bc.chain-rule": {
+        "level": "insufficient_evidence",
+        "independentEvidenceCount": 0
+      },
+      "calc_bc.implicit-differentiation": {
+        "level": "emerging",
+        "independentEvidenceCount": 1
+      },
+      "calc_bc.related-rates": {
+        "level": "insufficient_evidence",
+        "independentEvidenceCount": 0
+      }
+    },
+    "predictionSummary": {
+      "calc_bc": {
+        "status": "unavailable",
+        "reason": "not_calibrated"
+      }
+    },
+    "latestEventSequence": 7
+  },
+  "entitlements": {
+    "apCourses": [
+      "calc_bc"
+    ],
+    "dsat": true,
+    "admissions": false
+  },
+  "catalog": {
+    "courses": [
+      {
+        "courseId": "calc_bc",
+        "name": "AP Calculus BC",
+        "description": "Covers limits, derivatives, integrals, parametric equations, and series.",
+        "category": "AP",
+        "availability": "active",
+        "entitled": true,
+        "enrolled": true
+      },
+      {
+        "courseId": "apush",
+        "name": "AP US History",
+        "description": "American history from the pre-Columbian era to the present.",
+        "category": "AP",
+        "availability": "planned",
+        "entitled": false,
+        "enrolled": false
+      },
+      {
+        "courseId": "physics_c",
+        "name": "AP Physics C: Mechanics",
+        "description": "Calculus-based kinematics, dynamics, energy, and rotation.",
+        "category": "AP",
+        "availability": "planned",
+        "entitled": false,
+        "enrolled": false
+      },
+      {
+        "courseId": "dsat",
+        "name": "Digital SAT",
+        "description": "Digital SAT Math and Reading & Writing preparation. Diagnostics enabled in M3.",
+        "category": "SAT",
+        "availability": "planned",
+        "entitled": true,
+        "enrolled": false
+      }
+    ]
+  },
+  "tasks": {
+    "tasks": [
+      {
+        "taskId": "task_demo_calc_01",
+        "studentId": "stu_alex",
+        "agent": "AP_BASE",
+        "courseId": "calc_bc",
+        "taskType": "SOCRATIC_STUDY",
+        "mode": "GPA_SYNC",
+        "title": "攻克隐函数求导与变化率",
+        "durationMin": 20,
+        "scheduledDate": "2026-10-30",
+        "status": "IN_PROGRESS",
+        "version": 1,
+        "reason": {
+          "code": "INITIAL_PRACTICE",
+          "sourceEventIds": []
+        },
+        "studentLocked": false
+      },
+      {
+        "taskId": "task_demo_calc_02",
+        "studentId": "stu_alex",
+        "agent": "AP_BASE",
+        "courseId": "calc_bc",
+        "taskType": "FRQ_PRACTICE",
+        "mode": "EXAM_CRUNCH",
+        "title": "FRQ 精批：圆锥水箱推导",
+        "durationMin": 25,
+        "scheduledDate": "2026-10-30",
+        "status": "IN_PROGRESS",
+        "version": 1,
+        "reason": {
+          "code": "INITIAL_PRACTICE",
+          "sourceEventIds": []
+        },
+        "studentLocked": false
+      },
+      {
+        "taskId": "task_demo_calc_03",
+        "studentId": "stu_alex",
+        "agent": "AP_BASE",
+        "courseId": "calc_bc",
+        "taskType": "SOCRATIC_STUDY",
+        "mode": "GPA_SYNC",
+        "title": "作业：参数方程的二阶导数",
+        "durationMin": 15,
+        "scheduledDate": "2026-10-30",
+        "status": "IN_PROGRESS",
+        "version": 1,
+        "reason": {
+          "code": "INITIAL_PRACTICE",
+          "sourceEventIds": []
+        },
+        "studentLocked": false
+      },
+      {
+        "taskId": "task_demo_calc_04",
+        "studentId": "stu_alex",
+        "agent": "AP_BASE",
+        "courseId": "calc_bc",
+        "taskType": "FRQ_PRACTICE",
+        "mode": "EXAM_CRUNCH",
+        "title": "手写推导：链式法则",
+        "durationMin": 20,
+        "scheduledDate": "2026-10-30",
+        "status": "IN_PROGRESS",
+        "version": 1,
+        "reason": {
+          "code": "INITIAL_PRACTICE",
+          "sourceEventIds": []
+        },
+        "studentLocked": false
+      },
+      {
+        "taskId": "task_demo_calc_05",
+        "studentId": "stu_alex",
+        "agent": "AP_BASE",
+        "courseId": "calc_bc",
+        "taskType": "FRQ_PRACTICE",
+        "mode": "EXAM_CRUNCH",
+        "title": "级数收敛：比值判别法",
+        "durationMin": 20,
+        "scheduledDate": "2026-10-30",
+        "status": "PLANNED",
+        "version": 1,
+        "reason": {
+          "code": "INITIAL_PRACTICE",
+          "sourceEventIds": []
+        },
+        "studentLocked": false
+      }
+    ],
+    "nextCursor": null
+  },
+  "sessions": {
+    "sessions": [
+      {
+        "sessionId": "sess_demo_01",
+        "taskId": "task_demo_calc_01",
+        "status": "OPEN",
+        "activeRunId": "run_demo_01",
+        "contextVersion": {
+          "pack": "1.0.0",
+          "workflow": "calc-practice-v1"
+        },
+        "completion": {
+          "eligible": false,
+          "reason": "run_in_progress"
+        }
+      },
+      {
+        "sessionId": "sess_demo_02",
+        "taskId": "task_demo_calc_02",
+        "status": "OPEN",
+        "activeRunId": "run_demo_02",
+        "contextVersion": {
+          "pack": "1.0.0",
+          "workflow": "calc-practice-v1"
+        },
+        "completion": {
+          "eligible": false,
+          "reason": "run_in_progress"
+        }
+      },
+      {
+        "sessionId": "sess_demo_03",
+        "taskId": "task_demo_calc_03",
+        "status": "OPEN",
+        "activeRunId": null,
+        "contextVersion": {
+          "pack": "1.0.0",
+          "workflow": "calc-practice-v1"
+        },
+        "completion": {
+          "eligible": false,
+          "reason": "accepted_assessment_required"
+        }
+      },
+      {
+        "sessionId": "sess_demo_04",
+        "taskId": "task_demo_calc_04",
+        "status": "OPEN",
+        "activeRunId": "run_demo_04",
+        "contextVersion": {
+          "pack": "1.0.0",
+          "workflow": "calc-practice-v1"
+        },
+        "completion": {
+          "eligible": false,
+          "reason": "run_in_progress"
+        }
+      }
+    ],
+    "nextCursor": null
+  },
+  "runs": [
+    {
+      "runId": "run_demo_01",
+      "sessionId": "sess_demo_01",
+      "status": "RUNNING",
+      "kind": "ASSESS_SUBMISSION",
+      "submissionId": "sub_demo_01",
+      "messageId": null,
+      "attemptCount": 1,
+      "inputRequest": null,
+      "result": null
+    },
+    {
+      "runId": "run_demo_02",
+      "sessionId": "sess_demo_02",
+      "status": "QUEUED",
+      "kind": "ASSESS_SUBMISSION",
+      "submissionId": "sub_demo_02",
+      "messageId": null,
+      "attemptCount": 0,
+      "inputRequest": null,
+      "result": null
+    },
+    {
+      "runId": "run_demo_03",
+      "sessionId": "sess_demo_03",
+      "status": "FAILED",
+      "kind": "ASSESS_SUBMISSION",
+      "submissionId": "sub_demo_03",
+      "messageId": null,
+      "attemptCount": 3,
+      "inputRequest": null,
+      "result": null,
+      "error": {
+        "code": "MODEL_TIMEOUT",
+        "retryable": true
+      }
+    },
+    {
+      "runId": "run_demo_04",
+      "sessionId": "sess_demo_04",
+      "status": "WAITING_INPUT",
+      "kind": "ASSESS_SUBMISSION",
+      "submissionId": "sub_demo_04",
+      "messageId": null,
+      "attemptCount": 1,
+      "inputRequest": {
+        "inputRequestId": "input_demo_ocr_04",
+        "kind": "OCR_CONFIRMATION",
+        "prompt": "请确认手写识别结果是否正确"
+      },
+      "result": null
+    }
+  ],
+  "events": {
+    "events": [
+      {
+        "eventId": "evt_demo_01",
+        "sequence": 1,
+        "schemaVersion": 1,
+        "studentId": "stu_alex",
+        "sessionId": null,
+        "runId": null,
+        "type": "course.enrolled",
+        "occurredAt": "2026-10-01T16:00:00Z",
+        "causationId": null,
+        "payload": {
+          "courseId": "calc_bc"
+        }
+      },
+      {
+        "eventId": "evt_demo_02",
+        "sequence": 2,
+        "schemaVersion": 1,
+        "studentId": "stu_alex",
+        "sessionId": "sess_demo_03",
+        "runId": null,
+        "type": "session.started",
+        "occurredAt": "2026-10-30T15:10:00Z",
+        "causationId": null,
+        "payload": {
+          "taskId": "task_demo_calc_03"
+        }
+      },
+      {
+        "eventId": "evt_demo_03",
+        "sequence": 3,
+        "schemaVersion": 1,
+        "studentId": "stu_alex",
+        "sessionId": "sess_demo_03",
+        "runId": "run_demo_03",
+        "type": "run.queued",
+        "occurredAt": "2026-10-30T15:12:00Z",
+        "causationId": "sub_demo_03",
+        "payload": {
+          "kind": "ASSESS_SUBMISSION"
+        }
+      },
+      {
+        "eventId": "evt_demo_04",
+        "sequence": 4,
+        "schemaVersion": 1,
+        "studentId": "stu_alex",
+        "sessionId": "sess_demo_03",
+        "runId": "run_demo_03",
+        "type": "run.failed",
+        "occurredAt": "2026-10-30T15:14:00Z",
+        "causationId": "sub_demo_03",
+        "payload": {
+          "kind": "ASSESS_SUBMISSION",
+          "errorCode": "MODEL_TIMEOUT",
+          "retryable": true
+        }
+      },
+      {
+        "eventId": "evt_demo_05",
+        "sequence": 5,
+        "schemaVersion": 1,
+        "studentId": "stu_alex",
+        "sessionId": "sess_demo_04",
+        "runId": null,
+        "type": "session.started",
+        "occurredAt": "2026-10-30T15:40:00Z",
+        "causationId": null,
+        "payload": {
+          "taskId": "task_demo_calc_04"
+        }
+      },
+      {
+        "eventId": "evt_demo_06",
+        "sequence": 6,
+        "schemaVersion": 1,
+        "studentId": "stu_alex",
+        "sessionId": "sess_demo_04",
+        "runId": "run_demo_04",
+        "type": "run.waiting_input",
+        "occurredAt": "2026-10-30T15:42:00Z",
+        "causationId": "sub_demo_04",
+        "payload": {
+          "kind": "ASSESS_SUBMISSION"
+        }
+      },
+      {
+        "eventId": "evt_demo_07",
+        "sequence": 7,
+        "schemaVersion": 1,
+        "studentId": "stu_alex",
+        "sessionId": "sess_demo_02",
+        "runId": "run_demo_02",
+        "type": "run.queued",
+        "occurredAt": "2026-10-30T16:00:00Z",
+        "causationId": "sub_demo_02",
+        "payload": {
+          "kind": "ASSESS_SUBMISSION"
+        }
+      }
+    ],
+    "nextAfter": 7,
+    "hasMore": false
+  },
+  "previews": [
+    {
+      "id": "preview_dsat_math",
+      "agent": "DSAT",
+      "kind": "math",
+      "mode": "ADAPTIVE",
+      "title": "Math：复合函数变式",
+      "durationMin": 15,
+      "desc": "规划中：只有在 SAT 诊断确认前置技能薄弱后才会生成"
+    },
+    {
+      "id": "preview_dsat_rw",
+      "agent": "DSAT",
+      "kind": "rw",
+      "mode": "ADAPTIVE",
+      "title": "Reading：双篇科学文，分清假设与结论",
+      "durationMin": 20,
+      "desc": "规划中的阅读练习形态"
+    },
+    {
+      "id": "preview_dsat_mock",
+      "agent": "DSAT",
+      "kind": "mock",
+      "mode": "ADAPTIVE",
+      "title": "自适应模考：Module 1 → Module 2",
+      "durationMin": 35,
+      "desc": "规划中的模考形态"
+    },
+    {
+      "id": "preview_adm_interview",
+      "agent": "ADMISSIONS",
+      "kind": "interview",
+      "mode": "INTERVIEW",
+      "title": "主文书访谈：机器人视觉与社区",
+      "durationMin": 30,
+      "desc": "规划中（M5）。学生自己写，不代写。"
+    },
+    {
+      "id": "preview_adm_activities",
+      "agent": "ADMISSIONS",
+      "kind": "activities",
+      "mode": "ACTIVITIES",
+      "title": "活动列表：压到 150 字符",
+      "durationMin": 20,
+      "desc": "规划中（M5）。事实需学生确认。"
+    }
+  ]
+}

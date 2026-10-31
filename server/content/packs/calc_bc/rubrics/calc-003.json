@@ -1,0 +1,51 @@
+{
+  "rubricId": "calc-003",
+  "version": "1",
+  "courseId": "calc_bc",
+  "criteria": [
+    {
+      "criterionId": "relate-quantities",
+      "description": "Writes A = πr² and differentiates with respect to t.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Shows dA/dt = 2πr dr/dt"
+      ],
+      "skillIds": [
+        "calc_bc.related-rates"
+      ]
+    },
+    {
+      "criterionId": "substitute-values",
+      "description": "Substitutes r = 5 and dr/dt = 2 after differentiating.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Substitution happens after differentiation"
+      ],
+      "skillIds": [
+        "calc_bc.related-rates"
+      ]
+    },
+    {
+      "criterionId": "answer-with-units",
+      "description": "States 20π cm²/s with correct units.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Value 20π (≈ 62.8)",
+        "Units cm²/s"
+      ],
+      "skillIds": [
+        "calc_bc.related-rates"
+      ]
+    }
+  ],
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

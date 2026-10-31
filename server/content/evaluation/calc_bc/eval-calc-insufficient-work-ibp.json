@@ -1,0 +1,57 @@
+{
+  "caseId": "eval-calc-insufficient-work-ibp",
+  "version": "1",
+  "category": "insufficient_work",
+  "questionRef": {
+    "questionId": "q_calc_bc_005",
+    "version": "1"
+  },
+  "rubricRef": {
+    "rubricId": "calc-005",
+    "version": "1"
+  },
+  "studentAnswer": {
+    "text": "(x − 1)eˣ + C"
+  },
+  "sessionContext": {
+    "serverHintCount": 0,
+    "hintSummaries": []
+  },
+  "expected": {
+    "status": "insufficient_evidence",
+    "rubricResults": [
+      {
+        "criterionId": "choose-parts",
+        "earned": 0
+      },
+      {
+        "criterionId": "apply-formula",
+        "earned": 0
+      },
+      {
+        "criterionId": "final-answer",
+        "earned": 1
+      }
+    ],
+    "skillEvidence": [],
+    "uncertaintyLevel": "high",
+    "feedbackFocus": [
+      "The final answer is correct; show the choice of u and dv and the formula",
+      "Method evidence is required to record the skill"
+    ]
+  },
+  "rationale": "The final antiderivative is correct, but no method is shown. A bare answer could come from a calculator or an external source, so it cannot count as evidence of integration-by-parts skill. Limited feedback only; mastery is not updated.",
+  "provenance": {
+    "synthetic": true,
+    "source": {
+      "type": "original",
+      "author": "HS Student OS content team",
+      "license": "Original work; internal use (synthetic draft)"
+    }
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}
