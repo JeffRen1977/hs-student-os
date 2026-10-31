@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 
@@ -73,6 +74,12 @@ class Run:
     error: RunError | None = None
     cancel_requested: bool = False
     lease_fencing_token: int = 0
+    # Internal execution bookkeeping (never exposed to clients).
+    lease_owner: str | None = None
+    lease_expires_at: datetime | None = None
+    dispatch_generation: int = 1  # bumped whenever the run is re-queued for delivery
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.session_id is None and self.kind is not RunKind.PLANNING:
@@ -81,3 +88,15 @@ class Run:
     @property
     def is_terminal(self) -> bool:
         return self.status in TERMINAL_RUN_STATUSES
+
+    def lease_active(self, now: datetime) -> bool:
+        return (
+            self.status is RunStatus.RUNNING
+            and self.lease_expires_at is not None
+            and self.lease_expires_at > now
+        )
+
+    @property
+    def delivery_id(self) -> str:
+        """Deterministic delivery id: one per (run, dispatch generation)."""
+        return f"{self.run_id}.g{self.dispatch_generation}"

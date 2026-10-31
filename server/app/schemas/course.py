@@ -5,7 +5,7 @@ from typing import Annotated
 from pydantic import StringConstraints
 
 from app.domain.types.common import AgentType, Availability, StudyMode, TaskType
-from app.domain.types.course import CourseCategory, EnrollmentStatus
+from app.domain.types.course import CatalogStatus, CourseCategory, EnrollmentStatus
 from app.schemas.common import ApiModel, CourseId, RequestModel, SemVer, SkillId, UtcDatetime
 from app.schemas.session import Session
 from app.schemas.student import MasteryEntry
@@ -22,6 +22,12 @@ class PackSummary(ApiModel):
     supported_modes: list[StudyMode]
 
 
+class AgentSummary(ApiModel):
+    agent_type: AgentType
+    modes: list[StudyMode]
+    supported_task_types: list[TaskType]
+
+
 class CatalogEntry(ApiModel):
     course_id: CourseId
     name: str
@@ -30,6 +36,9 @@ class CatalogEntry(ApiModel):
     availability: Availability
     entitled: bool
     enrolled: bool
+    # Derived: enrolled | available | locked (needs access grant) | coming_soon (planned).
+    status: CatalogStatus
+    agent: AgentSummary
 
 
 class CatalogResponse(ApiModel):
@@ -48,12 +57,6 @@ class Enrollment(ApiModel):
     course_id: CourseId
     enrolled_at: UtcDatetime
     status: EnrollmentStatus
-
-
-class AgentSummary(ApiModel):
-    agent_type: AgentType
-    modes: list[StudyMode]
-    supported_task_types: list[TaskType]
 
 
 class EnrolledCourse(ApiModel):

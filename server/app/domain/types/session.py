@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 
@@ -51,3 +52,23 @@ class Session:
     context_version: ContextVersion
     completion: CompletionEligibility
     version: int
+    # Internal: agent skills pinned when the session opened, and completion inputs.
+    agent_skills: Sequence[str] = ()
+    has_accepted_assessment: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+def completion_for(
+    status: SessionStatus, active_run_id: str | None, has_accepted_assessment: bool
+) -> CompletionEligibility:
+    """Server-side completion rule (API.md §2.5): open, idle, and an accepted assessment."""
+    if status is not SessionStatus.OPEN:
+        return CompletionEligibility(eligible=False, reason=CompletionBlocker.SESSION_CLOSED)
+    if active_run_id is not None:
+        return CompletionEligibility(eligible=False, reason=CompletionBlocker.RUN_IN_PROGRESS)
+    if not has_accepted_assessment:
+        return CompletionEligibility(
+            eligible=False, reason=CompletionBlocker.ACCEPTED_ASSESSMENT_REQUIRED
+        )
+    return CompletionEligibility(eligible=True)

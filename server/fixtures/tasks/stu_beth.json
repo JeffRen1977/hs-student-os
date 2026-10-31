@@ -1,0 +1,20 @@
+{
+  "synthetic": true,
+  "studentId": "stu_beth",
+  "tasks": [
+    {
+      "taskId": "task_beth_calc_01",
+      "studentId": "stu_beth",
+      "agent": "AP_BASE",
+      "courseId": "calc_bc",
+      "taskType": "FRQ_PRACTICE",
+      "mode": "GPA_SYNC",
+      "title": "Chain rule warm-up",
+      "durationMin": 20,
+      "scheduledDate": "2026-11-02",
+      "status": "PLANNED",
+      "version": 1,
+      "reason": {"code": "INITIAL_PRACTICE", "sourceEventIds": []}
+    }
+  ]
+}

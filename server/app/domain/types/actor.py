@@ -28,6 +28,10 @@ STUDENT_PERMISSIONS = frozenset(
     }
 )
 
+SERVICE_PERMISSIONS = frozenset({Permission.LEARNING_READ, Permission.RUN_EXECUTE})
+
+SERVICE_ACTOR_PREFIX = "svc:"
+
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ActorContext:
@@ -48,6 +52,10 @@ class ActorContext:
             raise ValueError("actor_id and student_id are required")
         if self.role is ActorRole.STUDENT and self.actor_id != self.student_id:
             raise ValueError("a student actor may only act for their own student_id")
+        if self.role is ActorRole.SERVICE and not self.actor_id.startswith(SERVICE_ACTOR_PREFIX):
+            raise ValueError("service actor ids start with 'svc:' so they never collide with uids")
+        if self.role is ActorRole.STUDENT and self.actor_id.startswith(SERVICE_ACTOR_PREFIX):
+            raise ValueError("student ids may not use the service prefix")
 
     def can(self, permission: Permission) -> bool:
         return permission in self.permissions
@@ -61,3 +69,29 @@ class ActorContext:
             permissions=STUDENT_PERMISSIONS,
             request_id=request_id,
         )
+
+    @classmethod
+    def for_service(
+        cls,
+        service_name: str,
+        student_id: str,
+        *,
+        permissions: frozenset[Permission] = SERVICE_PERMISSIONS,
+        request_id: str | None = None,
+    ) -> ActorContext:
+        """Internal worker/scheduler identity bound to one student. Never built from a
+        student token: only worker entry points that verified a service identity call it."""
+        return cls(
+            actor_id=SERVICE_ACTOR_PREFIX + service_name,
+            student_id=student_id,
+            role=ActorRole.SERVICE,
+            permissions=permissions,
+            request_id=request_id,
+        )
+
+    def require(self, permission: Permission) -> None:
+        if permission not in self.permissions:
+            # Imported lazily to keep this module dependency-free.
+            from app.domain.errors import DomainError, ErrorCode
+
+            raise DomainError(ErrorCode.FORBIDDEN, f"missing permission {permission.value}")

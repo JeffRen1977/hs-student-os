@@ -134,6 +134,12 @@ CATALOG = {
             "availability": "active",
             "entitled": True,
             "enrolled": True,
+            "status": "enrolled",
+            "agent": {
+                "agentType": "AP_BASE",
+                "modes": ["GPA_SYNC", "EXAM_CRUNCH"],
+                "supportedTaskTypes": ["SOCRATIC_STUDY", "FRQ_PRACTICE"],
+            },
         },
         {
             "courseId": "apush",
@@ -143,6 +149,8 @@ CATALOG = {
             "availability": "planned",
             "entitled": False,
             "enrolled": False,
+            "status": "coming_soon",
+            "agent": {"agentType": "AP_BASE", "modes": [], "supportedTaskTypes": []},
         },
     ]
 }

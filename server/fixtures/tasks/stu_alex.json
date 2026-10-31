@@ -1,0 +1,34 @@
+{
+  "synthetic": true,
+  "studentId": "stu_alex",
+  "tasks": [
+    {
+      "taskId": "task_alex_calc_01",
+      "studentId": "stu_alex",
+      "agent": "AP_BASE",
+      "courseId": "calc_bc",
+      "taskType": "FRQ_PRACTICE",
+      "mode": "GPA_SYNC",
+      "title": "Chain rule: identify the inner and outer functions",
+      "durationMin": 20,
+      "scheduledDate": "2026-11-02",
+      "status": "PLANNED",
+      "version": 1,
+      "reason": {"code": "INITIAL_PRACTICE", "sourceEventIds": []}
+    },
+    {
+      "taskId": "task_alex_calc_02",
+      "studentId": "stu_alex",
+      "agent": "AP_BASE",
+      "courseId": "calc_bc",
+      "taskType": "SOCRATIC_STUDY",
+      "mode": "GPA_SYNC",
+      "title": "Talk through implicit differentiation",
+      "durationMin": 15,
+      "scheduledDate": "2026-11-03",
+      "status": "PLANNED",
+      "version": 1,
+      "reason": {"code": "INITIAL_PRACTICE", "sourceEventIds": []}
+    }
+  ]
+}

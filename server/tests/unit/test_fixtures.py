@@ -103,6 +103,17 @@ def test_seed_documents_are_scoped_per_student(seeds: list[SeedStudent]) -> None
     assert "entitlements" not in docs["students/stu_alex"]
     assert docs["students/stu_alex/enrollments/calc_bc"]["status"] == "active"
     assert docs["students/stu_alex/eventState/current"] == {"nextSequence": 1}
+    assert docs["students/stu_alex/tasks/task_alex_calc_01"]["status"] == "PLANNED"
+    assert docs["students/stu_beth/tasks/task_beth_calc_01"]["studentId"] == "stu_beth"
+
+
+def test_task_fixtures_belong_to_enrolled_courses(seeds: list[SeedStudent]) -> None:
+    for seed in seeds:
+        enrolled = {e.course_id for e in seed.student.enrollments}
+        assert seed.tasks, seed.student.student_id
+        for task in seed.tasks:
+            assert task.student_id == seed.student.student_id
+            assert task.course_id in enrolled
 
 
 def test_seed_rejects_mismatched_entitlement_owner(seeds: list[SeedStudent]) -> None:

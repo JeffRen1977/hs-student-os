@@ -61,6 +61,8 @@ class PackManifest(ApiModel):
     model_tier: Literal["fast", "balanced", "strong"] | None = None
     context_budget_tokens: int = Field(default=8000, ge=1000, le=200_000)
     system_prompt_path: str | None = None
+    # Pinned on every Session (contextVersion.workflow) so results trace to a workflow.
+    workflow_version: Slug | None = None
 
     @model_validator(mode="after")
     def _active_packs_are_complete(self) -> Self:
@@ -73,6 +75,7 @@ class PackManifest(ApiModel):
                     ("skills", self.skills),
                     ("modelTier", self.model_tier),
                     ("systemPromptPath", self.system_prompt_path),
+                    ("workflowVersion", self.workflow_version),
                 )
                 if not value
             ]

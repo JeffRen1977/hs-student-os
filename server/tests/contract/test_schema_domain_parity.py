@@ -11,12 +11,23 @@ from pydantic.alias_generators import to_camel
 from app.domain.types import assessment as d_assessment
 from app.domain.types import course as d_course
 from app.domain.types import event as d_event
+from app.domain.types import message as d_message
 from app.domain.types import run as d_run
 from app.domain.types import session as d_session
 from app.domain.types import student as d_student
 from app.domain.types import submission as d_submission
 from app.domain.types import task as d_task
-from app.schemas import assessment, course, event, run, session, student, submission, task
+from app.schemas import (
+    assessment,
+    course,
+    event,
+    message,
+    run,
+    session,
+    student,
+    submission,
+    task,
+)
 
 # (schema, domain type, fields only in the domain, fields only in the schema)
 PAIRS: list[tuple[type[BaseModel], type, set[str], set[str]]] = [
@@ -28,14 +39,43 @@ PAIRS: list[tuple[type[BaseModel], type, set[str], set[str]]] = [
     (student.MasteryEntry, d_student.MasterySummary, set(), set()),
     (student.PredictionEntry, d_student.PredictionSummary, set(), set()),
     (student.TwinSummary, d_student.Student, set(), set()),
-    (task.Task, d_task.Task, set(), set()),
+    # open_session_id is the internal one-OPEN-Session-per-Task guard.
+    (task.Task, d_task.Task, {"open_session_id"}, set()),
     (task.TaskReason, d_task.TaskReason, set(), set()),
     # The domain keeps owner/course/version server-side; the API omits them on Session.
-    (session.Session, d_session.Session, {"student_id", "course_id", "version"}, set()),
+    # Pinned skills, completion inputs and timestamps stay server-side too.
+    (
+        session.Session,
+        d_session.Session,
+        {
+            "student_id",
+            "course_id",
+            "version",
+            "agent_skills",
+            "has_accepted_assessment",
+            "created_at",
+            "updated_at",
+        },
+        set(),
+    ),
     (session.CompletionEligibility, d_session.CompletionEligibility, set(), set()),
     (session.ContextVersion, d_session.ContextVersion, set(), set()),
     # Lease/cancel internals are never exposed to clients.
-    (run.Run, d_run.Run, {"student_id", "cancel_requested", "lease_fencing_token"}, set()),
+    (
+        run.Run,
+        d_run.Run,
+        {
+            "student_id",
+            "cancel_requested",
+            "lease_fencing_token",
+            "lease_owner",
+            "lease_expires_at",
+            "dispatch_generation",
+            "created_at",
+            "updated_at",
+        },
+        set(),
+    ),
     (run.InputRequest, d_run.InputRequest, set(), set()),
     (run.RunResult, d_run.RunResult, set(), set()),
     (run.RunError, d_run.RunError, set(), set()),
@@ -48,7 +88,9 @@ PAIRS: list[tuple[type[BaseModel], type, set[str], set[str]]] = [
     (assessment.Uncertainty, d_assessment.Uncertainty, set(), set()),
     (assessment.Provenance, d_assessment.Provenance, set(), set()),
     (event.Event, d_event.DomainEvent, set(), set()),
-    (course.CatalogEntry, d_course.CourseCatalogEntry, set(), set()),
+    # `status` is derived (a property on the domain type).
+    (course.CatalogEntry, d_course.CourseCatalogEntry, set(), {"status"}),
+    (message.Message, d_message.Message, {"student_id"}, set()),
     (course.AgentSummary, d_course.AgentConfig, {"description"}, set()),
 ]
 

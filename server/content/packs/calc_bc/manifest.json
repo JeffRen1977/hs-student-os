@@ -24,5 +24,6 @@
   ],
   "modelTier": "balanced",
   "contextBudgetTokens": 8000,
-  "systemPromptPath": "system_prompt.md"
+  "systemPromptPath": "system_prompt.md",
+  "workflowVersion": "calc-practice-v1"
 }

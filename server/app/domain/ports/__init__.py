@@ -1,29 +1,65 @@
-"""Repository protocols (ports). Adapters in `app.adapters` implement these.
+"""Ports (protocols) the domain depends on. Adapters in `app.adapters` implement them."""
 
-Every method takes an ActorContext and is scoped to `actor.student_id`. Implementations
-must return None / raise NOT_FOUND for another student's resources, never leak them.
-"""
-
-from app.domain.ports.repositories import (
-    AssessmentRepository,
-    CourseRepository,
-    EventRepository,
-    IdempotencyRepository,
-    RunRepository,
-    SessionRepository,
-    StudentRepository,
-    SubmissionRepository,
-    TaskRepository,
+from app.domain.ports.catalog import CourseCatalog
+from app.domain.ports.execution import (
+    ExecutionOutput,
+    ExecutionRequest,
+    JobQueue,
+    RetryableExecutionError,
+    RunExecutor,
 )
+from app.domain.ports.identity import TokenVerifier, VerifiedIdentity
+from app.domain.ports.repositories import (
+    EnrollmentStore,
+    EventDraft,
+    EventStore,
+    FileStore,
+    IdempotencyStore,
+    IdentityDirectory,
+    MessageStore,
+    OperationsStore,
+    OutboxStore,
+    RunInputStore,
+    RunStore,
+    SessionQuery,
+    SessionStore,
+    StudentStore,
+    SubmissionStore,
+    TaskQuery,
+    TaskStore,
+    Tx,
+    UnitOfWork,
+)
+from app.domain.ports.runtime import Clock, IdFactory
 
 __all__ = [
-    "AssessmentRepository",
-    "CourseRepository",
-    "EventRepository",
-    "IdempotencyRepository",
-    "RunRepository",
-    "SessionRepository",
-    "StudentRepository",
-    "SubmissionRepository",
-    "TaskRepository",
+    "Clock",
+    "CourseCatalog",
+    "EnrollmentStore",
+    "EventDraft",
+    "EventStore",
+    "ExecutionOutput",
+    "ExecutionRequest",
+    "FileStore",
+    "IdFactory",
+    "IdempotencyStore",
+    "IdentityDirectory",
+    "JobQueue",
+    "MessageStore",
+    "OperationsStore",
+    "OutboxStore",
+    "RetryableExecutionError",
+    "RunExecutor",
+    "RunInputStore",
+    "RunStore",
+    "SessionQuery",
+    "SessionStore",
+    "StudentStore",
+    "SubmissionStore",
+    "TaskQuery",
+    "TaskStore",
+    "TokenVerifier",
+    "Tx",
+    "UnitOfWork",
+    "VerifiedIdentity",
 ]

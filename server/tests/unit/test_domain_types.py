@@ -90,7 +90,7 @@ def test_student_actor_is_bound_to_own_student() -> None:
 
 def test_service_actor_may_act_for_a_student() -> None:
     actor = ActorContext(
-        actor_id="svc_worker",
+        actor_id="svc:worker",
         student_id="stu_beth",
         role=ActorRole.SERVICE,
         permissions=frozenset({Permission.RUN_EXECUTE}),

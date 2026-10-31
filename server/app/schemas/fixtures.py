@@ -10,6 +10,7 @@ from app.domain.types.course import EnrollmentStatus
 from app.domain.types.student import PredictionStatus
 from app.schemas.common import ApiModel, CourseId, UtcDatetime
 from app.schemas.student import Entitlements, Goals, PredictionEntry, Preferences, Profile
+from app.schemas.task import Task
 
 SyntheticStudentId = Annotated[str, StringConstraints(pattern=r"^stu_[a-z0-9_]+$")]
 SYNTHETIC_EMAIL_DOMAIN = "example.test"
@@ -52,4 +53,18 @@ class EntitlementFixture(ApiModel):
     def _synthetic_only(self) -> Self:
         if not self.synthetic:
             raise ValueError("fixtures must be marked synthetic")
+        return self
+
+
+class TaskFixture(ApiModel):
+    synthetic: bool
+    student_id: SyntheticStudentId
+    tasks: list[Task] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _synthetic_and_owned(self) -> Self:
+        if not self.synthetic:
+            raise ValueError("fixtures must be marked synthetic")
+        if any(t.student_id != self.student_id for t in self.tasks):
+            raise ValueError("every task must belong to the fixture student")
         return self

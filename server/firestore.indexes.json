@@ -1,0 +1,40 @@
+{
+  "indexes": [
+    {"collectionGroup": "tasks", "queryScope": "COLLECTION", "fields": [
+      {"fieldPath": "courseId", "order": "ASCENDING"},
+      {"fieldPath": "scheduledDate", "order": "ASCENDING"},
+      {"fieldPath": "taskId", "order": "ASCENDING"}]},
+    {"collectionGroup": "tasks", "queryScope": "COLLECTION", "fields": [
+      {"fieldPath": "courseId", "order": "ASCENDING"},
+      {"fieldPath": "status", "order": "ASCENDING"},
+      {"fieldPath": "scheduledDate", "order": "ASCENDING"},
+      {"fieldPath": "taskId", "order": "ASCENDING"}]},
+    {"collectionGroup": "sessions", "queryScope": "COLLECTION", "fields": [
+      {"fieldPath": "taskId", "order": "ASCENDING"},
+      {"fieldPath": "createdAt", "order": "ASCENDING"},
+      {"fieldPath": "sessionId", "order": "ASCENDING"}]},
+    {"collectionGroup": "sessions", "queryScope": "COLLECTION", "fields": [
+      {"fieldPath": "courseId", "order": "ASCENDING"},
+      {"fieldPath": "status", "order": "ASCENDING"},
+      {"fieldPath": "createdAt", "order": "ASCENDING"},
+      {"fieldPath": "sessionId", "order": "ASCENDING"}]},
+    {"collectionGroup": "messages", "queryScope": "COLLECTION", "fields": [
+      {"fieldPath": "sessionId", "order": "ASCENDING"},
+      {"fieldPath": "createdAt", "order": "ASCENDING"},
+      {"fieldPath": "messageId", "order": "ASCENDING"}]},
+    {"collectionGroup": "submissions", "queryScope": "COLLECTION", "fields": [
+      {"fieldPath": "sessionId", "order": "ASCENDING"},
+      {"fieldPath": "createdAt", "order": "ASCENDING"},
+      {"fieldPath": "submissionId", "order": "ASCENDING"}]},
+    {"collectionGroup": "outbox", "queryScope": "COLLECTION_GROUP", "fields": [
+      {"fieldPath": "status", "order": "ASCENDING"},
+      {"fieldPath": "createdAt", "order": "ASCENDING"}]},
+    {"collectionGroup": "runs", "queryScope": "COLLECTION_GROUP", "fields": [
+      {"fieldPath": "status", "order": "ASCENDING"},
+      {"fieldPath": "updatedAt", "order": "ASCENDING"}]},
+    {"collectionGroup": "runs", "queryScope": "COLLECTION_GROUP", "fields": [
+      {"fieldPath": "status", "order": "ASCENDING"},
+      {"fieldPath": "leaseExpiresAt", "order": "ASCENDING"}]}
+  ],
+  "fieldOverrides": []
+}

@@ -19,6 +19,7 @@ def student_paths(student_id: str) -> dict[str, str]:
         "access": f"{base}/access/current",
         "eventState": f"{base}/eventState/current",
         "enrollments": f"{base}/enrollments",
+        "tasks": f"{base}/tasks",
     }
 
 
@@ -60,5 +61,13 @@ def build_seed_documents(
                 "status": enrollment.status.value,
                 "enrolledAt": enrollment.enrolled_at,
                 "unenrolledAt": None,
+            }
+        for task in seed.tasks:
+            if task.student_id != sid:
+                raise ValueError("task fixture belongs to a different student")
+            docs[f"{paths['tasks']}/{task.task_id}"] = {
+                **task.model_dump(mode="json", by_alias=True),
+                "openSessionId": None,
+                "updatedAt": now,
             }
     return docs

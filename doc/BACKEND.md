@@ -74,7 +74,11 @@ students/{studentId}/consumerReceipts/{receiptId}
 students/{studentId}/plans/{planId}
 students/{studentId}/examRecords/{recordId}
 students/{studentId}/predictions/{predictionId}
+students/{studentId}/runInputs/{inputRequestId}   # M1：WAITING_INPUT 的类型化回复（如 OCR 核对）
+identities/{uid}                                  # M1：已验证 uid → studentId，仅服务端读写
 ```
+
+M1 实现说明：仓储写在 `DocTxn` 接缝上（读穿透事务、写缓冲至提交，同一事务内可读到自己的缓冲写），生产后端为 Firestore SDK，测试/无 Java 本地开发使用内存后端（部署环境拒绝）。唯一性约束依赖文档而非查询：Task 文档的 `openSessionId` 保证一 Task 一 OPEN Session，Session 文档的 `activeRunId` 保证一 Session 一非终态 Run，`eventState/current` 保证事件序号连续，注册文档被 Session/命令事务读取以与取消注册互斥。
 
 按 studentId、状态、到期时间等实际查询建立索引。后台 outbox collection-group 查询仅服务身份可用；客户端不得用全局查询绕过学生边界。题目、rubric、课程包和技能映射为独立版本化内容目录。
 

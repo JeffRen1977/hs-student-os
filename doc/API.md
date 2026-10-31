@@ -1,11 +1,12 @@
 # High School Student OS — API 契约 v0.3
 
-更新：2026-10-30。增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
+更新：2026-10-31。M1 实现补充：`COURSE_NOT_ENROLLED`、目录 `status`/`agent` 字段、消息资源、身份映射与 `date=today`（标注 “M1”）。2026-10-30 增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
 
 ## 0. 通用约定
 
 - Base path：`/api`；本地 API 默认 `http://localhost:8787`。REST/JSON，不要求兼容任何外部 agent SDK。
 - `Authorization: Bearer <Student OS ID token>`；服务端验证身份并确定 studentId。生产不接受 `X-User-Email`。本地使用明确配置的 Auth emulator。
+- M1：携带 `X-User-Email`/`X-Student-Id`/`X-User-Id` 头或 `studentId`/`email` 查询参数的请求一律 400（不静默忽略）。已验证 uid 经 `identities/{uid}` 映射到 studentId；已开通学生首次登录时记录映射（uid = studentId）。未开通账号 403，不自动创建学生。emulator 模式下 SDK 不校验有效期，服务端另行校验 exp/iat/aud/iss。
 - 时间为 UTC ISO 8601；日程另存 IANA timezone 和 localDate。所有资源 ID 均为不透明字符串。
 - 所有数据按授权 studentId 隔离。跨学生资源返回 404；归属校验先于内容处理。当前学生端不得传任意 studentId 改变作用域。
 - 创建/命令 POST 必须带 `Idempotency-Key`。同 key + 相同规范化请求返回原资源和原结果；同 key 不同 body 返回 `409 IDEMPOTENCY_CONFLICT`。响应可带 `Idempotency-Replayed: true`。
@@ -206,7 +207,9 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
       "category": "AP",
       "availability": "active",
       "entitled": true,
-      "enrolled": true
+      "enrolled": true,
+      "status": "enrolled",
+      "agent": {"agentType": "AP_BASE", "modes": ["GPA_SYNC", "EXAM_CRUNCH"], "supportedTaskTypes": ["SOCRATIC_STUDY", "FRQ_PRACTICE"]}
     },
     {
       "courseId": "apush",
@@ -215,11 +218,15 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
       "category": "AP",
       "availability": "planned",
       "entitled": false,
-      "enrolled": false
+      "enrolled": false,
+      "status": "coming_soon",
+      "agent": {"agentType": "AP_BASE", "modes": [], "supportedTaskTypes": []}
     }
   ]
 }
 ```
+
+M1：`status` 为派生字段 —— `enrolled`、`available`（active + entitled，未注册）、`locked`（active，无 entitlement）、`coming_soon`（planned）。`GET /api/courses/{courseId}` 返回同结构单条；未知 courseId 404。
 
 可见性规则：
 
@@ -312,7 +319,8 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
 
 ### 2.1 列出任务与学生重排
 
-- `GET /api/tasks?date=2026-10-29&cursor=...&limit=50` → tasks、nextCursor；日期按 preferences.timezone 解释，GET 不触发重新规划。
+- `GET /api/tasks?date=2026-10-29&cursor=...&limit=50` → tasks、nextCursor；日期按 preferences.timezone 解释，GET 不触发重新规划。M1：`date` 可省略（全部）或为 `today`（按学生时区当天）；另支持 `status`、`courseId`；只返回 active 注册课程的任务（取消注册后隐藏、重新注册后恢复）。
+- 对未注册课程的 Task/Session/命令操作返回 409 `COURSE_NOT_ENROLLED`（M1 新增错误码）；检查顺序：课程存在（404）→ active（409 `COURSE_NOT_AVAILABLE`）→ entitlement（403 `COURSE_ACCESS_REQUIRED`）→ 注册（409 `COURSE_NOT_ENROLLED`）。
 - `PATCH /api/tasks/{taskId}` + If-Match → 只允许 scheduledDate、studentLocked、status=SKIPPED（仅未开始任务）。
 - `POST /api/plans/replan` + Idempotency-Key → 202 返回 PLANNING Run；重排保留进行中、已完成与锁定任务，并返回可解释变更。
 
@@ -330,7 +338,7 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
 
 - `GET /api/sessions?taskId=...&cursor=...`：列出本学生的尝试，供刷新恢复。
 - `GET /api/sessions/{sessionId}`：Session 当前状态、活动内容摘要与 completion eligibility。
-- `GET /api/sessions/{sessionId}/messages?cursor=...`：持久对话，按分页顺序返回。
+- `GET /api/sessions/{sessionId}/messages?cursor=...`：持久对话，按分页顺序返回。M1 消息形如 `{"messageId", "sessionId", "role": "student"|"agent", "text", "fileIds", "runId", "createdAt", "synthetic"}`；`synthetic: true` 表示合成执行（测试管线）输出，不是辅导或评分。
 - `GET /api/sessions/{sessionId}/submissions?cursor=...`：该 Session 的不可变作答版本与 Run/Assessment 引用。
 - `GET /api/submissions/{submissionId}`：归属校验后读取原始作答、内容版本和文件引用，支持反馈证据回看。
 

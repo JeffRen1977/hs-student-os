@@ -10,26 +10,27 @@ The first product slice is **Calculus practice → supported assessment → save
 
 | Milestone | Steps | Status |
 |---|---|---|
-| M0 Contracts and baseline | 1–7 | **Implemented; verification partial** — emulator tests not yet run, content not yet human-reviewed | Implemented; emulator + content review pending |
-| M1 Reliable foundation | 8–15 | Not started | Not started |
-| M2 Calculus learning loop | 16–21 | Not started | Not started |
-| M3 Validated SAT transfer | 22–27 | Not started | Not started |
-| M4 Proactive planning and pilot | 28–33 | Not started | Not started |
-| M5 Optional expansion | 34–38 | Not started | Not started |
+| M0 Contracts and baseline | 1–7 | **Implemented; verification partial**: emulator tests not yet run, content not yet human-reviewed |
+| M1 Reliable foundation | 8–15 | **Implemented; verified over the in-memory backend**: Firestore-emulator run pending (no Java), Cloud Tasks/OIDC verified in staging (Step 30) |
+| M2 Calculus learning loop | 16–21 | Not started |
+| M3 Validated SAT transfer | 22–27 | Not started |
+| M4 Proactive planning and pilot | 28–33 | Not started |
+| M5 Optional expansion | 34–38 | Not started |
 
-Last local verification (`make check`): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **225 passed, 2 skipped** (emulator tests skip without emulators), web `node --test` **19 passed**.
+Last local verification (`make check`, after M1): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **369 passed, 4 skipped** (all 4 are emulator tests, which skip without emulators), web `node --test` **19 passed**.
 
-Open items before M0 can be called complete:
-- **Emulator verification (Step 5):** `make emulators` / `make test-emulator` have not been run on this machine (no Java runtime installed; Firebase emulators need Java 11+). `tests/emulator/test_seed_emulator.py` is written but currently skips.
+Open items before M0 and M1 can be called complete:
+- **Emulator verification (Steps 5, 9, 14, 15):** `make emulators` / `make test-emulator` have not been run on this machine (no Java runtime installed; Firebase emulators need Java 11+). `tests/emulator/test_seed_emulator.py` and `tests/emulator/test_firestore_flows.py` are written but currently skip. M1 transaction behaviour is proven only over the in-memory store until they run.
 - **Content review (Steps 4, 7):** questions, rubrics, and evaluation cases are `draft`; prerequisite mappings are `candidate`. None has a named reviewer yet. Evaluation thresholds in `dimensions.json` are unset until a content reviewer sets them.
 
 ### Checkout contents
 
 - `doc/` — architecture, API, backend design, competitive review, implementation plan (this file)
 - `server/` — FastAPI skeleton (`/api/health`, error envelope, request IDs, environment config that rejects emulator hosts and mock providers in staging/production), Pydantic v2 schemas, domain types and repository protocols, content/fixture/evaluation registries, Firebase adapter, emulator seed script, synthetic fixtures, Calc BC content pack, evaluation baseline, and tests
-- `Makefile` — `install`, `dev`, `server`, `web`, `emulators`, `seed`, `typecheck`, `lint`, `format`, `test*`, `check`
+- `Makefile` — `install`, `dev`, `server`, `server-memory`, `web`, `emulators`, `seed`, `typecheck`, `lint`, `format`, `test*`, `check`
 - `web/` — vanilla JS frontend. The async `data-provider.js` (Bearer auth, Idempotency-Key, request states, event dedupe) is the new seam; `?demo=true` loads `web/fixtures/demo.json` (validated against backend schemas). Predictions show "unavailable", and Task/Session/Run are kept as separate state. `window.HSData` now holds display metadata only.
-- Not built yet: auth middleware, Firestore repositories, any domain route beyond health, workers, LLM gateway
+- M1: Firebase token auth → `ActorContext`; Firestore repositories on a `DocTxn` seam with an in-memory test backend; twin, course catalog/enrollment/agent, task, session, message/submission, and run routes; transactional command acceptance with idempotency and outbox; outbox dispatcher, local queue, Cloud Tasks adapter, a lease/fencing-token run worker with its own HTTP service, a stalled-run recovery scan, and a labeled synthetic executor
+- Not built yet: LLM gateway, assessments/mastery, event feed/SSE, planner, frontend wired to the real API
 
 Each step below is a reviewable change with verification criteria.
 
@@ -219,20 +220,20 @@ Each step below is a reviewable change with verification criteria.
 
 **Goal:** Every API request is authenticated; every domain operation knows who is asking.
 
-- [ ] 8.1 Create `app/adapters/auth.py` — Firebase Admin SDK ID token verification:
+- [x] 8.1 Create `app/adapters/auth.py` — Firebase Admin SDK ID token verification:
   - Validate issuer, audience, signature, expiry
   - Extract `sub` (UID) from verified token
   - Map UID to stable `student_id` via Firestore lookup (or create mapping on first login)
-- [ ] 8.2 Create `app/api/dependencies/auth.py` — FastAPI dependency (Depends):
+- [x] 8.2 Create `app/api/dependencies/auth.py` — FastAPI dependency (Depends):
   - Extract `Authorization: Bearer <token>` header
   - Reject missing/malformed tokens with 401
   - Reject expired tokens with 401
   - Reject wrong audience with 401
   - Build ActorContext and return it as an injected dependency
-- [ ] 8.3 Configure explicit Auth emulator usage in local development
-- [ ] 8.4 Reject `X-User-Email` header and body-provided studentId — identity comes only from verified tokens
-- [ ] 8.5 Create service/admin ActorContext for internal workers (separate from student tokens)
-- [ ] 8.6 Write auth tests:
+- [x] 8.3 Configure explicit Auth emulator usage in local development
+- [x] 8.4 Reject `X-User-Email` header and body-provided studentId — identity comes only from verified tokens
+- [x] 8.5 Create service/admin ActorContext for internal workers (separate from student tokens)
+- [x] 8.6 Write auth tests:
   - Valid emulator token → accepted with correct studentId
   - Expired token → 401
   - Wrong audience → 401
@@ -241,23 +242,25 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Auth emulator tokens work locally. Production config rejects emulator tokens. No shared secret or runtime dependency on reference products.
 
+**Status:** ✅ Done (offline). `tests/unit/test_auth.py` and `tests/contract/test_auth_routes.py` run real `firebase_admin` verification in emulator mode: valid → correct studentId; expired, future-iat, wrong audience/issuer, malformed → 401; without emulator mode unsigned tokens are rejected; `X-User-Email`/`studentId` → 400; unprovisioned uid → 403; B → A resources → 404. Finding: in emulator mode the SDK skips expiry checks, so `app/adapters/auth.py` re-checks exp/iat/aud/iss itself. Not yet tried against a running Auth emulator.
+
 ---
 
 ### Step 9 — Implement Firestore repositories for Twin and profile
 
 **Goal:** Students can read their profile and update allowed fields, with isolation enforced.
 
-- [ ] 9.1 Create `app/adapters/firestore/student_repository.py` implementing `StudentRepository` protocol:
+- [x] 9.1 Create `app/adapters/firestore/student_repository.py` implementing `StudentRepository` protocol:
   - `getTwin(actor)` — returns bounded summary with profile, goals, preferences, masterySummary, predictionSummary, latestEventSequence
   - `patchProfile(actor, patch, expectedVersion)` — field-level allowlist, optimistic concurrency with version check
   - `getEntitlements(actor)` — admin-set access rights
-- [ ] 9.2 Enforce per-student isolation: all queries filter by `actor.studentId`; cross-student requests return 404
-- [ ] 9.3 Implement field-level patch allowlist:
+- [x] 9.2 Enforce per-student isolation: all queries filter by `actor.studentId`; cross-student requests return 404
+- [x] 9.3 Implement field-level patch allowlist:
   - Allowed: displayName, grade, school, targetMajor, targetSchools, satTarget, apTargets, timezone, weeklyAvailableMinutes, selectedCourses, notifications
   - Forbidden: studentId, entitlements, mastery, assessments, predictionSummary, version
-- [ ] 9.4 Implement optimistic concurrency: `If-Match` version check in transactions; version conflict returns 409; missing If-Match returns 428
-- [ ] 9.5 Store histories in subcollections (not an unbounded Twin document)
-- [ ] 9.6 Write repository tests against Firestore emulator:
+- [x] 9.4 Implement optimistic concurrency: `If-Match` version check in transactions; version conflict returns 409; missing If-Match returns 428
+- [x] 9.5 Store histories in subcollections (not an unbounded Twin document)
+- [x] 9.6 Write repository tests against Firestore emulator:
   - Two-student isolation (A cannot read B)
   - Concurrent version conflict detection
   - Unknown/forbidden field rejection
@@ -266,23 +269,25 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Isolation enforced. Version conflicts detected. Forbidden fields rejected. Data survives restart.
 
+**Status:** 🟡 Implemented; verified over the in-memory backend. Repositories live in `app/adapters/firestore/` on a `DocTxn` seam (Firestore SDK in production, in-memory store for tests and Java-free local runs). `tests/contract/test_twin_routes.py` covers isolation, 409/428, forbidden fields, and preferences ≠ entitlements, plus restart over a retained store. Emulator run pending: `tests/emulator/test_firestore_flows.py` is written but skips (no Java on this machine).
+
 ---
 
 ### Step 10 — Implement Twin, Entitlements, and Course Catalog API routes
 
 **Goal:** Wire up the REST endpoints for reading/patching student data and browsing available courses.
 
-- [ ] 10.1 `GET /api/twin` — returns bounded summary with ETag (version)
-- [ ] 10.2 `PATCH /api/twin` — validates patch against allowlist and schema, requires `If-Match`, returns updated twin
-- [ ] 10.3 `GET /api/me/entitlements` — returns backend-managed entitlements
-- [ ] 10.4 `GET /api/courses/catalog` — returns all packs with per-student availability status:
+- [x] 10.1 `GET /api/twin` — returns bounded summary with ETag (version)
+- [x] 10.2 `PATCH /api/twin` — validates patch against allowlist and schema, requires `If-Match`, returns updated twin
+- [x] 10.3 `GET /api/me/entitlements` — returns backend-managed entitlements
+- [x] 10.4 `GET /api/courses/catalog` — returns all packs with per-student availability status:
   - `active` + entitled → `available` (student can enroll)
   - `active` + not entitled → `locked` (needs access grant)
   - `planned` → `coming_soon` (cannot enroll)
   - Each entry includes: courseId, name, description, icon, availability, agent skills summary
-- [ ] 10.5 `GET /api/courses/:courseId` — single course detail; 404 for unknown courseId
-- [ ] 10.6 Wire FastAPI route response_model and request body validation using Pydantic models from Step 2
-- [ ] 10.7 Write route tests using httpx.AsyncClient with FastAPI TestClient (no external server needed):
+- [x] 10.5 `GET /api/courses/:courseId` — single course detail; 404 for unknown courseId
+- [x] 10.6 Wire FastAPI route response_model and request body validation using Pydantic models from Step 2
+- [x] 10.7 Write route tests using httpx.AsyncClient with FastAPI TestClient (no external server needed):
   - GET twin returns correct shape with ETag
   - PATCH with valid fields and correct version → success
   - PATCH with forbidden field → 400
@@ -294,13 +299,15 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** All routes respond correctly. Schema validation catches bad input. Catalog reflects entitlement status per student.
 
+**Status:** ✅ Done. Routes in `app/api/routes/twin.py` and `courses.py`. Contract addition: catalog entries carry a derived `status` (`enrolled`/`available`/`locked`/`coming_soon`) and an `agent` summary (API.md §1.7, `web/fixtures/demo.json` updated). No icon field: icons stay frontend display metadata.
+
 ---
 
 ### Step 11 — Implement course enrollment and per-course agent activation
 
 **Goal:** Students can enroll in available courses; each enrolled course activates a per-course agent in their workspace.
 
-- [ ] 11.1 Create `app/domain/course_service.py`:
+- [x] 11.1 Create `app/domain/course_service.py`:
   - `enrollCourse(actor, courseId, idempotencyKey)`:
     - Validate pack is `active` (not `planned`) → 409 `COURSE_NOT_AVAILABLE` if planned
     - Validate student has entitlement → 403 `COURSE_ACCESS_REQUIRED` if not entitled
@@ -315,21 +322,21 @@ Each step below is a reviewable change with verification criteria.
   - `getCourseAgent(actor, courseId)`:
     - Returns agent config for the enrolled course: skills, modes, description, current session (if any)
     - 404 if not enrolled
-- [ ] 11.2 Create `app/adapters/firestore/course_repository.py`:
+- [x] 11.2 Create `app/adapters/firestore/course_repository.py`:
   - Store enrollments in `students/{studentId}/enrollments/{courseId}`
   - Query enrolled courses with agent config joined from SubjectPack registry
-- [ ] 11.3 Create API routes:
+- [x] 11.3 Create API routes:
   - `POST /api/courses/enroll` + Idempotency-Key → `{ courseId }` → 201 enrollment
   - `POST /api/courses/unenroll` + Idempotency-Key → `{ courseId }` → 200
   - `GET /api/courses/enrolled` → list enrolled courses with agent summaries
   - `GET /api/courses/:courseId/agent` → agent config for enrolled course
-- [ ] 11.4 Create Firestore data for enrollment:
+- [x] 11.4 Create Firestore data for enrollment:
   ```
   students/{studentId}/enrollments/{courseId}
     enrolledAt: timestamp
     status: "active"
   ```
-- [ ] 11.5 Write tests:
+- [x] 11.5 Write tests:
   - Enroll in active + entitled course → success, course visible in workspace
   - Enroll in planned course → 409 `COURSE_NOT_AVAILABLE`
   - Enroll without entitlement → 403 `COURSE_ACCESS_REQUIRED`
@@ -343,26 +350,28 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Course enrollment lifecycle works. Entitlements enforced. Unenrollment is safe. Agent config only accessible for enrolled courses. Cross-student isolation confirmed.
 
+**Status:** ✅ Done (in-memory backend). `tests/contract/test_course_routes.py`. Enroll returns 200 as API.md specifies (this plan said 201). The open-session conflict code is `OPEN_SESSION_EXISTS` per API.md (this plan said `ACTIVE_SESSION_EXISTS`). Unenroll/re-enroll keeps tasks and mastery. `POST /api/sessions/:id/abandon` (API.md §2.5) was added here so open sessions can be closed before unenrolling.
+
 ---
 
 ### Step 12 — Implement persistent Task lifecycle
 
 **Goal:** Tasks can be created, read, listed, and updated with proper state transitions. Tasks are scoped to enrolled courses.
 
-- [ ] 12.1 Create `app/adapters/firestore/task_repository.py` implementing `TaskRepository` protocol:
+- [x] 12.1 Create `app/adapters/firestore/task_repository.py` implementing `TaskRepository` protocol:
   - `listTasks(actor, filters)` — by date, status, course; paginated; date uses student timezone
   - `getTask(actor, taskId)` — ownership check
   - `patchTask(actor, taskId, patch, expectedVersion)` — allowed: scheduledDate, studentLocked, status=SKIPPED (only from PLANNED)
-- [ ] 12.2 Create `app/domain/task_service.py`:
+- [x] 12.2 Create `app/domain/task_service.py`:
   - Validate course enrollment, availability, and entitlements before any Task interaction
   - Tasks belong to an enrolled course; unenrolled course tasks are not returned
   - Status transitions: PLANNED → IN_PROGRESS (via Session start), IN_PROGRESS → COMPLETED (via Session complete), PLANNED → SKIPPED
   - Student cannot directly PATCH to COMPLETED
-- [ ] 12.3 Create API routes:
+- [x] 12.3 Create API routes:
   - `GET /api/tasks?date=...&status=...&courseId=...&cursor=...&limit=50`
   - `GET /api/tasks/:taskId`
   - `PATCH /api/tasks/:taskId` + `If-Match`
-- [ ] 12.4 Write tests:
+- [x] 12.4 Write tests:
   - List tasks filters by date, student timezone, and enrolled course
   - Tasks for unenrolled courses not returned
   - PATCH to SKIPPED only from PLANNED
@@ -372,14 +381,16 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Tasks are persistent, isolated, course-scoped, and follow state machine rules. GET does not trigger replanning.
 
+**Status:** ✅ Done (in-memory backend). `tests/contract/test_task_routes.py`. `date=today` is resolved in the student's timezone, and a test asserts that GETs write nothing. Patching a task in an unenrolled course returns 409 `COURSE_NOT_ENROLLED`, a new error code added to the contract. Firestore composite indexes are in `server/firestore.indexes.json` but are unvalidated until Step 30.
+
 ---
 
 ### Step 13 — Implement Session creation and lifecycle
 
 **Goal:** Sessions tie to Tasks, enforce one-OPEN-per-Task, and support idempotent creation. Sessions are the per-course agent conversation boundary.
 
-- [ ] 13.1 Create `app/adapters/firestore/session_repository.py` implementing `SessionRepository` protocol
-- [ ] 13.2 Create `app/domain/session_service.py`:
+- [x] 13.1 Create `app/adapters/firestore/session_repository.py` implementing `SessionRepository` protocol
+- [x] 13.2 Create `app/domain/session_service.py`:
   - `createSession(actor, taskId, idempotencyKey)`:
     - Derive course/agent/mode from stored Task (not client input)
     - Validate course enrollment, availability, and entitlement
@@ -388,13 +399,13 @@ Each step below is a reviewable change with verification criteria.
     - Repeated idempotency key returns original result
   - Session carries the agent context (courseId, SubjectPack version, skill set)
   - Session status: OPEN → COMPLETED / ABANDONED
-- [ ] 13.3 Create API routes:
+- [x] 13.3 Create API routes:
   - `POST /api/sessions` + Idempotency-Key → 201 (new) or 200 (existing)
   - `GET /api/sessions?taskId=...&courseId=...&cursor=...`
   - `GET /api/sessions/:sessionId`
   - `GET /api/sessions/:sessionId/messages?cursor=...`
   - `GET /api/sessions/:sessionId/submissions?cursor=...`
-- [ ] 13.4 Write tests:
+- [x] 13.4 Write tests:
   - Create session for enrolled active course with entitlement → success
   - Create session for planned course → 409 `COURSE_NOT_AVAILABLE`
   - Create session for active course without entitlement → 403 `COURSE_ACCESS_REQUIRED`
@@ -407,17 +418,19 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Session lifecycle enforced. Enrollment checked. Idempotency works. Cross-student isolation confirmed.
 
+**Status:** ✅ Done (in-memory backend). `tests/contract/test_session_routes.py`, including 5 concurrent starts producing exactly one session, and restart persistence. The Task document (`openSessionId`) is the uniqueness guard, so correctness does not depend on query locking in Firestore. `POST /sessions/:id/complete` is deferred to Step 18 because it needs accepted assessments.
+
 ---
 
 ### Step 14 — Accept commands with Run and outbox (transactional)
 
 **Goal:** Student commands (messages, submissions) create Runs atomically with outbox entries.
 
-- [ ] 14.1 Create `app/adapters/firestore/run_repository.py` implementing `RunRepository` protocol
-- [ ] 14.2 Create `app/adapters/firestore/submission_repository.py` implementing `SubmissionRepository` protocol
-- [ ] 14.3 Create `app/adapters/firestore/idempotency_repository.py` implementing `IdempotencyRepository` protocol
-- [ ] 14.4 Create `app/adapters/firestore/outbox_repository.py` — outbox entries for dispatching to workers
-- [ ] 14.5 Create `app/domain/command_service.py`:
+- [x] 14.1 Create `app/adapters/firestore/run_repository.py` implementing `RunRepository` protocol
+- [x] 14.2 Create `app/adapters/firestore/submission_repository.py` implementing `SubmissionRepository` protocol
+- [x] 14.3 Create `app/adapters/firestore/idempotency_repository.py` implementing `IdempotencyRepository` protocol
+- [x] 14.4 Create `app/adapters/firestore/outbox_repository.py` — outbox entries for dispatching to workers
+- [x] 14.5 Create `app/domain/command_service.py`:
   - `submitAnswer(actor, sessionId, submission, idempotencyKey)`:
     - Validate session ownership, question/file references
     - In one Firestore transaction: create Submission + Run(QUEUED) + idempotency record + outbox entry
@@ -427,13 +440,13 @@ Each step below is a reviewable change with verification criteria.
   - `sendMessage(actor, sessionId, message, idempotencyKey)`:
     - Same transactional pattern
   - Enforce: at most one nonterminal Run per Session → 409 `RUN_IN_PROGRESS`
-- [ ] 14.6 Create API routes:
+- [x] 14.6 Create API routes:
   - `POST /api/sessions/:sessionId/submissions` + Idempotency-Key → 202
   - `POST /api/sessions/:sessionId/messages` + Idempotency-Key → 202
   - `GET /api/runs/:runId`
   - `POST /api/runs/:runId/input` + Idempotency-Key → 202 (only WAITING_INPUT)
   - `POST /api/runs/:runId/cancel` + Idempotency-Key → 202
-- [ ] 14.7 Write tests:
+- [x] 14.7 Write tests:
   - Duplicate submission (same idempotency key) → same result
   - Conflicting body with same key → 409
   - Concurrent commands to same session → 409 `RUN_IN_PROGRESS`
@@ -444,30 +457,32 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Atomic command acceptance. Idempotency enforced. At-most-one active Run per Session. Transaction failures leave clean state.
 
+**Status:** ✅ Done (in-memory backend). `tests/contract/test_command_routes.py`: atomic write set, replay/conflict, 4 concurrent submits giving 1×202 and 3×409 `RUN_IN_PROGRESS`, foreign question/file/superseded refs rejected, stale run input rejected, cancel racing enqueue, and an injected commit failure leaving the store byte-identical with the retry succeeding. Emulator run pending: `tests/emulator/test_firestore_flows.py` is written but skips (no Java on this machine).
+
 ---
 
 ### Step 15 — Implement queue adapter and recoverable job execution
 
 **Goal:** Outbox entries are dispatched to workers; workers execute with leases and fencing tokens.
 
-- [ ] 15.1 Create `app/adapters/queue/local_queue.py` — local durable queue for development:
+- [x] 15.1 Create `app/adapters/queue/local_queue.py` — local durable queue for development:
   - Poll outbox for undispatched entries
   - Immediate best-effort delivery after transaction commit
   - Reconciliation scan for missed entries
-- [ ] 15.2 Create `app/adapters/queue/cloud_tasks_adapter.py` — Cloud Tasks adapter interface (implementation deferred to staging)
-- [ ] 15.3 Create `app/workers/run_worker.py`:
+- [x] 15.2 Create `app/adapters/queue/cloud_tasks_adapter.py` — Cloud Tasks adapter interface (implementation deferred to staging)
+- [x] 15.3 Create `app/workers/run_worker.py`:
   - Authenticate worker invocations (OIDC in production, service token locally)
   - Transactionally acquire lease and increment fencing token; skip if already terminal
   - Execute in bounded steps with checkpoints
   - On completion: verify fencing token still valid before committing result
   - Expired lease → can requeue the same Run
   - Old fencing token → cannot commit (stale worker protection)
-- [ ] 15.4 Create `app/workers/outbox_dispatcher.py`:
+- [x] 15.4 Create `app/workers/outbox_dispatcher.py`:
   - Scan outbox for pending entries
   - Dispatch to queue with deterministic delivery IDs
   - Mark as dispatched; handle crash between enqueue and mark
-- [ ] 15.5 Create synthetic execution mode for internal tests — runs a deterministic stub instead of calling LLM, clearly labeled
-- [ ] 15.6 Write tests:
+- [x] 15.5 Create synthetic execution mode for internal tests — runs a deterministic stub instead of calling LLM, clearly labeled
+- [x] 15.6 Write tests:
   - Restart after API commit before dispatch → outbox scan picks up
   - Restart after queue enqueue before outbox acknowledgement → duplicate dispatch handled
   - Duplicate delivery → idempotent (same result)
@@ -476,6 +491,8 @@ Each step below is a reviewable change with verification criteria.
   - Cancel/commit race → consistent terminal state
 
 **Verify M1:** Restart recovery works across crash windows. Duplicate deliveries don't cause duplicate effects. Synthetic outputs are clearly labeled. Two-student isolation holds across all new resources. Course enrollment flow works end-to-end.
+
+**Status:** 🟡 Implemented; verified over the in-memory backend. `tests/unit/test_run_worker.py` covers each crash window, duplicate delivery, live-lease retry, lease expiry and requeue, stale fencing-token commit, both cancel/commit orderings, retry exhaustion, lost enrollment, worker HTTP auth (a student token → 401), and synthetic labeling. A real `uvicorn` run (`make server-memory`) went enroll → session → message → local worker → SUCCEEDED, with a labeled synthetic reply. Gaps: (1) execution is a single bounded step per attempt, so checkpoints inside a step arrive with the LLM gateway (Step 16); (2) the Cloud Tasks adapter and Google OIDC worker auth are unit-tested against fakes only, and need verifying in staging (Step 30); (3) Emulator run pending: `tests/emulator/test_firestore_flows.py` is written but skips (no Java on this machine).
 
 ---
 
@@ -1029,7 +1046,7 @@ Each extension is independently selected and verified. None are prerequisites fo
 | Milestone | Steps | Key Exit Criteria | Status |
 |---|---|---|---|
 | M0 Contracts and baseline | 1–7 | Buildable skeleton, schemas, fixtures, evaluation cases, Firebase emulators, frontend contract | Implemented; emulator + content review pending |
-| M1 Reliable foundation | 8–15 | Independent auth, Firestore repos, course enrollment, Task/Session/Run lifecycle, queue/outbox/worker, two-student isolation | Not started |
+| M1 Reliable foundation | 8–15 | Independent auth, Firestore repos, course enrollment, Task/Session/Run lifecycle, queue/outbox/worker, two-student isolation | Implemented; emulator + staging verification pending |
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Not started |
 | M3 Validated SAT transfer | 22–27 | Prerequisite mappings, SAT diagnostic, event consumers, planner, cross-domain E2E, frontend display | Not started |
 | M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate | Not started |

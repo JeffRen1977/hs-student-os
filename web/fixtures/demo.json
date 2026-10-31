@@ -69,7 +69,9 @@
         "category": "AP",
         "availability": "active",
         "entitled": true,
-        "enrolled": true
+        "enrolled": true,
+        "status": "enrolled",
+        "agent": {"agentType": "AP_BASE", "modes": ["GPA_SYNC", "EXAM_CRUNCH"], "supportedTaskTypes": ["SOCRATIC_STUDY", "FRQ_PRACTICE"]}
       },
       {
         "courseId": "apush",
@@ -78,7 +80,9 @@
         "category": "AP",
         "availability": "planned",
         "entitled": false,
-        "enrolled": false
+        "enrolled": false,
+        "status": "coming_soon",
+        "agent": {"agentType": "AP_BASE", "modes": [], "supportedTaskTypes": []}
       },
       {
         "courseId": "physics_c",
@@ -87,7 +91,9 @@
         "category": "AP",
         "availability": "planned",
         "entitled": false,
-        "enrolled": false
+        "enrolled": false,
+        "status": "coming_soon",
+        "agent": {"agentType": "AP_BASE", "modes": [], "supportedTaskTypes": []}
       },
       {
         "courseId": "dsat",
@@ -96,7 +102,9 @@
         "category": "SAT",
         "availability": "planned",
         "entitled": true,
-        "enrolled": false
+        "enrolled": false,
+        "status": "coming_soon",
+        "agent": {"agentType": "DSAT", "modes": [], "supportedTaskTypes": []}
       }
     ]
   },

@@ -57,3 +57,8 @@ class MessageAccepted(ApiModel):
     message_id: OpaqueId
     run_id: OpaqueId
     status: RunStatus
+
+
+class SubmissionList(ApiModel):
+    submissions: list[Submission]
+    next_cursor: str | None

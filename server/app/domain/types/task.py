@@ -53,6 +53,7 @@ class Task:
     version: int
     reason: TaskReason
     student_locked: bool = False
+    open_session_id: str | None = None  # internal guard: at most one OPEN Session per Task
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

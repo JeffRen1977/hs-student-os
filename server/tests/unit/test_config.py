@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.config import AppEnv, LlmProvider, QueueProvider, Settings
+from app.config import AppEnv, LlmProvider, QueueProvider, Settings, StorageProvider
 from app.main import create_app
 
 SAFE_PROD = {
@@ -11,6 +11,9 @@ SAFE_PROD = {
     "gcp_project_id": "hs-student-os-prod",
     "llm_provider": LlmProvider.ANTHROPIC,
     "queue_provider": QueueProvider.CLOUD_TASKS,
+    "storage_provider": StorageProvider.FIRESTORE,
+    "worker_oidc_audience": "https://worker.example.test",
+    "worker_service_account": "tasks-invoker@hs-student-os-prod.iam.gserviceaccount.com",
 }
 
 
@@ -49,6 +52,9 @@ def test_deployed_envs_reject_emulator_hosts(
         ({"llm_provider": LlmProvider.MOCK}, "HSOS_LLM_PROVIDER=mock"),
         ({"queue_provider": QueueProvider.LOCAL}, "HSOS_QUEUE_PROVIDER=local"),
         ({"gcp_project_id": "demo-hs-student-os"}, "demo project"),
+        ({"storage_provider": StorageProvider.MEMORY}, "HSOS_STORAGE_PROVIDER=memory"),
+        ({"worker_service_token": "local-secret"}, "HSOS_WORKER_SERVICE_TOKEN"),
+        ({"worker_oidc_audience": None}, "HSOS_WORKER_OIDC_AUDIENCE"),
     ],
 )
 def test_production_rejects_mock_providers(

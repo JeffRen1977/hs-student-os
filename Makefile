@@ -13,7 +13,7 @@ EMULATOR_ENV := FIRESTORE_EMULATOR_HOST=$(FIRESTORE_EMULATOR_HOST) \
 	FIREBASE_AUTH_EMULATOR_HOST=$(FIREBASE_AUTH_EMULATOR_HOST) \
 	HSOS_GCP_PROJECT_ID=$(FIREBASE_PROJECT)
 
-.PHONY: help install dev server web emulators seed typecheck lint format test \
+.PHONY: help install dev server server-memory web emulators seed typecheck lint format test \
 	test-unit test-contract test-emulator test-web check
 
 help:
@@ -28,8 +28,12 @@ dev: ## Run API (auto-reload) and static web server together
 	$(MAKE) --no-print-directory web & \
 	wait
 
-server: ## Run the FastAPI server with auto-reload on :$(API_PORT)
-	cd $(SERVER_DIR) && uv run uvicorn app.main:app --reload --port $(API_PORT)
+server: ## Run the API (+ local worker loop) against the emulators on :$(API_PORT)
+	cd $(SERVER_DIR) && $(EMULATOR_ENV) uv run uvicorn app.main:app --reload --port $(API_PORT)
+
+server-memory: ## Run the API over an in-memory store seeded with fixtures (no Java needed)
+	cd $(SERVER_DIR) && $(EMULATOR_ENV) HSOS_STORAGE_PROVIDER=memory \
+		uv run uvicorn app.main:app --port $(API_PORT)
 
 web: ## Serve web/ on :$(WEB_PORT) (add ?demo=true for demo mode)
 	python3 -m http.server $(WEB_PORT) -d $(WEB_DIR)
