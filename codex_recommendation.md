@@ -122,14 +122,14 @@ There is also a specific access issue in [API.md](API.md), section 2.2: students
 
 ## 6. Adapt the technology stack to this project
 
-After reviewing [BACKEND.md](BACKEND.md), the recommendation is to keep Node.js. The earlier Python/Temporal example was a general architecture; switching languages is unnecessary here.
+**Updated 2026-10-30:** Backend switched to Python. The earlier recommendation for Node.js is superseded.
 
-These are suggested revisions to the documented choices:
+These are the current technology choices:
 
 | Area | Recommendation |
 |---|---|
-| Backend | Supported Node.js LTS, TypeScript, Fastify |
-| Validation | JSON Schema with Ajv, shared across API and skills |
+| Backend | Python 3.12+, FastAPI, uvicorn |
+| Validation | Pydantic v2 models, shared across API and domain |
 | Structure | Modular monolith; same codebase can run API and worker processes |
 | Student data | Dedicated Student OS Firestore database, matching your planned direction |
 | Local development | Firestore emulator; JSON fixtures for demos |

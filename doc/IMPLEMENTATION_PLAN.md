@@ -19,7 +19,7 @@
 - 每个切片包含前后端契约、正常/失败路径、幂等、恢复和适用的学生隔离测试；跨域链在 M3 加入，不要求 M0 就实现所有功能。
 - Task、Session、Run、Submission、Assessment 分开；共享学生记录是逻辑视图，不能在每个 Agent 内复制第二份权威状态。
 - 评分由后端证据评估决定；没有客户端 score delta 或任意领域事件写入。entitlements 后台管理。
-- 使用支持中的 Node.js LTS + TypeScript + Fastify + Ajv，Firestore/Auth emulator 从基础阶段使用，JSON 仅为 fixture/demo。
+- 使用 Python 3.12+ + FastAPI + Pydantic v2 + mypy，Firestore/Auth emulator 从基础阶段使用，JSON 仅为 fixture/demo。
 - 契约、迁移和测试先行。旧 demo 预测不能迁成真实成绩；对需保留数据先备份并提供可逆导入方案。
 - 模块清晰但不为“可扩展”先建复杂通用框架。一个共享运行时与少量已验证内容包即可。
 - 日志记录状态、延迟、tokens、模型版本和错误，不记录完整学生作答、文书或凭证。
@@ -43,7 +43,7 @@ M0–M4 是本轮核心范围；M5 是按试点证据排序的后续工作，不
 ## 2. M0：契约与基线
 
 - [ ] 盘点 server/web 当前状态、可复用边界、旧 API 调用和未提交工作；不删除未知代码。
-- [ ] 建 TypeScript/Fastify/Ajv 骨架、受支持 Node LTS 声明、依赖锁定、环境示例与本地开发说明。
+- [ ] 建 Python/FastAPI/Pydantic 骨架、Python 3.12+ 声明、依赖锁定（uv）、环境示例与本地开发说明。
 - [ ] 以 API v0.2 建 JSON Schema：Task、Session、Run、Submission、Assessment、事件、字段白名单和错误码。
 - [ ] 两名合成学生独立 studentId；默认 prediction unavailable；entitlements 与 selectedCourses 分开。
 - [ ] calc_bc 为唯一初始 active AP 包；建立版本化原创题、rubric、提示例与候选 SAT 映射评估夹具。其他课程 planned。

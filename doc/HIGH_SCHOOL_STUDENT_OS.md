@@ -44,7 +44,7 @@ flowchart TB
 | Session / Run Manager | 保存会话与每次执行；支持刷新恢复、取消、等待补充输入 |
 | AssessmentService | 验证评估结果，统一提交证据与学习进度；科目包不直接改学生记录 |
 
-基础技术：受支持的 Node.js LTS、TypeScript、Fastify、JSON Schema/Ajv、Firestore、Cloud Tasks、Cloud Scheduler、Cloud Storage、Cloud Run。模型调用经 `LLMGateway`。本地使用 Firebase Auth/Firestore emulator 与队列适配器；JSON 仅作演示/测试夹具。详细设计见 [BACKEND.md](BACKEND.md)。
+基础技术：Python 3.12+、FastAPI、Pydantic v2、mypy、Firestore、Cloud Tasks、Cloud Scheduler、Cloud Storage、Cloud Run。模型调用经 `LLMGateway`。本地使用 Firebase Auth/Firestore emulator 与队列适配器；JSON 仅作演示/测试夹具。详细设计见 [BACKEND.md](BACKEND.md)。
 
 只参考通用 agent、session、tool、event 概念，独立实现 Student OS。**不使用 LOGIQ 代码、凭证、服务器或内部 API；不以兼容 Anthropic Managed Agents API 作为产品目标。**
 
