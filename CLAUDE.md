@@ -36,9 +36,9 @@ Architecture docs live in `doc/`. Implementation follows `doc/STEP_BY_STEP_PLAN.
 ┌──────────────────────────┼──────────────────────────────────────────┐
 │  API SERVER (Cloud Run)  │                                          │
 │                  ┌───────┴────────┐                                  │
-│                  │ Fastify        │                                  │
-│                  │ Auth Middleware │ ◄── Firebase ID token verify     │
-│                  │ Schema (Ajv)   │                                  │
+│                  │ FastAPI        │                                  │
+│                  │ Auth Depends   │ ◄── Firebase ID token verify     │
+│                  │ Pydantic v2    │                                  │
 │                  └───────┬────────┘                                  │
 │                          │ ActorContext                              │
 │          ┌───────────────┼───────────────┐                          │
@@ -116,8 +116,8 @@ INFRASTRUCTURE (Google Cloud)
 
 | Layer | Technology | Purpose |
 |---|---|---|
-| **Runtime** | Node.js LTS + TypeScript (strict) | Type-safe backend |
-| **API framework** | Fastify + Ajv | Fast HTTP, JSON Schema validation |
+| **Runtime** | Python 3.12+ with type hints + mypy | Type-safe backend |
+| **API framework** | FastAPI + Pydantic v2 | Async HTTP, automatic validation and OpenAPI docs |
 | **Authentication** | Firebase Authentication | ID token issuance and verification |
 | **Database** | Cloud Firestore | Transactional document storage, per-student isolation |
 | **Job queue** | Cloud Tasks + outbox pattern | Durable async execution with at-least-once delivery |
@@ -127,27 +127,27 @@ INFRASTRUCTURE (Google Cloud)
 | **Deployment** | Cloud Run (2 services: API + Worker) | Serverless containers with auto-scaling |
 | **Observability** | Structured logs + OpenTelemetry | Latency, tokens, errors (no raw student data) |
 | **Frontend** | Vanilla JS (existing prototype) | Student workspace, task list, agent panels |
-| **Local dev** | Firebase emulators + vitest | Offline-capable development and testing |
+| **Local dev** | Firebase emulators + pytest | Offline-capable development and testing |
 
 ### Key components and responsibilities
 
 | Component | What it does | Where it lives |
 |---|---|---|
-| **Auth Middleware** | Verifies Firebase ID tokens, builds ActorContext | `src/api/middleware/` |
-| **Twin Service** | Reads/patches student profile, goals, preferences; returns bounded summary | `src/domain/` |
-| **Session & Command Service** | Creates sessions from tasks, accepts submissions/messages, enforces one-active-Run | `src/domain/` |
-| **Run Worker** | Acquires lease, loads context + skill, calls LLM, produces assessment | `src/workers/` |
-| **LLM Gateway** | Provider abstraction, static routing, usage budgets, retry logic | `src/adapters/llm/` |
-| **SubjectPack Registry** | Loads versioned packs, questions, rubrics; pins versions per Run | `src/registries/` |
-| **Skill Executor** | Socratic guidance, rubric assessment, SAT diagnostic | `src/domain/skills/` |
-| **Tool Registry** | Math verification, content retrieval, OCR (whitelisted per skill) | `src/registries/` |
-| **Assessment Service** | Validates evidence, atomic commit of assessment + mastery + events | `src/domain/` |
-| **Event Feed** | Per-student monotonic sequence, SSE stream + polling fallback | `src/api/routes/`, `src/adapters/firestore/` |
-| **Domain Event Consumers** | React to events: suspected → diagnostic, confirmed → reinforcement | `src/workers/consumers/` |
-| **Prerequisite Service** | Evaluates AP→SAT skill mappings, emits suspected/confirmed/unsupported | `src/domain/` |
-| **Planner Service** | Ranks tasks by deadline/evidence/budget, incremental replan, explains changes | `src/domain/` |
-| **Reminder Service** | Opt-in notifications with consent, quiet hours, frequency caps | `src/domain/` |
-| **Outbox Dispatcher** | Scans outbox, dispatches to Cloud Tasks, reconciles missed entries | `src/workers/` |
+| **Auth Dependency** | Verifies Firebase ID tokens, builds ActorContext via FastAPI Depends | `app/api/dependencies/` |
+| **Twin Service** | Reads/patches student profile, goals, preferences; returns bounded summary | `app/domain/` |
+| **Session & Command Service** | Creates sessions from tasks, accepts submissions/messages, enforces one-active-Run | `app/domain/` |
+| **Run Worker** | Acquires lease, loads context + skill, calls LLM, produces assessment | `app/workers/` |
+| **LLM Gateway** | Provider abstraction, static routing, usage budgets, retry logic | `app/adapters/llm/` |
+| **SubjectPack Registry** | Loads versioned packs, questions, rubrics; pins versions per Run | `app/registries/` |
+| **Skill Executor** | Socratic guidance, rubric assessment, SAT diagnostic | `app/domain/skills/` |
+| **Tool Registry** | Math verification, content retrieval, OCR (whitelisted per skill) | `app/registries/` |
+| **Assessment Service** | Validates evidence, atomic commit of assessment + mastery + events | `app/domain/` |
+| **Event Feed** | Per-student monotonic sequence, SSE stream + polling fallback | `app/api/routes/`, `app/adapters/firestore/` |
+| **Domain Event Consumers** | React to events: suspected → diagnostic, confirmed → reinforcement | `app/workers/consumers/` |
+| **Prerequisite Service** | Evaluates AP→SAT skill mappings, emits suspected/confirmed/unsupported | `app/domain/` |
+| **Planner Service** | Ranks tasks by deadline/evidence/budget, incremental replan, explains changes | `app/domain/` |
+| **Reminder Service** | Opt-in notifications with consent, quiet hours, frequency caps | `app/domain/` |
+| **Outbox Dispatcher** | Scans outbox, dispatches to Cloud Tasks, reconciles missed entries | `app/workers/` |
 
 ### Data flow — a single learning interaction
 
@@ -386,10 +386,10 @@ api/ → domain/ ← adapters/
         ↑
      workers/
 ```
-- **Domain** (`src/domain/`) defines types, interfaces (ports), and business logic. It has zero infrastructure imports.
-- **Adapters** (`src/adapters/`) implement domain interfaces for Firestore, Firebase Auth, Cloud Tasks, LLM providers, etc.
-- **API** (`src/api/`) is a thin Fastify layer: authentication, schema validation, and delegation to domain services.
-- **Workers** (`src/workers/`) consume queue messages and call domain services.
+- **Domain** (`app/domain/`) defines types, protocols (ports), and business logic. It has zero infrastructure imports.
+- **Adapters** (`app/adapters/`) implement domain protocols for Firestore, Firebase Auth, Cloud Tasks, LLM providers, etc.
+- **API** (`app/api/`) is a thin FastAPI layer: authentication dependencies, Pydantic validation, and delegation to domain services.
+- **Workers** (`app/workers/`) consume queue messages and call domain services.
 - Never import from `api/` into `domain/`. Never import infrastructure SDKs into `domain/`.
 
 ### 2.2 ActorContext everywhere
@@ -427,31 +427,36 @@ Student cannot directly PATCH a Task to COMPLETED. Session COMPLETED requires ac
 ## 3. Coding conventions
 
 ### 3.1 Language and tools
-- **Node.js LTS** (currently supported version), **TypeScript** strict mode, **Fastify**, **Ajv** / JSON Schema.
+- **Python 3.12+** with type hints, **mypy** for static type checking, **FastAPI**, **Pydantic v2** for validation.
 - **Firestore** for persistence (emulator in dev), **Cloud Tasks** for job queue, **Cloud Scheduler** for cron, **Cloud Storage** for files.
-- **vitest** for tests. Fastify injection for route tests (no HTTP server needed).
+- **pytest** + **pytest-asyncio** for tests. **httpx.AsyncClient** with FastAPI TestClient for route tests (no external server needed).
+- **ruff** for linting and formatting. **uv** for dependency management.
 
 ### 3.2 File organization
 ```
 server/
-  src/api/           # Fastify routes, middleware, schema binding
-  src/domain/        # Business logic, types, service interfaces (ports)
-  src/workers/       # Run worker, outbox dispatcher, event consumers
-  src/adapters/      # Firestore, auth, queue, storage, LLM, tools
-  src/registries/    # Pack/skill manifest loading and validation
-  schemas/           # JSON Schema source files
-  content/           # Reviewed packs, questions, rubrics, mappings
-  fixtures/          # Synthetic test data only
-  tests/             # All test files
-web/                 # Frontend (vanilla JS, existing prototype)
-doc/                 # Architecture and planning documents
+  app/
+    __init__.py
+    main.py            # FastAPI application entry point
+    api/               # FastAPI routers, auth dependencies, request/response schemas
+    domain/            # Business logic, types, service protocols (ports)
+    workers/           # Run worker, outbox dispatcher, event consumers
+    adapters/          # Firestore, auth, queue, storage, LLM, tools
+    registries/        # Pack/skill manifest loading and validation
+    schemas/           # Pydantic v2 models for API/domain contracts
+  content/             # Reviewed packs, questions, rubrics, mappings
+  fixtures/            # Synthetic test data only
+  tests/               # All test files
+  pyproject.toml       # Dependencies, scripts, tool config
+web/                   # Frontend (vanilla JS, existing prototype)
+doc/                   # Architecture and planning documents
 ```
 
 ### 3.3 Naming
-- Files: `kebab-case.ts` (e.g., `task-service.ts`, `student-repository.ts`)
-- Types/interfaces: `PascalCase` (e.g., `TaskStatus`, `IStudentRepository`)
-- Repository interfaces prefixed with `I` and placed in `src/domain/ports/`
-- Functions and variables: `camelCase`
+- Files and modules: `snake_case.py` (e.g., `task_service.py`, `student_repository.py`)
+- Classes and type aliases: `PascalCase` (e.g., `TaskStatus`, `StudentRepository`)
+- Repository protocols placed in `app/domain/ports/` (using `typing.Protocol`)
+- Functions, methods, and variables: `snake_case`
 - Constants: `UPPER_SNAKE_CASE`
 - Database collection paths follow `BACKEND.md` §3 layout (e.g., `students/{studentId}/tasks/{taskId}`)
 
@@ -464,7 +469,7 @@ doc/                 # Architecture and planning documents
 ### 3.5 What not to build
 - No generic plugin/extension frameworks — add specific capabilities as needed.
 - No ORM or query builder — use Firestore SDK directly in adapters.
-- No custom workflow engine or JSON-based execution language — use typed TypeScript code.
+- No custom workflow engine or JSON-based execution language — use typed Python code.
 - No MCP server, Jev integration, or Temporal until explicitly justified in M5.
 - No compatibility layers for Anthropic Managed Agents API.
 
@@ -482,11 +487,11 @@ Every step must have tests covering:
 ### 4.2 Test categories
 | Category | Location | Runs with | Purpose |
 |---|---|---|---|
-| Unit | `tests/unit/` | `npm test` | Domain logic, schema validation, pure functions |
-| Contract | `tests/contract/` | `npm test` | API schema compliance, request/response shapes |
-| Emulator | `tests/emulator/` | `npm run test:emulator` | Firestore transactions, auth, isolation, recovery |
-| E2E | `tests/e2e/` | `npm run test:e2e` | Full API flow with emulators |
-| Evaluation | `tests/evaluation/` | `npm run eval:learning` | Learning quality against annotated examples |
+| Unit | `tests/unit/` | `pytest tests/unit/` | Domain logic, schema validation, pure functions |
+| Contract | `tests/contract/` | `pytest tests/contract/` | API schema compliance, request/response shapes |
+| Emulator | `tests/emulator/` | `pytest tests/emulator/` | Firestore transactions, auth, isolation, recovery |
+| E2E | `tests/e2e/` | `pytest tests/e2e/` | Full API flow with emulators |
+| Evaluation | `tests/evaluation/` | `pytest tests/evaluation/` | Learning quality against annotated examples |
 
 ### 4.3 Testing principles
 - **Emulator tests > mocks** for anything involving Firestore transactions, auth, or isolation. A passing mock does not prove a real transaction works.
@@ -510,11 +515,11 @@ Every step must have tests covering:
 - Each step (or meaningful sub-task within a step) gets its own commit.
 - Commit messages describe what changed and why, not just "implement step N."
 - Never commit credentials, secrets, `.env` files, or real student data.
-- Run `npm run typecheck` and `npm test` before committing. Fix failures before moving on.
+- Run `mypy app/` and `pytest` before committing. Fix failures before moving on.
 
 ### 5.3 Contract-first development
-1. Define or update JSON Schema (`schemas/`)
-2. Generate or update TypeScript types (`src/domain/types/`)
+1. Define or update Pydantic models (`app/schemas/`)
+2. Define or update domain types (`app/domain/types/`)
 3. Write tests for the contract
 4. Implement the handler/service
 5. Verify the tests pass
@@ -558,13 +563,13 @@ Every step must have tests covering:
 ### 7.1 Local development
 ```bash
 # Terminal 1: Firebase emulators
-npm run emulators:start
+make emulators
 
 # Terminal 2: Seed test data
-npm run seed
+make seed
 
-# Terminal 3: Backend API
-npm run dev
+# Terminal 3: Backend API (auto-reload)
+uvicorn app.main:app --reload --port 8787
 
 # Terminal 4: Frontend (optional, serve web/ directory)
 ```

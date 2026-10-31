@@ -1,6 +1,6 @@
-# High School Student OS — 后端设计 v0.3
+# High School Student OS — 后端设计 v0.4
 
-更新：2026-10-29。采纳 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md)，替代 v0.2 的单文件 HTTP、JSON 生产存储、email 主键、内存 Session 和强制 Jev 依赖。本文件是目标设计，不是已实现能力清单。产品边界见 [HIGH_SCHOOL_STUDENT_OS.md](HIGH_SCHOOL_STUDENT_OS.md)，接口以 [API.md](API.md) 为准。
+更新：2026-10-30。增加课程注册数据模型（§3）、对话上下文装载策略（§5.4）、SubjectPack manifest 与 system prompt（§7.1）。采纳 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md)，替代 v0.2 的单文件 HTTP、JSON 生产存储、email 主键、内存 Session 和强制 Jev 依赖。本文件是目标设计，不是已实现能力清单。产品边界见 [HIGH_SCHOOL_STUDENT_OS.md](HIGH_SCHOOL_STUDENT_OS.md)，接口以 [API.md](API.md) v0.3 为准。
 
 ## 1. 形态与技术栈
 
@@ -8,7 +8,7 @@
 
 | 职责 | 选型 |
 |---|---|
-| API / 类型 / 校验 | 受支持的 Node.js LTS、TypeScript、Fastify、JSON Schema/Ajv |
+| API / 类型 / 校验 | Python 3.12+、FastAPI、Pydantic v2、mypy |
 | 身份 | Student OS 自有 Firebase Authentication 项目；验证 token 并映射稳定 studentId |
 | 事务数据 | Student OS 自有 Firestore；本地 Firestore emulator |
 | 作业调度 | Cloud Tasks；本地持久 outbox + 可重复投递的队列适配器 |
@@ -22,7 +22,7 @@ JSON 文件仅用于种子与离线演示。生产不依赖本地磁盘持久性
 
 ```mermaid
 flowchart TD
-  Client[Web 客户端] --> API[Fastify API]
+  Client[Web 客户端] --> API[FastAPI]
   API --> DB[(Firestore)]
   DB --> Outbox[待投递 outbox]
   Outbox --> Queue[Cloud Tasks]
@@ -57,6 +57,7 @@ Twin 是统一逻辑视图，不是存放四年历史的一个巨大 JSON 文档
 ```text
 students/{studentId}                         # profile/goals/preferences/version
 students/{studentId}/access/current          # entitlements，后台写
+students/{studentId}/enrollments/{courseId}   # 学生主动注册的课程；status/enrolledAt/unenrolledAt
 students/{studentId}/tasks/{taskId}
 students/{studentId}/sessions/{sessionId}
 students/{studentId}/messages/{messageId}
@@ -79,6 +80,7 @@ students/{studentId}/predictions/{predictionId}
 
 | 数据 | 规则 |
 |---|---|
+| Enrollment | 学生主动注册记录；注册前校验 entitlement + availability；取消注册保留历史，不删除 mastery/assessment |
 | Submission | 不可变作答版本；修改建立新提交，引用之前版本 |
 | Assessment | 引用题目/rubric/提示/工具/模型/工作流版本；可重评为新版本 |
 | Mastery | 由 accepted assessment 投影；同一证据只应用一次，可从证据重建 |
@@ -115,12 +117,36 @@ API 在一个 Firestore 事务中写命令/提交、Run(QUEUED)、幂等记录�
 
 1. 验证队列 OIDC 调用身份与 audience；普通学生 token 无权调用 worker。
 2. 事务获取 Run 租约并增加 fencing token；已完成则直接确认。
-3. 装载固定内容/工作流版本与最小学生上下文；检查权限、token/工具预算。
+3. 装载固定内容/工作流版本与最小学生上下文；检查权限、token/工具预算。**验证课程注册状态**——未注册课程的 Run 写 FAILED。
 4. 执行短的可恢复步骤，保存输出引用和工具账本；长流程切成多次任务，遵守 Cloud Tasks/Cloud Run 的请求期限。
 5. 提交时再次比较租约 token、状态和版本；旧 worker 不能覆盖新尝试或取消结果。
 6. 有限重试和退避；不可重试错误写 FAILED 与面向学生的恢复说明。租约超时扫描可重新入队；不依赖某个 API 进程持续存活。
 
 浏览器断开不取消 Run。取消为持久命令；工具调用前与提交前检查取消状态。对外写操作后续若引入，需工具级幂等键/结果查询；不承诺能撤销已经完成的外部副作用。
+
+### 5.4 对话上下文装载（ContextLoader）
+
+Worker 在步骤 3 中使用 ContextLoader 组装 LLM 调用的完整上下文。每个 Run 的模型输入由以下部分构成：
+
+**System Prompt 组装顺序：**
+
+1. **SubjectPack system prompt** — 来自 `content/packs/{courseId}/system_prompt.md`，定义该课程 agent 的角色、教学风格和行为边界。
+2. **Skill 指令** — 当前 Run 使用的 skill（如 `socratic-guidance` 或 `rubric-assessment`）追加的任务级指令。
+3. **学生上下文摘要** — 当前 mastery 状态、目标、偏好、活跃任务的简要描述，由 ContextLoader 从 Twin 数据投影。
+4. **题目/rubric 内容** — 当前 Session 活跃的题目及评分标准（仅评估 Run）。
+
+**对话历史加载策略：**
+
+| 策略 | 规则 |
+|---|---|
+| Session 内消息 | 加载当前 Session 的全部持久化消息（学生消息 + agent 回复），按时间正序 |
+| 上下文窗口限制 | 总 token 预算由 SubjectPack manifest 的 `contextBudgetTokens` 配置（默认 8000）；超出时从最早消息开始截断，保留最近的对话和当前题目上下文 |
+| 跨 Session 记忆 | 首版不自动加载历史 Session 的消息；同一课程的 mastery 状态已作为学生上下文摘要传递，提供间接的跨 Session 连续性 |
+| 提示记录 | 每次 HINT Run 的回复记录在 messages 中，后续 ASSESS Run 可见该 Session 内的提示历史，用于评估 hintUsage |
+
+ContextLoader 不加载其他课程的 Session 消息。跨域上下文只通过 mastery 和事件（§8 消费者）间接传递，不把 Calculus 对话历史直接注入 SAT agent 的 prompt。
+
+**Agent 回复持久化：** Worker 生成的回复作为 message 写入 `students/{studentId}/messages/{messageId}`，关联 sessionId 和 runId，后续对话加载时与学生消息合并排序。
 
 ## 6. AssessmentService 与学习更新
 
@@ -137,6 +163,43 @@ API 在一个 Firestore 事务中写命令/提交、Run(QUEUED)、幂等记录�
 ## 7. 内容、模型与工具
 
 Registry 加载版本化 manifest（agent、pack、skill），只启用已验证内容。首发 AP 包 calc_bc，DSAT 在 M3 启用指定诊断能力，Admissions 保持 planned。Run 固定 pack/skill/rubric/workflow 版本，升级不改变正在运行的行为。
+
+### 7.1 SubjectPack manifest 与 system prompt
+
+每个课程包的目录结构：
+
+```text
+content/packs/{courseId}/
+  manifest.json            # 课程元数据、能力声明、模型配置
+  system_prompt.md         # 该课程 agent 的 system prompt 模板
+  questions/               # 题目库
+  rubrics/                 # 评分标准
+  skills/                  # 技能定义与前置关系
+  mappings/                # 跨域前置技能映射（M3）
+```
+
+manifest.json 示例：
+
+```json
+{
+  "courseId": "calc_bc",
+  "name": "AP Calculus BC",
+  "version": "1.0.0",
+  "availability": "active",
+  "agentType": "AP_BASE",
+  "supportedTaskTypes": ["SOCRATIC_STUDY", "FRQ_PRACTICE"],
+  "supportedModes": ["GPA_SYNC", "EXAM_CRUNCH"],
+  "skills": ["socratic-guidance", "rubric-assessment"],
+  "tools": ["math-verify", "content-retrieval"],
+  "modelTier": "balanced",
+  "contextBudgetTokens": 8000,
+  "systemPromptPath": "system_prompt.md"
+}
+```
+
+`system_prompt.md` 用 Markdown 编写，支持变量插值（`{{studentName}}`、`{{currentMode}}`、`{{masteryContext}}`），ContextLoader 在运行时填充。system prompt 定义该课程 agent 的教学风格、回应规则和安全边界，不包含学生私有数据 —— 学生上下文由 ContextLoader 在组装时动态注入。
+
+不同课程的 system prompt 可差异显著：Calculus agent 强调推导过程和数学严谨性，APUSH agent 侧重文献分析和论证结构。agent 之间不共享 system prompt，但共享运行时引擎和安全规则。
 
 `LLMGateway` 封装厂商 SDK，输入为受控 system/context/messages/schema，输出包含内容、usage 与模型版本。路由先用 manifest 的 fast/balanced/strong 和规则升级；不需要 decision 模型。
 
@@ -170,12 +233,12 @@ Cloud Scheduler 定期触发 dispatcher，查询 dueAt，按学生 IANA timezone
 
 ```text
 server/
-  src/api/               # Fastify routes/auth/schema binding
-  src/domain/            # twin/tasks/sessions/runs/assessments/planner
-  src/workers/           # run worker/outbox/consumers/scheduler
-  src/adapters/          # firestore/auth/queue/storage/llm/tools
-  src/registries/        # validated manifests and versions
-  schemas/               # JSON Schema source for API/domain contracts
+  app/api/               # FastAPI routers/auth dependencies/Pydantic schemas
+  app/domain/            # twin/tasks/sessions/runs/assessments/planner
+  app/workers/           # run worker/outbox/consumers/scheduler
+  app/adapters/          # firestore/auth/queue/storage/llm/tools
+  app/registries/        # validated manifests and versions
+  app/schemas/           # Pydantic v2 models for API/domain contracts
   content/               # reviewed packs/questions/rubrics/mappings
   fixtures/              # synthetic data only
   tests/                 # unit/contract/emulator/e2e/evaluation

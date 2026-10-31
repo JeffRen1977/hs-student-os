@@ -1,6 +1,6 @@
-# High School Student OS — Step-by-Step Implementation Plan v3.1
+# High School Student OS — Step-by-Step Implementation Plan v4.0
 
-Updated: 2026-10-30. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.2](API.md), [backend v0.3](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). These are planned steps, not a report of completed implementation.
+Updated: 2026-10-30. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). These are planned steps, not a report of completed implementation.
 
 The first product slice is **Calculus practice → supported assessment → saved evidence → SAT prerequisite diagnostic → justified follow-up → an explained plan**. M0–M4 deliver the pilot; M5 contains independently selectable extensions.
 
@@ -9,7 +9,7 @@ The first product slice is **Calculus practice → supported assessment → save
 The checkout contains:
 - `doc/` — architecture, API, backend design, competitive review, implementation plan (this file)
 - `web/` — vanilla JS frontend prototype with mock data (`data.js`), agent panels (`agents/`), store, UI, and theme
-- No `server/` directory, no `package.json`, no TypeScript, no Fastify, no Firebase configuration
+- No `server/` directory, no `pyproject.toml`, no Python backend, no FastAPI, no Firebase configuration
 - The web frontend uses `window.HSData` as a data-provider seam, consuming embedded mock data synchronously
 - Mock data includes uncalibrated predictions (4.5/4.8) and old API patterns (email identity, scoreDelta, merged Task/Session)
 
@@ -20,7 +20,7 @@ The plan below starts from this actual state. Each step is a reviewable change w
 - Work only in the Student OS checkout. Preserve existing changes; do not delete unknown code.
 - Do not use LOGIQ code, credentials, services, or API compatibility layers.
 - Other education projects (`ai-college-advisor`, `sat-tutor-app`) are read-only references only. No shared JWT, databases, ports, or filesystem dependencies.
-- Use a supported Node.js LTS, TypeScript, Fastify, JSON Schema/Ajv, Firebase Auth/Firestore emulators. JSON is fixture data, not production persistence.
+- Use Python 3.12+, FastAPI, Pydantic v2, Firebase Auth/Firestore emulators. JSON is fixture data, not production persistence.
 - Each step is a reviewable change with relevant verification. Update contracts before implementation if a step reveals a necessary change.
 - Tests must exercise meaningful contracts, authorization, recovery, or learning behavior.
 
@@ -28,74 +28,75 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 ## M0 — Contracts and Baseline (Steps 1–7)
 
-### Step 1 — Initialize the project and TypeScript backend skeleton
+### Step 1 — Initialize the project and Python backend skeleton
 
-**Goal:** Establish a buildable, type-checked backend project from scratch.
+**Goal:** Establish a runnable, type-checked backend project from scratch.
 
-- [ ] 1.1 Create `server/package.json` with Node.js LTS engine requirement, TypeScript, Fastify, `@sinclair/typebox` or Ajv, and dev dependencies (tsx, vitest, eslint, prettier)
-- [ ] 1.2 Create `server/tsconfig.json` with strict mode, path aliases for `@/` → `src/`
-- [ ] 1.3 Create the directory structure:
+- [ ] 1.1 Create `server/pyproject.toml` with Python 3.12+ requirement, dependencies: fastapi, uvicorn, pydantic v2, firebase-admin, google-cloud-firestore, google-cloud-tasks, anthropic; dev dependencies: pytest, pytest-asyncio, httpx (for TestClient), mypy, ruff
+- [ ] 1.2 Create the directory structure:
   ```
   server/
-    src/
-      api/          # Fastify routes, auth middleware, schema binding
-      domain/       # twin, tasks, sessions, runs, assessments, planner
-      workers/      # run worker, outbox dispatcher, consumers, scheduler
-      adapters/     # firestore, auth, queue, storage, llm, tools
-      registries/   # validated manifests and versions
-    schemas/        # JSON Schema source files for API/domain contracts
-    content/        # reviewed packs, questions, rubrics, mappings
-    fixtures/       # synthetic data only
-    tests/          # unit, contract, emulator, e2e, evaluation
+    app/
+      __init__.py
+      main.py         # FastAPI application entry point
+      api/            # FastAPI routers, auth dependencies, request/response schemas
+      domain/         # twin, tasks, sessions, runs, assessments, planner
+      workers/        # run worker, outbox dispatcher, consumers, scheduler
+      adapters/       # firestore, auth, queue, storage, llm, tools
+      registries/     # validated manifests and versions
+      schemas/        # Pydantic v2 models for API/domain contracts
+    content/          # reviewed packs, questions, rubrics, mappings
+    fixtures/         # synthetic data only
+    tests/            # unit, contract, emulator, e2e, evaluation
   ```
-- [ ] 1.4 Implement a minimal Fastify server (`src/api/server.ts`) with:
-  - Health route `GET /api/health` → `{ status: "ok", version: "0.1.0" }`
-  - JSON Schema error formatting
-  - Environment config loader that rejects mock providers/emulator hosts in production mode
-- [ ] 1.5 Add npm scripts: `dev`, `build`, `typecheck`, `lint`, `test`
-- [ ] 1.6 Create `server/.env.example` with placeholder variable names (no real credentials)
-- [ ] 1.7 Create a root-level `package.json` (workspaces) or a simple script to run both server and web dev locally
+- [ ] 1.3 Implement a minimal FastAPI application (`app/main.py`) with:
+  - Health route `GET /api/health` → `{ "status": "ok", "version": "0.1.0" }`
+  - Pydantic error formatting
+  - Environment config loader (via pydantic-settings) that rejects mock providers/emulator hosts in production mode
+- [ ] 1.4 Add development commands via `pyproject.toml` scripts or Makefile: `dev` (uvicorn --reload), `typecheck` (mypy), `lint` (ruff), `test` (pytest)
+- [ ] 1.5 Create `server/.env.example` with placeholder variable names (no real credentials)
+- [ ] 1.6 Create a root-level script or Makefile to run both server and web dev locally
 
-**Verify:** `npm run build` and `npm run typecheck` pass. `npm run dev` starts Fastify and responds to `GET /api/health`. Production config rejects emulator hosts. All test scripts exist (some may be pending with zero tests).
-
----
-
-### Step 2 — Define JSON Schemas for core domain entities
-
-**Goal:** Establish the API contract as machine-verifiable schemas before writing any handlers.
-
-- [ ] 2.1 Define `schemas/student.schema.json` — profile, goals, preferences, entitlements structure with field-level constraints (string lengths, number ranges, enums)
-- [ ] 2.2 Define `schemas/task.schema.json` — Task with status enum (`PLANNED`, `IN_PROGRESS`, `COMPLETED`, `SKIPPED`), required fields, reason structure
-- [ ] 2.3 Define `schemas/session.schema.json` — Session with status enum (`OPEN`, `COMPLETED`, `ABANDONED`), contextVersion, completion eligibility
-- [ ] 2.4 Define `schemas/run.schema.json` — Run with status enum (`QUEUED`, `RUNNING`, `WAITING_INPUT`, `SUCCEEDED`, `FAILED`, `CANCELLED`), kind, inputRequest, result
-- [ ] 2.5 Define `schemas/submission.schema.json` — immutable submission with questionId, questionVersion, answer, supersedesSubmissionId
-- [ ] 2.6 Define `schemas/assessment.schema.json` — assessment with rubricResults, skillEvidence, hintUsage, uncertainty, provenance, status (`accepted`, `insufficient_evidence`)
-- [ ] 2.7 Define `schemas/event.schema.json` — event with sequence, schemaVersion, type enum, causationId, typed payloads
-- [ ] 2.8 Define `schemas/error.schema.json` — standard error envelope with code, message, requestId, retryable
-- [ ] 2.9 Define `schemas/common.schema.json` — shared types: pagination (cursor/limit), idempotency key, If-Match version, ISO 8601 datetime, IANA timezone
-- [ ] 2.10 Write schema validation tests: valid examples parse; invalid inputs (client score fields, entitlement edits, forged assessment status, arbitrary event publication, malformed relationships, unknown fields) fail
-
-**Verify:** All schemas compile. Valid API examples from API.md pass validation. Forbidden client mutations (scoreDelta, entitlement writes, direct mastery writes, event POST) are rejected by schema.
+**Verify:** `mypy app/` passes. `uvicorn app.main:app --reload` starts FastAPI and responds to `GET /api/health`. Production config rejects emulator hosts. All test commands exist (some may have zero tests).
 
 ---
 
-### Step 3 — Define TypeScript domain types and interfaces
+### Step 2 — Define Pydantic models for core domain entities
 
-**Goal:** Translate schemas into TypeScript types for compile-time safety across the codebase.
+**Goal:** Establish the API contract as Pydantic v2 models with validation before writing any handlers.
 
-- [ ] 3.1 Create `src/domain/types/student.ts` — Student, Profile, Goals, Preferences, Entitlements, MasterySummary, PredictionSummary
-- [ ] 3.2 Create `src/domain/types/task.ts` — Task, TaskStatus, TaskReason, TaskPatch
-- [ ] 3.3 Create `src/domain/types/session.ts` — Session, SessionStatus, CompletionEligibility
-- [ ] 3.4 Create `src/domain/types/run.ts` — Run, RunStatus, RunKind, InputRequest, RunResult
-- [ ] 3.5 Create `src/domain/types/submission.ts` — Submission, SubmissionInput
-- [ ] 3.6 Create `src/domain/types/assessment.ts` — Assessment, AssessmentStatus, RubricResult, SkillEvidence, HintUsage, Uncertainty, Provenance
-- [ ] 3.7 Create `src/domain/types/event.ts` — DomainEvent, EventType enum, typed event payloads
-- [ ] 3.8 Create `src/domain/types/actor.ts` — ActorContext (actorId, studentId, role, permissions scope)
-- [ ] 3.9 Create `src/domain/types/course.ts` — CourseEnrollment, EnrollmentStatus, CourseCatalogEntry (availability + entitlement status for this student), AgentConfig (skills, modes, description)
-- [ ] 3.10 Create `src/domain/types/common.ts` — PaginatedResponse, IdempotencyRecord, VersionedResource
-- [ ] 3.11 Create repository interfaces in `src/domain/ports/` — IStudentRepository, ITaskRepository, ISessionRepository, IRunRepository, ISubmissionRepository, IAssessmentRepository, IEventRepository, IIdempotencyRepository, ICourseRepository
+- [ ] 2.1 Define `app/schemas/student.py` — Student, Profile, Goals, Preferences, Entitlements with field-level constraints (str max_length, int ge/le, Literal enums)
+- [ ] 2.2 Define `app/schemas/task.py` — Task with TaskStatus literal (`PLANNED`, `IN_PROGRESS`, `COMPLETED`, `SKIPPED`), required fields, reason structure
+- [ ] 2.3 Define `app/schemas/session.py` — Session with SessionStatus literal (`OPEN`, `COMPLETED`, `ABANDONED`), contextVersion, completion eligibility
+- [ ] 2.4 Define `app/schemas/run.py` — Run with RunStatus literal (`QUEUED`, `RUNNING`, `WAITING_INPUT`, `SUCCEEDED`, `FAILED`, `CANCELLED`), kind, inputRequest, result
+- [ ] 2.5 Define `app/schemas/submission.py` — immutable submission with questionId, questionVersion, answer, supersedesSubmissionId
+- [ ] 2.6 Define `app/schemas/assessment.py` — assessment with rubricResults, skillEvidence, hintUsage, uncertainty, provenance, status (`accepted`, `insufficient_evidence`)
+- [ ] 2.7 Define `app/schemas/event.py` — event with sequence, schemaVersion, type enum, causationId, typed payloads
+- [ ] 2.8 Define `app/schemas/error.py` — standard error envelope with code, message, requestId, retryable
+- [ ] 2.9 Define `app/schemas/common.py` — shared types: pagination (cursor/limit), idempotency key, If-Match version, ISO 8601 datetime, IANA timezone
+- [ ] 2.10 Write schema validation tests: valid examples parse; invalid inputs (client score fields, entitlement edits, forged assessment status, arbitrary event publication, malformed relationships, extra fields) fail via Pydantic `model_config = ConfigDict(extra="forbid")`
 
-**Verify:** `npm run typecheck` passes. Types match the JSON schemas from Step 2. Repository interfaces use ActorContext for all operations.
+**Verify:** All Pydantic models compile. Valid API examples from API.md pass validation. Forbidden client mutations (scoreDelta, entitlement writes, direct mastery writes, event POST) are rejected by Pydantic.
+
+---
+
+### Step 3 — Define Python domain types and repository protocols
+
+**Goal:** Define typed domain models and repository interfaces using dataclasses, enums, and Protocol classes.
+
+- [ ] 3.1 Create `app/domain/types/student.py` — Student, Profile, Goals, Preferences, Entitlements, MasterySummary, PredictionSummary (as dataclasses or Pydantic BaseModel)
+- [ ] 3.2 Create `app/domain/types/task.py` — Task, TaskStatus (StrEnum), TaskReason, TaskPatch
+- [ ] 3.3 Create `app/domain/types/session.py` — Session, SessionStatus (StrEnum), CompletionEligibility
+- [ ] 3.4 Create `app/domain/types/run.py` — Run, RunStatus (StrEnum), RunKind, InputRequest, RunResult
+- [ ] 3.5 Create `app/domain/types/submission.py` — Submission, SubmissionInput
+- [ ] 3.6 Create `app/domain/types/assessment.py` — Assessment, AssessmentStatus, RubricResult, SkillEvidence, HintUsage, Uncertainty, Provenance
+- [ ] 3.7 Create `app/domain/types/event.py` — DomainEvent, EventType (StrEnum), typed event payloads
+- [ ] 3.8 Create `app/domain/types/actor.py` — ActorContext (actor_id, student_id, role, permissions scope)
+- [ ] 3.9 Create `app/domain/types/course.py` — CourseEnrollment, EnrollmentStatus, CourseCatalogEntry (availability + entitlement status for this student), AgentConfig (skills, modes, description)
+- [ ] 3.10 Create `app/domain/types/common.py` — PaginatedResponse[T] (generic), IdempotencyRecord, VersionedResource
+- [ ] 3.11 Create repository protocols in `app/domain/ports/` — StudentRepository, TaskRepository, SessionRepository, RunRepository, SubmissionRepository, AssessmentRepository, EventRepository, IdempotencyRepository, CourseRepository (using `typing.Protocol`)
+
+**Verify:** `mypy app/` passes. Types match the Pydantic schemas from Step 2. Repository protocols use ActorContext for all operations.
 
 ---
 
@@ -125,15 +126,15 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 - [ ] 5.1 Create `server/firebase.json` with Auth and Firestore emulator configuration (ports, project ID)
 - [ ] 5.2 Create `server/.firebaserc` with local dev project alias
-- [ ] 5.3 Create a seed script (`server/scripts/seed-emulator.ts`) that:
+- [ ] 5.3 Create a seed script (`server/scripts/seed_emulator.py`) that:
   - Creates Auth emulator users for student A and B with known UIDs
   - Writes fixture data into Firestore emulator collections following the data model from BACKEND.md §3
-- [ ] 5.4 Create `src/adapters/firebase.ts` — Firebase Admin SDK initialization with explicit emulator detection
-- [ ] 5.5 Add npm script `emulators:start` to launch Firebase emulators
-- [ ] 5.6 Add npm script `seed` to run the seed script against running emulators
+- [ ] 5.4 Create `app/adapters/firebase.py` — Firebase Admin SDK initialization with explicit emulator detection
+- [ ] 5.5 Add Makefile target or script `make emulators` to launch Firebase emulators
+- [ ] 5.6 Add Makefile target or script `make seed` to run the seed script against running emulators
 - [ ] 5.7 Verify that production startup rejects emulator environment variables
 
-**Verify:** `npm run emulators:start` launches Auth + Firestore. `npm run seed` populates two students. Firestore data is queryable. Production config check rejects `FIRESTORE_EMULATOR_HOST`.
+**Verify:** `make emulators` launches Auth + Firestore. `make seed` populates two students. Firestore data is queryable. Production config check rejects `FIRESTORE_EMULATOR_HOST`.
 
 ---
 
@@ -186,16 +187,16 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Every API request is authenticated; every domain operation knows who is asking.
 
-- [ ] 8.1 Create `src/adapters/auth.ts` — Firebase Admin SDK ID token verification:
+- [ ] 8.1 Create `app/adapters/auth.py` — Firebase Admin SDK ID token verification:
   - Validate issuer, audience, signature, expiry
   - Extract `sub` (UID) from verified token
-  - Map UID to stable `studentId` via Firestore lookup (or create mapping on first login)
-- [ ] 8.2 Create `src/api/middleware/auth.ts` — Fastify preHandler hook:
+  - Map UID to stable `student_id` via Firestore lookup (or create mapping on first login)
+- [ ] 8.2 Create `app/api/dependencies/auth.py` — FastAPI dependency (Depends):
   - Extract `Authorization: Bearer <token>` header
   - Reject missing/malformed tokens with 401
   - Reject expired tokens with 401
   - Reject wrong audience with 401
-  - Build ActorContext and attach to request
+  - Build ActorContext and return it as an injected dependency
 - [ ] 8.3 Configure explicit Auth emulator usage in local development
 - [ ] 8.4 Reject `X-User-Email` header and body-provided studentId — identity comes only from verified tokens
 - [ ] 8.5 Create service/admin ActorContext for internal workers (separate from student tokens)
@@ -214,7 +215,7 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Students can read their profile and update allowed fields, with isolation enforced.
 
-- [ ] 9.1 Create `src/adapters/firestore/student-repository.ts` implementing `IStudentRepository`:
+- [ ] 9.1 Create `app/adapters/firestore/student_repository.py` implementing `StudentRepository` protocol:
   - `getTwin(actor)` — returns bounded summary with profile, goals, preferences, masterySummary, predictionSummary, latestEventSequence
   - `patchProfile(actor, patch, expectedVersion)` — field-level allowlist, optimistic concurrency with version check
   - `getEntitlements(actor)` — admin-set access rights
@@ -248,8 +249,8 @@ The plan below starts from this actual state. Each step is a reviewable change w
   - `planned` → `coming_soon` (cannot enroll)
   - Each entry includes: courseId, name, description, icon, availability, agent skills summary
 - [ ] 10.5 `GET /api/courses/:courseId` — single course detail; 404 for unknown courseId
-- [ ] 10.6 Wire Fastify route schemas for request/response validation using JSON Schemas from Step 2
-- [ ] 10.7 Write route tests using Fastify injection (no HTTP server needed):
+- [ ] 10.6 Wire FastAPI route response_model and request body validation using Pydantic models from Step 2
+- [ ] 10.7 Write route tests using httpx.AsyncClient with FastAPI TestClient (no external server needed):
   - GET twin returns correct shape with ETag
   - PATCH with valid fields and correct version → success
   - PATCH with forbidden field → 400
@@ -267,7 +268,7 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Students can enroll in available courses; each enrolled course activates a per-course agent in their workspace.
 
-- [ ] 11.1 Create `src/domain/course-service.ts`:
+- [ ] 11.1 Create `app/domain/course_service.py`:
   - `enrollCourse(actor, courseId, idempotencyKey)`:
     - Validate pack is `active` (not `planned`) → 409 `COURSE_NOT_AVAILABLE` if planned
     - Validate student has entitlement → 403 `COURSE_ACCESS_REQUIRED` if not entitled
@@ -282,7 +283,7 @@ The plan below starts from this actual state. Each step is a reviewable change w
   - `getCourseAgent(actor, courseId)`:
     - Returns agent config for the enrolled course: skills, modes, description, current session (if any)
     - 404 if not enrolled
-- [ ] 11.2 Create `src/adapters/firestore/course-repository.ts`:
+- [ ] 11.2 Create `app/adapters/firestore/course_repository.py`:
   - Store enrollments in `students/{studentId}/enrollments/{courseId}`
   - Query enrolled courses with agent config joined from SubjectPack registry
 - [ ] 11.3 Create API routes:
@@ -316,11 +317,11 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Tasks can be created, read, listed, and updated with proper state transitions. Tasks are scoped to enrolled courses.
 
-- [ ] 12.1 Create `src/adapters/firestore/task-repository.ts` implementing `ITaskRepository`:
+- [ ] 12.1 Create `app/adapters/firestore/task_repository.py` implementing `TaskRepository` protocol:
   - `listTasks(actor, filters)` — by date, status, course; paginated; date uses student timezone
   - `getTask(actor, taskId)` — ownership check
   - `patchTask(actor, taskId, patch, expectedVersion)` — allowed: scheduledDate, studentLocked, status=SKIPPED (only from PLANNED)
-- [ ] 12.2 Create `src/domain/task-service.ts`:
+- [ ] 12.2 Create `app/domain/task_service.py`:
   - Validate course enrollment, availability, and entitlements before any Task interaction
   - Tasks belong to an enrolled course; unenrolled course tasks are not returned
   - Status transitions: PLANNED → IN_PROGRESS (via Session start), IN_PROGRESS → COMPLETED (via Session complete), PLANNED → SKIPPED
@@ -345,8 +346,8 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Sessions tie to Tasks, enforce one-OPEN-per-Task, and support idempotent creation. Sessions are the per-course agent conversation boundary.
 
-- [ ] 13.1 Create `src/adapters/firestore/session-repository.ts` implementing `ISessionRepository`
-- [ ] 13.2 Create `src/domain/session-service.ts`:
+- [ ] 13.1 Create `app/adapters/firestore/session_repository.py` implementing `SessionRepository` protocol
+- [ ] 13.2 Create `app/domain/session_service.py`:
   - `createSession(actor, taskId, idempotencyKey)`:
     - Derive course/agent/mode from stored Task (not client input)
     - Validate course enrollment, availability, and entitlement
@@ -380,11 +381,11 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Student commands (messages, submissions) create Runs atomically with outbox entries.
 
-- [ ] 14.1 Create `src/adapters/firestore/run-repository.ts` implementing `IRunRepository`
-- [ ] 14.2 Create `src/adapters/firestore/submission-repository.ts` implementing `ISubmissionRepository`
-- [ ] 14.3 Create `src/adapters/firestore/idempotency-repository.ts` implementing `IIdempotencyRepository`
-- [ ] 14.4 Create `src/adapters/firestore/outbox-repository.ts` — outbox entries for dispatching to workers
-- [ ] 14.5 Create `src/domain/command-service.ts`:
+- [ ] 14.1 Create `app/adapters/firestore/run_repository.py` implementing `RunRepository` protocol
+- [ ] 14.2 Create `app/adapters/firestore/submission_repository.py` implementing `SubmissionRepository` protocol
+- [ ] 14.3 Create `app/adapters/firestore/idempotency_repository.py` implementing `IdempotencyRepository` protocol
+- [ ] 14.4 Create `app/adapters/firestore/outbox_repository.py` — outbox entries for dispatching to workers
+- [ ] 14.5 Create `app/domain/command_service.py`:
   - `submitAnswer(actor, sessionId, submission, idempotencyKey)`:
     - Validate session ownership, question/file references
     - In one Firestore transaction: create Submission + Run(QUEUED) + idempotency record + outbox entry
@@ -417,19 +418,19 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Outbox entries are dispatched to workers; workers execute with leases and fencing tokens.
 
-- [ ] 15.1 Create `src/adapters/queue/local-queue.ts` — local durable queue for development:
+- [ ] 15.1 Create `app/adapters/queue/local_queue.py` — local durable queue for development:
   - Poll outbox for undispatched entries
   - Immediate best-effort delivery after transaction commit
   - Reconciliation scan for missed entries
-- [ ] 15.2 Create `src/adapters/queue/cloud-tasks-adapter.ts` — Cloud Tasks adapter interface (implementation deferred to staging)
-- [ ] 15.3 Create `src/workers/run-worker.ts`:
+- [ ] 15.2 Create `app/adapters/queue/cloud_tasks_adapter.py` — Cloud Tasks adapter interface (implementation deferred to staging)
+- [ ] 15.3 Create `app/workers/run_worker.py`:
   - Authenticate worker invocations (OIDC in production, service token locally)
   - Transactionally acquire lease and increment fencing token; skip if already terminal
   - Execute in bounded steps with checkpoints
   - On completion: verify fencing token still valid before committing result
   - Expired lease → can requeue the same Run
   - Old fencing token → cannot commit (stale worker protection)
-- [ ] 15.4 Create `src/workers/outbox-dispatcher.ts`:
+- [ ] 15.4 Create `app/workers/outbox_dispatcher.py`:
   - Scan outbox for pending entries
   - Dispatch to queue with deterministic delivery IDs
   - Mark as dispatched; handle crash between enqueue and mark
@@ -452,11 +453,11 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** A controlled interface for model calls with usage tracking and budget enforcement.
 
-- [ ] 16.1 Create `src/adapters/llm/gateway.ts` — `LLMGateway`:
+- [ ] 16.1 Create `app/adapters/llm/gateway.py` — `LLMGateway`:
   - Provider abstraction with typed input (system, context, messages, schema) and output (content, usage, modelVersion)
   - Start with one provider (Anthropic Claude)
   - Capture model version and workflow version on every call
-- [ ] 16.2 Create `src/adapters/llm/router.ts` — static `ModelRouter`:
+- [ ] 16.2 Create `app/adapters/llm/router.py` — static `ModelRouter`:
   - Route by skill tier (fast/balanced/strong) from pack manifest
   - No decision model needed; rules-based routing
 - [ ] 16.3 Implement usage budgets:
@@ -483,25 +484,25 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** The first real learning skills — Socratic prompting and FRQ rubric assessment for calc_bc.
 
-- [ ] 17.1 Create `src/registries/subject-pack-registry.ts`:
+- [ ] 17.1 Create `app/registries/subject_pack_registry.py`:
   - Load and validate pack manifests from `content/packs/`
   - Only activate packs with `availability: "active"` and verified content
   - Pin question/rubric/workflow versions per Run
-- [ ] 17.2 Create `src/domain/skills/socratic-guidance.ts`:
+- [ ] 17.2 Create `app/domain/skills/socratic_guidance.py`:
   - Load minimal relevant student context (current mastery, session history)
   - Generate Socratic hints that guide without giving answers
   - Record each server-issued hint for dependency tracking
-- [ ] 17.3 Create `src/domain/skills/rubric-assessment.ts`:
+- [ ] 17.3 Create `app/domain/skills/rubric_assessment.py`:
   - Load fixed rubric version for the question
   - Evaluate student answer against each rubric criterion
   - Generate evidence references (which part of student answer supports each criterion)
   - Distinguish assisted success (hints used) from independent evidence
   - Return `accepted` or `insufficient_evidence` status with reasons
-- [ ] 17.4 Create `src/registries/tool-registry.ts`:
+- [ ] 17.4 Create `app/registries/tool_registry.py`:
   - Internal tool interface: `execute(name, input, context)`
   - First tool: mathematical expression verification (optional SymPy adapter)
   - Whitelist per skill, parameter schema, scope constraints
-- [ ] 17.5 Create `src/domain/context-loader.ts`:
+- [ ] 17.5 Create `app/domain/context_loader.py`:
   - Load reviewed material sets with source references
   - Filter by studentId/courseId/ACL before retrieval
   - Return material-not-found when index is insufficient
@@ -520,18 +521,18 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Assessment results, mastery updates, events, and Run completion happen in one transaction.
 
-- [ ] 18.1 Create `src/domain/assessment-service.ts` — `commitAssessment()`:
+- [ ] 18.1 Create `app/domain/assessment_service.py` — `commit_assessment()`:
   - Validate evidence semantically (not just JSON shape): question ownership, rubric version, evidence references, student answer, tool results, hint records
   - In one transaction: save Assessment + mastery projection + Run terminal state + domain events + outbox entries
   - `insufficient_evidence` → can show limited feedback but does NOT update mastery
   - Use unique evidence application ID — same evidence cannot be applied twice
   - Regrade: `supersedesAssessmentId` replaces earlier evidence contribution
   - Consecutive corrections after hints are NOT counted as independent evidence
-- [ ] 18.2 Create `src/domain/mastery-service.ts`:
+- [ ] 18.2 Create `app/domain/mastery_service.py`:
   - Project mastery from accepted assessments
   - Track: skill level, independent evidence count, coverage, uncertainty
   - Mastery is derivable from assessments (can be rebuilt)
-- [ ] 18.3 Create `src/domain/assessment-service.ts` — `completeSession()`:
+- [ ] 18.3 Create `app/domain/assessment_service.py` — `complete_session()`:
   - Check: no active Run, accepted assessment exists, task completion rules met
   - In one transaction: Session → COMPLETED, Task → COMPLETED, events
   - Does NOT re-apply mastery (summary only, no double-counting)
@@ -562,11 +563,11 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Frontend receives real-time updates from persistent events, with reconnection and replay.
 
-- [ ] 19.1 Create `src/adapters/firestore/event-repository.ts`:
+- [ ] 19.1 Create `app/adapters/firestore/event_repository.py`:
   - Per-student monotonic sequence assignment (in transaction)
   - `listEvents(actor, afterSequence, limit)` — paginated, ordered by sequence
   - Filtered projection: exclude internal outbox, raw model reasoning, credentials, private tool params
-- [ ] 19.2 Create `src/api/routes/events.ts`:
+- [ ] 19.2 Create `app/api/routes/events.py`:
   - `GET /api/events?after=...&limit=50` → paginated events
   - `GET /api/events/stream?after=...` → SSE stream:
     - Replay persisted events from `after` sequence
@@ -659,7 +660,7 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** AP assessment evidence can suggest (not confirm) related SAT skill weaknesses.
 
-- [ ] 22.1 Create `src/domain/prerequisite-service.ts`:
+- [ ] 22.1 Create `app/domain/prerequisite_service.py`:
   - Load versioned mappings from `content/mappings/`
   - Only eligible `accepted` assessments trigger `prerequisite.suspected` events
   - Retain source assessment ID and mapping version
@@ -686,7 +687,7 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 - [ ] 23.1 Create `content/packs/dsat/manifest.json` — DSAT pack with diagnostic capability for selected prerequisites
 - [ ] 23.2 Create `content/packs/dsat/questions/` — reviewed SAT-style diagnostic questions targeting specific prerequisite skills
-- [ ] 23.3 Create `src/domain/skills/sat-diagnostic.ts`:
+- [ ] 23.3 Create `app/domain/skills/sat_diagnostic.py`:
   - Require DSAT entitlement and available diagnostic content
   - Record independent performance (no hints from the AP session)
   - Use the same AssessmentService for evidence commit
@@ -709,13 +710,13 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Events drive follow-up actions atomically and idempotently.
 
-- [ ] 24.1 Create `src/workers/consumers/prerequisite-consumer.ts`:
+- [ ] 24.1 Create `app/workers/consumers/prerequisite_consumer.py`:
   - Consume `assessment.completed` events → evaluate prerequisite mappings → emit `prerequisite.suspected`
   - Consumer receipt: `(consumerName, eventId, targetSkill)` — written in same transaction as target Task
-- [ ] 24.2 Create `src/workers/consumers/diagnostic-consumer.ts`:
+- [ ] 24.2 Create `app/workers/consumers/diagnostic_consumer.py`:
   - Consume `prerequisite.suspected` → create diagnostic Task (if DSAT entitled and content available)
   - Atomically write Task + receipt; deduplicate by consumer/event/targetSkill
-- [ ] 24.3 Create `src/workers/consumers/reinforcement-consumer.ts`:
+- [ ] 24.3 Create `app/workers/consumers/reinforcement_consumer.py`:
   - Consume `prerequisite.confirmed` → create reinforcement Task
   - `unsupported`/`insufficient` → no reinforcement created; record reason
 - [ ] 24.4 Implement consumer infrastructure:
@@ -738,7 +739,7 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** The Planner updates the schedule based on new evidence, respecting time budgets and student controls.
 
-- [ ] 25.1 Create `src/domain/planner-service.ts`:
+- [ ] 25.1 Create `app/domain/planner_service.py`:
   - Rank learning needs: deadlines > diagnosed prerequisites > evidence gaps > new practice
   - Place tasks within student's available weekly minutes
   - Preserve IN_PROGRESS, COMPLETED, and student-locked tasks
@@ -812,7 +813,7 @@ The plan below starts from this actual state. Each step is a reviewable change w
 
 **Goal:** Daily planning runs automatically for each student at the right local time.
 
-- [ ] 28.1 Create `src/workers/scheduler/planning-scheduler.ts`:
+- [ ] 28.1 Create `app/workers/scheduler/planning_scheduler.py`:
   - Cloud Scheduler trigger → scan students with `dueAt` ≤ now
   - Calculate local date using student's IANA timezone
   - Deduplicate: `studentId + localDate + planningReason`
@@ -839,7 +840,7 @@ The plan below starts from this actual state. Each step is a reviewable change w
   - Defer: change scheduledDate via PATCH
   - Skip: set status to SKIPPED (only from PLANNED)
   - Lock: set studentLocked = true (preserved during replanning)
-- [ ] 29.2 Create `src/domain/reminder-service.ts`:
+- [ ] 29.2 Create `app/domain/reminder_service.py`:
   - Record consent, quiet hours, frequency caps
   - Delivery dedupe keys per channel/task/time-window
   - Check consent again immediately before sending (queued reminder can become ineligible)

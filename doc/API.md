@@ -1,6 +1,6 @@
-# High School Student OS — API 契约 v0.2
+# High School Student OS — API 契约 v0.3
 
-更新：2026-10-29。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
+更新：2026-10-30。增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
 
 ## 0. 通用约定
 
@@ -185,6 +185,128 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
 无 Session/Run 的 Planner 事件相应字段为 null。sequence 在同一学生范围递增。常见事件：session.started、run.queued、run.started、run.waiting_input、run.completed、run.failed、run.cancelled、assessment.completed、mastery.updated、session.completed、session.abandoned、prerequisite.suspected、prerequisite.confirmed、prerequisite.unsupported、plan.updated。
 
 事件由服务端在事务中创建。客户端不能声明事件来源或伪造结果。UI 只接收脱敏的学生事件，不接收内部 outbox、原始模型推理或敏感工具参数。
+
+新增的注册事件：`course.enrolled`、`course.unenrolled`，由注册 API 在事务中生成，可被 Planner 等消费者监听。
+
+### 1.7 课程目录与注册
+
+学生先浏览课程目录，再注册感兴趣的课程。只有注册后的课程才出现在工作台，并激活对应的 per-course agent。注册是 entitlement 检查之上的用户主动行为 —— 有权限不等于已注册。
+
+#### 课程目录
+
+`GET /api/courses/catalog` 返回当前学生可见的全部课程列表：
+
+```json
+{
+  "courses": [
+    {
+      "courseId": "calc_bc",
+      "name": "AP Calculus BC",
+      "description": "Covers limits, derivatives, integrals, and series.",
+      "category": "AP",
+      "availability": "active",
+      "entitled": true,
+      "enrolled": true
+    },
+    {
+      "courseId": "apush",
+      "name": "AP US History",
+      "description": "American history from pre-Columbian era to present.",
+      "category": "AP",
+      "availability": "planned",
+      "entitled": false,
+      "enrolled": false
+    }
+  ]
+}
+```
+
+可见性规则：
+
+| 状态组合 | 目录可见 | 可注册 | 工作台可见 |
+|---|---|---|---|
+| active + entitled + enrolled | ✓ | 已注册 | ✓ agent 激活 |
+| active + entitled + not enrolled | ✓ | ✓ | ✗ |
+| active + not entitled | ✓ (标记 locked) | ✗ 403 | ✗ |
+| planned | ✓ (标记 coming soon) | ✗ 409 | ✗ |
+
+#### 注册课程
+
+`POST /api/courses/enroll` + Idempotency-Key：
+
+```json
+{"courseId": "calc_bc"}
+```
+
+成功返回 200：
+
+```json
+{
+  "courseId": "calc_bc",
+  "enrolledAt": "2026-10-30T08:00:00Z",
+  "status": "active"
+}
+```
+
+服务端在事务中验证：课程 active、学生持有 entitlement、未重复注册。重复注册同一课程幂等返回已有记录。对 planned 课程返回 409 `COURSE_NOT_AVAILABLE`；无 entitlement 返回 403 `COURSE_ACCESS_REQUIRED`。
+
+注册写入 Firestore `students/{studentId}/enrollments/{courseId}`，同时生成 `course.enrolled` 事件。
+
+#### 取消注册
+
+`POST /api/courses/unenroll` + Idempotency-Key：
+
+```json
+{"courseId": "calc_bc"}
+```
+
+服务端校验无 OPEN Session 后标记 `status: "unenrolled"`、写入 `unenrolledAt`。有未完成 Session 时返回 409 `OPEN_SESSION_EXISTS`，学生须先 abandon 或 complete。
+
+取消注册不删除历史数据（mastery、assessments、submissions），保留审计轨迹。重新注册时恢复已有学习记录。
+
+#### 已注册课程
+
+`GET /api/courses/enrolled` 返回当前学生所有 active 注册：
+
+```json
+{
+  "enrollments": [
+    {
+      "courseId": "calc_bc",
+      "name": "AP Calculus BC",
+      "enrolledAt": "2026-10-30T08:00:00Z",
+      "status": "active",
+      "agent": {
+        "agentType": "AP_BASE",
+        "modes": ["GPA_SYNC", "EXAM_CRUNCH"],
+        "supportedTaskTypes": ["SOCRATIC_STUDY", "FRQ_PRACTICE"]
+      }
+    }
+  ]
+}
+```
+
+前端工作台根据此响应渲染侧边栏课程列表。
+
+#### 课程 Agent 入口
+
+`GET /api/courses/{courseId}/agent` 返回该已注册课程的 agent 配置摘要：
+
+```json
+{
+  "courseId": "calc_bc",
+  "agentType": "AP_BASE",
+  "name": "AP Calculus BC",
+  "modes": ["GPA_SYNC", "EXAM_CRUNCH"],
+  "supportedTaskTypes": ["SOCRATIC_STUDY", "FRQ_PRACTICE"],
+  "activeSessions": [],
+  "masterySummary": {
+    "calc_bc.function-composition": {"level": "insufficient_evidence", "independentEvidenceCount": 0}
+  }
+}
+```
+
+未注册该课程返回 404。该端点不暴露内部工具地址、system prompt 或检索索引。
 
 ## 2. 学习工作流接口
 
