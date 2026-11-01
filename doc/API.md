@@ -397,7 +397,7 @@ inputRequest 定义服务端允许的 schema；不能用该入口注入评估结
 - `GET /api/assessments?sessionId=...&cursor=...` → 评估历史与 supersedes 关系。
 - `GET /api/mastery?courseId=calc_bc&cursor=...` → 技能状态、证据数量、覆盖度、不确定性与更新时间；无证据返回 insufficient_evidence。
 
-M2：`GET /api/mastery?courseId=` 返回 `{"mastery": [{skillId, courseId, level, independentEvidenceCount, evidenceCount, coverage, uncertainty, updatedAt, ruleVersion}], "nextCursor"}`，按课程全部技能分页（无证据的技能为 insufficient_evidence）；`GET /api/assessments` 需要 `sessionId`。掌握度规则为未校准的产品规则 `mastery-rules-v1`，不是考试预测。
+M2：`GET /api/mastery?courseId=` 返回 `{"mastery": [{skillId, courseId, level, independentEvidenceCount, evidenceCount, coverage, uncertainty, updatedAt, ruleVersion}], "nextCursor"}`，按课程全部技能分页（无证据的技能为 insufficient_evidence）；`GET /api/assessments` 需要 `sessionId`。掌握度规则为未校准的产品规则 `mastery-rules-v2`，不是考试预测；独立证据按题目计数，且只取该题第一次评分的尝试（换个 Session 重做同一题不算新的独立测量）。
 
 模型内部重评为新 Assessment 版本，由受控后台流程执行。重评替换同一证据贡献，不向公开 API 暴露任意 mastery 写入。
 

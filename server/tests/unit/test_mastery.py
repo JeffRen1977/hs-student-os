@@ -158,3 +158,36 @@ async def test_rebuild_matches_incremental_projection() -> None:
         incremental.level, incremental.evidence_count, incremental.independent_evidence_count,
         incremental.coverage, set(incremental.contributions),
     )  # fmt: skip
+
+
+def test_independent_evidence_counts_each_question_once_from_its_first_attempt() -> None:
+    """Re-answering the same question in new sessions is not a new independent measurement:
+    three correct answers to one question never make a skill proficient."""
+
+    def state_of(*items: tuple[str, EvidenceObservation]) -> MasteryState:
+        return project(
+            SKILL,
+            "calc_bc",
+            {
+                f"a{i}:{SKILL}": MasteryContribution(
+                    assessment_id=f"a{i}",
+                    question_id=q,
+                    observation=o,
+                    recorded_at=T0 + timedelta(minutes=i),
+                )
+                for i, (q, o) in enumerate(items)
+            },
+            now=T0,
+        )
+
+    repeated = state_of(("q1", CI), ("q1", CI), ("q1", CI))
+    assert (repeated.independent_evidence_count, repeated.evidence_count) == (1, 3)
+    assert repeated.level is MasteryLevel.DEVELOPING and repeated.coverage == 1
+
+    # Wrong the first time, right in a later session: a correction, not independent.
+    corrected = state_of(("q1", INC), ("q1", CI))
+    assert corrected.independent_evidence_count == 0
+    assert corrected.level is MasteryLevel.EMERGING
+
+    spread = state_of(("q1", CI), ("q2", CI), ("q3", CI))
+    assert spread.independent_evidence_count == 3 and spread.level is MasteryLevel.PROFICIENT

@@ -11,6 +11,7 @@ rather than letting the model invent a source.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -21,6 +22,16 @@ from app.domain.types.message import Message, MessageRole
 
 CHARS_PER_TOKEN = 4
 MAX_MATERIALS = 2
+MAX_PROMPT_NAME_CHARS = 40
+_NAME_UNSAFE = re.compile(r"[^\w .'\-]+")
+
+
+def prompt_safe_name(display_name: str) -> str:
+    """The student edits their display name, so it is untrusted text going into the system
+    prompt. Keep only name-like characters (letters, digits, space, . ' -), collapse
+    whitespace and cap the length, so a name cannot carry instructions or markup."""
+    cleaned = " ".join(_NAME_UNSAFE.sub(" ", display_name).split())[:MAX_PROMPT_NAME_CHARS]
+    return cleaned.strip() or "the student"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -52,7 +63,7 @@ def retrieve_materials(
 def render_system_prompt(pack: PackContent, request: ExecutionRequest) -> str:
     """Fill the pack template's variables. Student data enters only through these slots."""
     values = {
-        "studentName": request.student_name or "the student",
+        "studentName": prompt_safe_name(request.student_name),
         "currentMode": request.mode or "practice",
         "masteryContext": request.mastery_context or "No mastery evidence recorded yet.",
     }

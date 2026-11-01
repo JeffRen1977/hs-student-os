@@ -5,8 +5,10 @@ application id (`{assessmentId}:{skillId}`). Applying the same evidence twice is
 a no-op, a regrade replaces the superseded contribution instead of stacking, and the whole
 projection can be rebuilt from accepted assessments.
 
-The level rules below are uncalibrated product rules (version `mastery-rules-v1`); they are
-not an exam prediction.
+The level rules below are uncalibrated product rules (version `mastery-rules-v2`); they are
+not an exam prediction. Independent evidence is counted per *question*, and only from the
+first graded attempt at that question: answering the same question again in a new session
+(after its feedback, or by repeating the same answer) is not a new independent measurement.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from datetime import datetime
 from app.domain.types.assessment import EvidenceObservation, UncertaintyLevel
 from app.domain.types.student import MasteryLevel
 
-MASTERY_RULE_VERSION = "mastery-rules-v1"
+MASTERY_RULE_VERSION = "mastery-rules-v2"
 PROFICIENT_INDEPENDENT_COUNT = 3
 RECENT_WINDOW = 3
 
@@ -73,7 +75,14 @@ def project(
     items: Sequence[MasteryContribution] = sorted(
         contributions.values(), key=lambda c: (c.recorded_at, c.assessment_id)
     )
-    independent = sum(1 for c in items if c.observation is EvidenceObservation.CORRECT_INDEPENDENT)
+    first_attempts: dict[str, MasteryContribution] = {}
+    for c in items:
+        first_attempts.setdefault(c.question_id, c)
+    independent = sum(
+        1
+        for c in first_attempts.values()
+        if c.observation is EvidenceObservation.CORRECT_INDEPENDENT
+    )
     recent = items[-RECENT_WINDOW:]
     if not items:
         level = MasteryLevel.INSUFFICIENT_EVIDENCE

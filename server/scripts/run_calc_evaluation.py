@@ -238,7 +238,14 @@ async def evaluate(
             else []
         )
         hinted = case.session_context.server_hint_count > 0
-        notes = list(draft.uncertainty.reasons)
+        # Mismatched criteria first, so a reviewer sees what to act on.
+        notes = [
+            f"MISMATCH {r.criterion_id}: expected {expected.get(r.criterion_id)}, "
+            f"got {r.earned}{'' if r.assessable else ' (unassessable)'}"
+            for r in draft.rubric_results
+            if r.earned != expected.get(r.criterion_id)
+        ]
+        notes += list(draft.uncertainty.reasons)
         expected_evidence = {(e.skill_id, e.observation) for e in case.expected.skill_evidence}
         actual_evidence = {(e.skill_id, e.observation) for e in evidence}
         if expected_evidence != actual_evidence:

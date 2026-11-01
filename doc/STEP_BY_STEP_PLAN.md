@@ -12,15 +12,15 @@ The product is a **course platform with one shared runtime**: third parties add 
 |---|---|---|
 | M0 Contracts and baseline | 1–7 | **Implemented; verification partial**: emulator tests not yet run, content not yet human-reviewed |
 | M1 Reliable foundation | 8–15 | **Implemented; verified over the in-memory backend**: Firestore-emulator run pending (no Java), Cloud Tasks/OIDC verified in staging (Step 30) |
-| M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: real-model evaluation (Step 21) and real-provider smoke test pending an API key; emulator run pending (no Java) |
+| M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator run pending (no Java) |
 | M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. Package contract, ability catalog, authoring/review and the authored rebuild are not started. |
 | M4 Proactive planning and pilot | 28–33 | Not started (pilot: Calc BC + Digital SAT, authored) |
 | M5 Optional expansion | 34–38 | Not started |
 
-Last local verification (`make check`, 2026-11-01, after removing the Calc→SAT layer in Step 22.4): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **487 passed, 8 skipped** (7 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **33 passed**.
+Last local verification (`make check`, 2026-11-01, after the M2 review fixes): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **490 passed, 8 skipped** (7 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **33 passed**.
 
 Open items before M0–M2 can be called complete:
-- **Real-model evaluation (Steps 16, 21):** needs a model API key (Anthropic or OpenAI; OpenAI smoke test passed 2026-10-31). Run `tests/evaluation/test_real_provider_smoke.py` (`HSOS_RUN_REAL_LLM_SMOKE=1`) and `scripts/run_calc_evaluation.py`, which writes `content/evaluation/calc_bc/report-v1.md`. All M2 grading tests so far use a scripted model, so they say nothing about grading quality.
+- **Real-model evaluation (Steps 16, 21):** first run done 2026-11-01 with OpenAI `gpt-5.5` (`content/evaluation/calc_bc/report-v1.md`): 17/18 criteria, 6/6 statuses. One false credit (parametric `second-derivative-method`) awaits the reviewer's decision. Not yet run against Anthropic. These are draft-content results only, so they don't measure quality until content review is done and thresholds are set.
 - **Emulator verification (Steps 5, 9, 14, 15):** `make emulators` / `make test-emulator` have not been run on this machine (no Java runtime installed; Firebase emulators need Java 11+). `tests/emulator/test_seed_emulator.py` and `tests/emulator/test_firestore_flows.py` are written but currently skip. M1 transaction behaviour is proven only over the in-memory store until they run.
 - **Content review (Steps 4, 7, 26):** questions, rubrics and evaluation cases are `draft` with no named reviewer. Evaluation thresholds in `dimensions.json` are unset until a content reviewer sets them. From M3 on, review happens through the platform review gate (Step 26), which applies to first-party courses too.
 
@@ -501,6 +501,14 @@ Each step below is a reviewable change with verification criteria.
 
 ## M2 — Calculus Learning Loop (Steps 16–21)
 
+**M2 review (2026-11-01).** Code review of Steps 16–21 against the CLAUDE.md integrity rules found four gaps, now fixed with tests:
+- *Repeated questions counted as independent evidence.* `priorAttemptCount` is per session, so answering one question correctly in three fresh sessions made a skill `proficient` with coverage 1. Mastery rules are now `mastery-rules-v2`: independent evidence counts each question once, and only when its first graded attempt was correct and unassisted (`tests/unit/test_mastery.py`).
+- *Student display name in the system prompt.* The name is student-editable (60 chars) and was interpolated verbatim. `prompt_safe_name` keeps only name-like characters, max 40.
+- *Answer delimiter escape.* A submission could close `</student_answer>` in the grading message. The answer is now fenced with its tags neutralized (evidence is still located in the stored answer).
+- *Regrade stacking.* Two regrades superseding the same assessment would both count. `commit_assessment` rejects `superseded_assessment_already_replaced` (`tests/contract/test_assessment_flow.py`).
+
+Reviewed without changes: gateway retry/budget accounting, lease/fencing commit, transactional event sequence, SSE cursor handling, course-scoped context and skill-prefix validation. Still open for M2: 20.7 browser checks with a real model; the reviewer's decision on the parametric false credit in report-v1 §5.
+
 ### Step 16 — Implement LLMGateway with static routing and budgets
 
 **Goal:** A controlled interface for model calls with usage tracking and budget enforcement.
@@ -697,10 +705,10 @@ Each step below is a reviewable change with verification criteria.
 
 **Goal:** Measure learning quality against evaluation baseline. Optionally add file/OCR support.
 
-- [ ] 21.1 Run the evaluation cases from Step 7 through the real system:
+- [x] 21.1 Run the evaluation cases from Step 7 through the real system:
   - Compare rubric assessment output against human annotations
   - Track: false acceptance rate, false insufficient rate, evidence quality, feedback usefulness, per-assessment cost
-- [ ] 21.2 Record results in `content/evaluation/calc_bc/report-v1.md`:
+- [x] 21.2 Record results in `content/evaluation/calc_bc/report-v1.md`:
   - Per-case comparison with expected outcome
   - Aggregate metrics for each evaluation dimension
   - Identified weaknesses and improvement areas
@@ -714,7 +722,7 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify M2:** Full Calculus loop works with evaluated skill. No unsupported progression, false official score, duplicate evidence, or unauthorized file access. Evaluation report records quality with sample sizes and identified limitations.
 
-**Status: 🟡 runner built; evaluation not run.** `scripts/run_calc_evaluation.py` runs every case through the production pipeline and writes the template-shaped report (thresholds only from `dimensions.json`; unset → "not gated"; reviewer-rated dimensions left for the reviewer). `tests/unit/test_evaluation_runner.py` checks the comparison logic with a scripted provider and that a mock provider is refused. `report-v1.md` is **not** written: it needs a real model run (API key) and should follow content review. File upload/OCR is deferred: the pilot is text-only and there is no upload UI.
+**Status: 🟡 first real-model run done (draft content); reviewer sign-off pending.** On 2026-11-01 `scripts/run_calc_evaluation.py` ran all 6 cases against OpenAI `gpt-5.5-2026-04-23` through the production pipeline and wrote `content/evaluation/calc_bc/report-v1.md`. Two consecutive runs gave the same results: rubric accuracy 17/18; status 6/6 correct (0/2 false acceptance, 0/4 false insufficient); hint tracking 1/1; ~1.7–1.8k tokens per case. **The one miss repeats in both runs:** `eval-calc-partial-parametric` gets credit on `second-derivative-method` (expected 0, got 1) even though the student never divided by dx/dt. This is a false credit on a method criterion, which math-verify cannot catch because it checks only the final answer. Whether to fix the prompt or rubric, narrow scope, or accept it is the reviewer's call in report §5. The runner now names mismatched criteria in the notes. The thresholds are unset, content is still `draft` and n = 6, so these figures are indicative only. The run used OpenAI, not Anthropic (no key). File upload/OCR is deferred: the pilot is text-only and has no upload UI.
 
 ---
 

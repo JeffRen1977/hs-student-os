@@ -387,3 +387,64 @@ async def test_correction_after_feedback_is_not_independent(
     }
     assert {e["observation"] for e in second["skillEvidence"]} == {"correct_with_hint"}
     assert "correction_after_feedback" in second["uncertainty"]["reasons"]
+
+
+async def test_an_assessment_can_be_regraded_only_once(
+    h: Harness, provider: ScriptedProvider
+) -> None:
+    """Two regrades of the same assessment would both count; the second is rejected."""
+    from app.adapters.firestore.assessment_repository import assessment_to_doc
+    from app.domain.assessment_service import AssessmentRejectedError
+    from app.domain.ports.repositories import Tx
+    from app.domain.run_execution import WORKER_SERVICE
+    from app.domain.types.actor import ActorContext
+    from app.domain.types.assessment_draft import AssessmentDraft
+
+    sid = (await start(h))["sessionId"]
+    provider.queue(CORRECT)
+    run_id = await submit(h, sid)
+    assert await h.drain() == 1
+    first = await get(h, f"/api/runs/{run_id}")
+    original_id = first["result"]["assessmentId"]
+    actor = ActorContext.for_service(WORKER_SERVICE, SID)
+
+    async def load(tx: Tx) -> Any:
+        run = await tx.runs.get(actor, run_id)
+        return run, await tx.assessments.get(actor, original_id)
+
+    run, original = await h.services.uow.transaction(load)
+    # An earlier regrade already replaced the original.
+    h.put_doc(
+        f"students/{SID}/assessments/asm_run_regrade_1",
+        assessment_to_doc(
+            dataclasses.replace(
+                original,
+                assessment_id="asm_run_regrade_1",
+                run_id="run_regrade_1",
+                supersedes_assessment_id=original_id,
+            )
+        ),
+    )
+    draft = AssessmentDraft(
+        submission_id=original.submission_id,
+        question_id=original.question_id,
+        question_version=original.question_version,
+        rubric_id=original.rubric_id,
+        rubric_version=original.rubric_version,
+        status=original.status,
+        rubric_results=original.rubric_results,
+        uncertainty=original.uncertainty,
+        feedback="regrade",
+        model_version=original.provenance.model_version,
+        workflow_version=original.provenance.workflow_version,
+        supersedes_assessment_id=original_id,
+    )
+
+    async def regrade(tx: Tx) -> None:
+        await h.services.assessments.commit_assessment(
+            tx, actor, dataclasses.replace(run, run_id="run_regrade_2"), draft,
+            tool_result_ids=set(), now=h.clock.now(),
+        )  # fmt: skip
+
+    with pytest.raises(AssessmentRejectedError, match="already_replaced"):
+        await h.services.uow.transaction(regrade)

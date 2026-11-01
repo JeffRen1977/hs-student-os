@@ -202,6 +202,13 @@ class AssessmentService:
             superseded = await tx.assessments.get(actor, draft.supersedes_assessment_id)
             if superseded is None or superseded.submission_id != submission.submission_id:
                 raise AssessmentRejectedError("superseded_assessment_invalid")
+            # Regrades form a chain: replacing an assessment that was already replaced
+            # would let two regrades both count, stacking evidence for one submission.
+            if any(
+                a.supersedes_assessment_id == superseded.assessment_id
+                for a in await self._session_assessments(tx, actor, session.session_id)
+            ):
+                raise AssessmentRejectedError("superseded_assessment_already_replaced")
 
         status = draft.status
         evidence = (
@@ -274,16 +281,23 @@ class AssessmentService:
     async def _session_has_accepted(
         self, tx: Tx, actor: ActorContext, session_id: str, latest: Assessment
     ) -> bool:
-        items = [latest]
+        items = [latest, *await self._session_assessments(tx, actor, session_id)]
+        superseded = {a.supersedes_assessment_id for a in items if a.supersedes_assessment_id}
+        return any(a.updates_mastery and a.assessment_id not in superseded for a in items)
+
+    @staticmethod
+    async def _session_assessments(
+        tx: Tx, actor: ActorContext, session_id: str
+    ) -> list[Assessment]:
+        """Stored assessments of the session (queries do not see this transaction's writes)."""
+        items: list[Assessment] = []
         page = ALL_PAGES
         while True:
             batch = await tx.assessments.list_for_session(actor, session_id, page)
             items.extend(batch.items)
             if batch.next_cursor is None:
-                break
+                return items
             page = PageRequest(cursor=batch.next_cursor, limit=100)
-        superseded = {a.supersedes_assessment_id for a in items if a.supersedes_assessment_id}
-        return any(a.updates_mastery and a.assessment_id not in superseded for a in items)
 
     async def _event(
         self,
