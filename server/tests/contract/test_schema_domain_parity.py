@@ -13,6 +13,7 @@ from app.domain.types import course as d_course
 from app.domain.types import event as d_event
 from app.domain.types import mastery as d_mastery
 from app.domain.types import message as d_message
+from app.domain.types import plan as d_plan
 from app.domain.types import run as d_run
 from app.domain.types import session as d_session
 from app.domain.types import student as d_student
@@ -23,6 +24,7 @@ from app.schemas import (
     course,
     event,
     message,
+    plan,
     run,
     session,
     student,
@@ -104,6 +106,8 @@ PAIRS: list[tuple[type[BaseModel], type, set[str], set[str]]] = [
     (course.CatalogEntry, d_course.CourseCatalogEntry, set(), {"status"}),
     (message.Message, d_message.Message, {"student_id"}, set()),
     (course.AgentSummary, d_course.AgentConfig, {"description"}, set()),
+    (plan.Plan, d_plan.Plan, {"student_id"}, set()),
+    (plan.PlanEntry, d_plan.PlanEntry, set(), set()),
 ]
 
 

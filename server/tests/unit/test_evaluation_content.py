@@ -8,7 +8,6 @@ from __future__ import annotations
 import pytest
 
 from app.domain.types.assessment import AssessmentStatus, EvidenceObservation
-from app.domain.types.event import EventType
 from app.registries.content import ContentRegistry, load_content
 from app.registries.evaluation import EvaluationSet, load_evaluation_set
 
@@ -37,7 +36,7 @@ def test_all_required_categories_exist(evaluation: EvaluationSet) -> None:
 
 
 def test_cases_have_provenance_and_review_state(evaluation: EvaluationSet) -> None:
-    for case in [*evaluation.assessment_cases, *evaluation.prerequisite_cases]:
+    for case in evaluation.assessment_cases:
         assert case.provenance.synthetic is True
         assert case.provenance.source.license
         assert case.review.status in {"draft", "reviewed"}
@@ -88,31 +87,6 @@ def test_category_semantics(evaluation: EvaluationSet, content: ContentRegistry)
             case "ambiguous" | "insufficient_work":
                 assert exp.status is AssessmentStatus.INSUFFICIENT_EVIDENCE
                 assert not exp.skill_evidence
-
-
-def test_prerequisite_counterexamples_and_support(
-    evaluation: EvaluationSet, content: ContentRegistry
-) -> None:
-    cases = evaluation.prerequisite_cases
-    assert any(c.category == "counterexample" for c in cases)
-    assert any(c.category == "supporting" for c in cases)
-    lhopital = [
-        c
-        for c in cases
-        if any("calc_bc.lhopital" in {e.skill_id for e in o.skill_evidence} for o in c.observations)
-    ]
-    assert lhopital and all(c.category == "counterexample" for c in lhopital)
-
-    for case in cases:
-        mapping_set = content.mapping_sets[case.mapping_set_id]
-        assert mapping_set.version == case.mapping_set_version
-        mapping_ids = {m.mapping_id for m in mapping_set.mappings}
-        for e in [*case.expected.events, *case.expected.forbidden_events]:
-            assert e.mapping_id in mapping_ids, case.case_id
-        for observation in case.observations:
-            assert content.question(observation.question_ref.question_id) is not None
-        # Calculus evidence alone never confirms a SAT weakness.
-        assert all(e.type is EventType.PREREQUISITE_SUSPECTED for e in case.expected.events)
 
 
 def test_dimensions_have_no_invented_thresholds(evaluation: EvaluationSet) -> None:

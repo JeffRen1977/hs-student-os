@@ -37,6 +37,9 @@ function useAppState(data, api) {
   const [dark, setDark] = useState(false);
   const [mobileTab, setMobileTab] = useState("tasks");
   const [eventLog, setEventLog] = useState(data.eventLog);
+  // The latest plan (API mode; a server projection).
+  const [plan, setPlan] = useState(null);
+  const [planBusy, setPlanBusy] = useState(false);
   // Local-only demo interactions. Kept apart from the server event log on purpose:
   // the browser never creates domain events.
   const [demoNotes, setDemoNotes] = useState([]);
@@ -64,7 +67,9 @@ function useAppState(data, api) {
   };
   const pack = activeCourse ? HSData.getPackMeta(activeCourse, courseName(activeCourse)) : null;
 
-  const apTasks = tasks.filter((t) => t.agent === "AP_BASE" && enrolledIds.includes(t.courseId));
+  // Every enrolled course's tasks (each course is independent; e.g. Calc BC and Digital SAT)
+  // run in the same per-course agent view; unenrolled courses stay hidden.
+  const apTasks = tasks.filter((t) => enrolledIds.includes(t.courseId));
   const satPreviews = demo ? data.previews.filter((p) => p.agent === "DSAT") : [];
   const admPreviews = demo ? data.previews.filter((p) => p.agent === "ADMISSIONS") : [];
   const currentTask = apTasks.find((t) => t.taskId === activeItemId) || null;
@@ -137,6 +142,30 @@ function useAppState(data, api) {
   const refreshTwin = () => api && api.fetchTwin().then(setTwin);
   const refreshCatalog = () => api && api.fetchCatalog().then((r) => setCatalog(r.courses || []));
   const refreshSessions = () => api && api.fetchSessions().then((r) => setSessions(r.sessions || []));
+  // 404 just means "no plan yet".
+  const refreshPlan = () => api && api.fetchLatestPlan().then(setPlan, (e) => { if (e.status === 404) setPlan(null); else throw e; });
+  const taskById = (taskId) => tasks.find((t) => t.taskId === taskId) || null;
+
+  // Replan is a command (PLANNING run). The new plan arrives with the plan.updated event.
+  const replan = () => {
+    if (!api) return;
+    setPlanBusy(true);
+    setActionError(null);
+    api.requestReplan("plan-" + Date.now().toString(36)).then(
+      () => {},
+      (e) => { setActionError(e); setPlanBusy(false); }
+    );
+  };
+  const planSettled = () => setPlanBusy(false);
+
+  // Moving a task locks it for the planner (server rule). Version = the task's ETag.
+  // Rejects on failure so the calling panel can show the error and offer a retry.
+  const rescheduleTask = (task, isoDate) => {
+    if (!api) return Promise.resolve();
+    return api.patchTask(task.taskId, task.version, { scheduledDate: isoDate })
+      .then(() => Promise.all([refreshTasks(), refreshPlan()]));
+  };
+
   const upsertSession = (session) =>
     setSessions((prev) => [session].concat(prev.filter((x) => x.sessionId !== session.sessionId)));
 
@@ -156,7 +185,7 @@ function useAppState(data, api) {
     }
     const next = !course.enrolled;
     setCatalog((prev) => prev.map((c) => (c.courseId === cid ? Object.assign({}, c, { enrolled: next }) : c)));
-    noteDemo(next ? "course.enrolled" : "course.unenrolled", (next ? "演示：已在本地注册 " : "演示：已在本地取消注册 ") + course.name + "（未调用服务器）");
+    noteDemo(next ? "course.enrolled" : "course.unenrolled", (next ? "Demo: enrolled locally in " : "Demo: left locally ") + course.name + " (server not called)");
     if (next) selectCourse(cid);
     else if (activeCourse === cid) setActiveCourse(enrolledIds.filter((x) => x !== cid)[0] || null);
   };
@@ -169,6 +198,8 @@ function useAppState(data, api) {
   return {
     api, actionError, setActionError,
     refreshTasks, refreshTwin, refreshCatalog, refreshSessions, upsertSession,
+    plan, refreshPlan, planBusy, replan, planSettled,
+    rescheduleTask, taskById,
     sessionForTask: (taskId) => sessionsByTask[taskId] || null,
     demo, twin, entitlements: data.entitlements,
     view, setView, catalog, enrolledIds,

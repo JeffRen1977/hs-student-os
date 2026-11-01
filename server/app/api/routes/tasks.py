@@ -68,6 +68,7 @@ async def patch_task(
         scheduled_date=body.scheduled_date,
         student_locked=body.student_locked,
         skip=body.status is TaskStatus.SKIPPED,
+        skip_reason=body.skip_reason,
     )
     task = await services.tasks.patch_task(actor, task_id, patch, expected_version=version)
     return respond(presenters.task(task), etag=task.version)

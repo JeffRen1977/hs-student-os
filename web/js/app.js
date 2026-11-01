@@ -55,12 +55,17 @@ function Workspace({ data, onReload }) {
   // cursor reload the whole snapshot. Events also refresh the Twin summary on mastery change.
   React.useEffect(() => {
     if (data.mode !== "api") return undefined;
+    S.refreshPlan();
     const sub = HSProvider.createEventSubscription(PROVIDER, {
       after: data.eventLog.lastSequence,
       onEvents: (events) => {
         S.applyServerEvents(events);
+        const has = (prefix) => events.some((e) => e.type.indexOf(prefix) === 0);
         if (events.some((e) => e.type === "mastery.updated" || e.type === "session.completed")) S.refreshTwin();
-        if (events.some((e) => e.type.indexOf("course.") === 0 || e.type.indexOf("session.") === 0)) S.refreshTasks();
+        if (has("course.") || has("session.") || has("plan.")) S.refreshTasks();
+        if (has("plan.")) S.refreshPlan();
+        if (events.some((e) => e.type === "plan.updated" && e.payload && e.payload.planId)) S.planSettled();
+        if (events.some((e) => e.type === "run.failed" && e.payload && e.payload.kind === "PLANNING")) S.planSettled();
       },
       onExpired: onReload,
     });
@@ -78,11 +83,11 @@ function Workspace({ data, onReload }) {
         <main className={(S.mobileTab === "tasks" || S.mobileTab === "events" ? "hidden" : "block") + " md:block overflow-y-auto p-3 sm:p-4 space-y-3"}>
           {S.activeAgent === "AP_BASE" && S.pack && (S.demo ? <ApPanel S={S} /> : <CourseSessionPanel S={S} />)}
           {S.activeAgent === "AP_BASE" && !S.pack && (
-            <section className={CARD + " p-4 text-xs text-slate-500"}>还没有注册课程。打开课程目录添加一门已开放的课程。</section>
+            <section className={CARD + " p-4 text-xs text-slate-500"}>You are not enrolled in any course yet. Open the course catalog to add an available course.</section>
           )}
 
           {S.activeAgent === "DSAT" && S.currentPreview && (
-            <DsatPanel preview={S.currentPreview} onDesmos={() => S.noteDemo("tool.desmos", "演示：Desmos 作图（不更新掌握度）")} />
+            <DsatPanel preview={S.currentPreview} onDesmos={() => S.noteDemo("tool.desmos", "Demo: Desmos graph (does not update mastery)")} />
           )}
 
           {S.activeAgent === "ADMISSIONS" && S.currentPreview && (

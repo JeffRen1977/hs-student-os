@@ -21,23 +21,28 @@ function Header({ S }) {
           {S.twin.goals.satTarget && (
             <React.Fragment>
               <span className="text-slate-300 dark:text-slate-600">|</span>
-              <span>SAT 目标 <strong className="text-indigo-600 dark:text-sky-400">{S.twin.goals.satTarget}</strong></span>
+              <span>SAT target <strong className="text-indigo-600 dark:text-sky-400">{S.twin.goals.satTarget}</strong></span>
             </React.Fragment>
           )}
         </div>
         <div className="hidden sm:flex bg-slate-100 dark:bg-slate-950 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full p-0.5 text-[11px]">
-          <button onClick={() => S.setView("student")} className={"px-2.5 py-1.5 rounded-full transition active:scale-95 " + (S.view === "student" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>学生视图</button>
-          <button onClick={() => S.setView("architect")} className={"px-2.5 py-1.5 rounded-full transition active:scale-95 " + (S.view === "architect" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>架构师视图</button>
+          <button onClick={() => S.setView("student")} className={"px-2.5 py-1.5 rounded-full transition active:scale-95 " + (S.view === "student" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>Student view</button>
+          <button onClick={() => S.setView("architect")} className={"px-2.5 py-1.5 rounded-full transition active:scale-95 " + (S.view === "architect" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>Architect view</button>
         </div>
-        <button onClick={() => S.setShowManifest(true)} className={"hidden md:inline-flex px-3 min-h-[36px] items-center rounded-full text-xs ring-1 ring-slate-300 dark:ring-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>Twin 摘要</button>
-        <button onClick={() => S.setShowCatalog(true)} className={"px-3 min-h-[36px] rounded-full text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm " + BTN}>课程目录 ({S.enrolledIds.length} 已注册)</button>
-        <button onClick={S.toggleDark} aria-label="切换深色模式" className={"w-9 h-9 shrink-0 rounded-full ring-1 ring-slate-300 dark:ring-slate-700 flex items-center justify-center text-sm hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>{S.dark ? "☀️" : "🌙"}</button>
+        <button onClick={() => S.setShowManifest(true)} className={"hidden md:inline-flex px-3 min-h-[36px] items-center rounded-full text-xs ring-1 ring-slate-300 dark:ring-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>Twin summary</button>
+        <button onClick={() => S.setShowCatalog(true)} className={"px-3 min-h-[36px] rounded-full text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm " + BTN}>Course catalog ({S.enrolledIds.length} enrolled)</button>
+        <button onClick={S.toggleDark} aria-label="Toggle dark mode" className={"w-9 h-9 shrink-0 rounded-full ring-1 ring-slate-300 dark:ring-slate-700 flex items-center justify-center text-sm hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>{S.dark ? "☀️" : "🌙"}</button>
       </div>
     </header>
   );
 }
 
-const TASK_STATUS_LABEL = { PLANNED: "未开始", IN_PROGRESS: "进行中", COMPLETED: "已完成", SKIPPED: "已跳过" };
+const TASK_STATUS_LABEL = { PLANNED: "Not started", IN_PROGRESS: "In progress", COMPLETED: "Completed", SKIPPED: "Skipped" };
+const TASK_KIND = {
+  PRACTICE: { label: "Practice", tone: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200" },
+  DIAGNOSTIC: { label: "Diagnostic", tone: "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200" },
+  REINFORCEMENT: { label: "Reinforcement", tone: "bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-200" },
+};
 
 function TaskRow({ task, run, active, architect, onOpen, S }) {
   const meta = HSData.getPackMeta(task.courseId, S.courseName(task.courseId));
@@ -49,7 +54,12 @@ function TaskRow({ task, run, active, architect, onOpen, S }) {
         <span className="text-slate-500 dark:text-slate-400">{meta.icon} {meta.shortName} · {TASK_STATUS_LABEL[task.status]}{architect ? " · " + task.taskId : ""}</span>
         <span className={tone}>{task.durationMin}m</span>
       </div>
-      <div className="text-[11px] font-semibold text-slate-800 dark:text-white leading-snug">{task.title}</div>
+      <div className="text-[11px] font-semibold text-slate-800 dark:text-white leading-snug">
+        {TASK_KIND[task.taskType] && <span className={"mr-1 px-1.5 py-0.5 rounded-full text-[9px] " + TASK_KIND[task.taskType].tone}>{TASK_KIND[task.taskType].label}</span>}
+        {task.title}
+      </div>
+      {task.reason && task.reason.explanation && <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">{task.reason.explanation}</div>}
+      <div className="mt-0.5 text-[10px] text-slate-400">{task.scheduledDate}{task.studentLocked ? " · date locked" : ""}</div>
       {run && <div className="mt-1"><RunStatusBadge run={run} architect={architect} /></div>}
     </button>
   );
@@ -59,7 +69,7 @@ function PreviewRow({ preview, active, onOpen }) {
   return (
     <button onClick={() => onOpen(preview)}
       className={"w-full min-h-[44px] text-left px-3 py-2 rounded-xl ring-1 ring-dashed transition active:scale-[0.99] " + (active ? "bg-white dark:bg-slate-800 ring-indigo-400" : "bg-white/40 dark:bg-slate-950/40 ring-slate-300 dark:ring-slate-700")}>
-      <div className="flex justify-between gap-2 text-[10px] text-slate-400"><span>预览 · 规划中</span><span>{preview.durationMin}m</span></div>
+      <div className="flex justify-between gap-2 text-[10px] text-slate-400"><span>Preview · planned</span><span>{preview.durationMin}m</span></div>
       <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 leading-snug">{preview.title}</div>
     </button>
   );
@@ -70,15 +80,15 @@ function TodayTasks({ S }) {
   return (
     <aside className={(S.mobileTab === "tasks" ? "block" : "hidden") + " md:block md:row-span-2 lg:row-span-1 overflow-y-auto p-3 space-y-3 md:border-r border-slate-200/70 dark:border-slate-800"}>
       <div className="flex sm:hidden bg-slate-100 dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full p-0.5 text-[11px] mb-1">
-        <button onClick={() => S.setView("student")} className={"flex-1 px-2.5 py-2 rounded-full transition active:scale-95 " + (S.view === "student" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>学生视图</button>
-        <button onClick={() => S.setView("architect")} className={"flex-1 px-2.5 py-2 rounded-full transition active:scale-95 " + (S.view === "architect" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>架构师视图</button>
+        <button onClick={() => S.setView("student")} className={"flex-1 px-2.5 py-2 rounded-full transition active:scale-95 " + (S.view === "student" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>Student view</button>
+        <button onClick={() => S.setView("architect")} className={"flex-1 px-2.5 py-2 rounded-full transition active:scale-95 " + (S.view === "architect" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400")}>Architect view</button>
       </div>
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">今日任务</div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Today's tasks</div>
 
       <div className={"rounded-2xl ring-1 p-3 space-y-2.5 transition " + (S.activeAgent === "AP_BASE" ? "bg-indigo-50 dark:bg-indigo-950/30 ring-indigo-200 dark:ring-indigo-500/50" : CARD + " ring-slate-900/5")}>
         <div className="flex justify-between items-center">
-          <span className="text-xs font-semibold">AP 课程</span>
-          <span className="text-[10px] text-indigo-600 dark:text-indigo-300">{S.apTasks.length} 个任务</span>
+          <span className="text-xs font-semibold">My courses</span>
+          <span className="text-[10px] text-indigo-600 dark:text-indigo-300">{S.apTasks.length} tasks</span>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {S.enrolledIds.map((cid) => {
@@ -90,13 +100,13 @@ function TodayTasks({ S }) {
               </button>
             );
           })}
-          <button onClick={() => S.setShowCatalog(true)} className="px-2.5 py-1 rounded-full text-[10px] ring-1 ring-dashed ring-slate-300 dark:ring-slate-700 text-slate-500 dark:text-slate-400 transition active:scale-95">+ 课程</button>
+          <button onClick={() => S.setShowCatalog(true)} className="px-2.5 py-1 rounded-full text-[10px] ring-1 ring-dashed ring-slate-300 dark:ring-slate-700 text-slate-500 dark:text-slate-400 transition active:scale-95">+ Course</button>
         </div>
         <div className="space-y-1.5">
           {S.apTasks.map((t) => (
             <TaskRow key={t.taskId} task={t} run={S.runForTask(t.taskId)} active={S.currentTask && S.currentTask.taskId === t.taskId} architect={architect} onOpen={S.openTask} S={S} />
           ))}
-          {S.apTasks.length === 0 && <div className="text-[11px] text-slate-500">还没有已注册课程的任务。</div>}
+          {S.apTasks.length === 0 && <div className="text-[11px] text-slate-500">No tasks for your enrolled courses yet.</div>}
         </div>
       </div>
 
@@ -104,7 +114,7 @@ function TodayTasks({ S }) {
         <div className={CARD + " p-3 space-y-2.5"}>
           <div className="flex justify-between items-center">
             <button onClick={() => S.selectAgent("DSAT")} className="text-xs font-semibold text-left">Digital SAT</button>
-            <span className="text-[10px] text-slate-400">规划中（M3）</span>
+            <span className="text-[10px] text-slate-400">Planned (M3)</span>
           </div>
           <div className="space-y-1.5">
             {S.satPreviews.map((p) => <PreviewRow key={p.id} preview={p} active={S.currentPreview && S.currentPreview.id === p.id} onOpen={S.openPreview} />)}
@@ -116,7 +126,7 @@ function TodayTasks({ S }) {
         <div className={CARD + " p-3 space-y-2.5"}>
           <div className="flex justify-between items-center">
             <button onClick={() => S.selectAgent("ADMISSIONS")} className="text-xs font-semibold text-left">Admissions</button>
-            <span className="text-[10px] text-slate-400">规划中（M5）</span>
+            <span className="text-[10px] text-slate-400">Planned (M5)</span>
           </div>
           <div className="space-y-1.5">
             {S.admPreviews.map((p) => <PreviewRow key={p.id} preview={p} active={S.currentPreview && S.currentPreview.id === p.id} onOpen={S.openPreview} />)}
@@ -127,15 +137,15 @@ function TodayTasks({ S }) {
   );
 }
 
-const MASTERY_LABEL = { insufficient_evidence: "证据不足", emerging: "起步", developing: "发展中", proficient: "熟练" };
+const MASTERY_LABEL = { insufficient_evidence: "Not enough evidence", emerging: "Emerging", developing: "Developing", proficient: "Proficient" };
 
 function TwinSummary({ S }) {
   const mastery = Object.entries(S.twin.masterySummary || {});
   return (
     <section className={CARD + " p-4 space-y-2.5"}>
-      <div className="text-xs font-bold text-indigo-600 dark:text-indigo-300">学生记录</div>
+      <div className="text-xs font-bold text-indigo-600 dark:text-indigo-300">Student record</div>
       {S.architect && <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500">students/{S.twin.studentId} · v{S.twin.version}</div>}
-      <div className="text-[11px] text-slate-500 dark:text-slate-400">AP 考试预测</div>
+      <div className="text-[11px] text-slate-500 dark:text-slate-400">Exam prediction</div>
       {S.enrolledIds.map((cid) => {
         const meta = HSData.getPackMeta(cid, S.courseName(cid));
         return (
@@ -145,49 +155,80 @@ function TwinSummary({ S }) {
           </div>
         );
       })}
-      <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">技能掌握度（独立证据数）</div>
-      {mastery.length === 0 && <div className="text-[11px] text-slate-400">还没有评估证据。</div>}
+      <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">Skill mastery (independent evidence count)</div>
+      {mastery.length === 0 && <div className="text-[11px] text-slate-400">No assessed evidence yet.</div>}
       {mastery.map(([skillId, m]) => (
         <div key={skillId} className="flex justify-between items-center text-[11px] px-1">
           <span className="font-mono text-slate-600 dark:text-slate-300 truncate">{skillId.split(".").slice(1).join(".")}</span>
           <span className="text-slate-500 dark:text-slate-400">{MASTERY_LABEL[m.level] || m.level} · {m.independentEvidenceCount}</span>
         </div>
       ))}
-      <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200 dark:ring-slate-800 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-        <div className="font-semibold text-slate-600 dark:text-slate-300 mb-1">Planner</div>
-        Planner 尚未接入（M3）。任务的排序与理由将由服务端生成并说明来源。
+    </section>
+  );
+}
+
+const PLACEMENT_LABEL = { fixed: "Fixed", kept: "Kept", moved: "Moved", deferred: "Deferred", over_budget: "Over time budget" };
+
+// The latest server plan with a reason for every placement (Step 25/27). Never replans on read.
+function PlanCard({ S }) {
+  if (S.demo) return null;
+  const plan = S.plan;
+  return (
+    <section className={CARD + " p-4 space-y-2.5"}>
+      <div className="flex justify-between items-center">
+        <div className="text-xs font-bold text-indigo-600 dark:text-indigo-300">This week's plan</div>
+        <button disabled={S.planBusy} onClick={S.replan} className={"px-3 min-h-[30px] rounded-full text-[11px] ring-1 ring-indigo-300 dark:ring-indigo-500/50 disabled:opacity-50 " + BTN}>{S.planBusy ? "Replanning…" : "Replan"}</button>
       </div>
+      {S.actionError && <div role="alert" className="text-[11px] text-rose-600 dark:text-rose-300">{HSProvider.errorText(S.actionError.code)}</div>}
+      {!plan && <div className="text-[11px] text-slate-400">No plan yet. Click “Replan” to order your tasks by deadlines, evidence gaps and your weekly time.</div>}
+      {plan && (
+        <React.Fragment>
+          <div className="text-[10px] text-slate-500">7 days from {plan.localDate} · about {plan.dailyMinutes} min a day ({plan.weeklyMinutes} a week){plan.evidenceAvailable ? "" : " · no assessed evidence yet, so ordered conservatively"}</div>
+          {plan.entries.map((e) => {
+            const t = S.taskById(e.taskId);
+            return (
+              <div key={e.taskId} className="text-[11px] border-t border-slate-200/70 dark:border-slate-800 pt-1.5">
+                <div className="flex justify-between gap-2">
+                  <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{t ? t.title : e.taskId}</span>
+                  <span className="text-slate-500 whitespace-nowrap">{e.scheduledDate} · {PLACEMENT_LABEL[e.placement] || e.placement}</span>
+                </div>
+                <div className="text-slate-500 dark:text-slate-400 leading-relaxed">{e.explanation}</div>
+                {S.architect && e.sourceEventIds.length > 0 && <div className="font-mono text-[10px] text-slate-400">Source events {e.sourceEventIds.join(", ")}</div>}
+              </div>
+            );
+          })}
+          {S.architect && <div className="font-mono text-[10px] text-slate-400">{plan.planId} · {plan.ruleVersion}</div>}
+        </React.Fragment>
+      )}
     </section>
   );
 }
 
 function plainEvent(type) {
   return {
-    "course.enrolled": "已注册课程",
-    "course.unenrolled": "已取消注册",
-    "session.started": "开始了一次练习",
-    "session.completed": "这一节已完成",
-    "session.abandoned": "这一节已放弃",
-    "run.queued": "已提交，排队中",
-    "run.started": "开始批改",
-    "run.waiting_input": "需要你确认",
-    "run.completed": "批改执行完成",
-    "run.failed": "批改失败",
-    "run.cancelled": "已取消",
-    "assessment.completed": "评估结果已生成",
-    "mastery.updated": "掌握度已更新",
-    "prerequisite.suspected": "建议做一次 SAT 诊断",
-    "prerequisite.confirmed": "诊断确认了前置技能",
-    "prerequisite.unsupported": "诊断未支持该推测",
-    "plan.updated": "计划已更新",
-  }[type] || "学习记录更新";
+    "course.enrolled": "Enrolled in a course",
+    "course.unenrolled": "Left a course",
+    "session.started": "Started a practice session",
+    "session.completed": "Session completed",
+    "session.abandoned": "Session abandoned",
+    "run.queued": "Submitted, queued",
+    "run.started": "Grading started",
+    "run.waiting_input": "Needs your confirmation",
+    "run.completed": "Grading run finished",
+    "run.failed": "Grading failed",
+    "run.cancelled": "Cancelled",
+    "assessment.completed": "Assessment ready",
+    "mastery.updated": "Mastery updated",
+    "plan.updated": "Plan updated",
+  }[type] || "Learning record updated";
 }
 
 function describeEvent(e) {
   const p = e.payload || {};
   if (e.type === "course.enrolled" || e.type === "course.unenrolled") return p.courseId;
-  if (e.type === "run.failed") return "错误 " + p.errorCode + (p.retryable ? "，可以重试" : "");
-  if (e.type === "assessment.completed") return p.status === "accepted" ? "评估已接受" : "证据不足，未更新掌握度";
+  if (e.type === "run.failed") return "Error " + p.errorCode + (p.retryable ? ", can retry" : "");
+  if (e.type === "assessment.completed") return p.status === "accepted" ? "Assessment accepted" : "Not enough evidence; mastery not updated";
+  if (e.type === "plan.updated") return (p.changedTaskIds || []).length + " tasks changed";
   if (p.taskId) return p.taskId;
   return "";
 }
@@ -204,17 +245,17 @@ function EventFeed({ S }) {
   const events = S.events.slice().reverse();
   return (
     <section className="space-y-2">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">学习事件</div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Learning events</div>
       {S.demoNotes.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[10px] text-amber-700 dark:text-amber-300">本地演示操作 · 未保存到服务器</div>
+          <div className="text-[10px] text-amber-700 dark:text-amber-300">Local demo action · not saved to the server</div>
           {S.demoNotes.map((n) => (
             <article key={n.id} className="p-2.5 rounded-xl ring-1 ring-dashed ring-amber-300 dark:ring-amber-500/40 text-[11px] text-slate-600 dark:text-slate-300">{n.text}</article>
           ))}
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-2">
-        {events.length === 0 && <div className="text-[11px] text-slate-400">还没有事件。</div>}
+        {events.length === 0 && <div className="text-[11px] text-slate-400">No events yet.</div>}
         {events.map((e) => (
           <article key={e.eventId} className={CARD + " p-3 text-[11px] space-y-1"}>
             <div className="flex justify-between gap-2">
@@ -233,6 +274,7 @@ function TwinAside({ S }) {
   return (
     <aside className={(S.mobileTab === "events" ? "block" : "hidden") + " md:block md:col-span-2 lg:col-span-1 overflow-y-auto p-3 space-y-3 lg:border-l border-slate-200/70 dark:border-slate-800"}>
       <TwinSummary S={S} />
+      <PlanCard S={S} />
       <EventFeed S={S} />
     </aside>
   );
@@ -248,27 +290,27 @@ function MobileTabs({ S }) {
   );
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/92 dark:bg-slate-900/92 backdrop-blur border-t border-slate-200 dark:border-slate-800 flex px-1 pb-[env(safe-area-inset-bottom)]">
-      {tabBtn("tasks", null, "📋", "今日任务")}
+      {tabBtn("tasks", null, "📋", "Today")}
       {tabBtn("ap", "AP_BASE", "📚", "AP")}
       {S.satPreviews.length > 0 && tabBtn("sat", "DSAT", "🎯", "SAT")}
-      {S.admPreviews.length > 0 && tabBtn("adm", "ADMISSIONS", "🎓", "申请")}
-      {tabBtn("events", null, "🔔", "记录")}
+      {S.admPreviews.length > 0 && tabBtn("adm", "ADMISSIONS", "🎓", "Admissions")}
+      {tabBtn("events", null, "🔔", "Events")}
     </nav>
   );
 }
 
 // Course catalog (API.md §1.7): availability and entitlement decide what can be added.
 function catalogState(course) {
-  if (course.availability !== "active") return { label: "即将上线", can: false };
-  if (!course.entitled) return { label: "需要开通权限", can: false };
-  if (course.enrolled) return { label: "已注册 · 点击移除", can: true };
-  return { label: "点击添加", can: true };
+  if (course.availability !== "active") return { label: "Coming soon", can: false };
+  if (!course.entitled) return { label: "Access required", can: false };
+  if (course.enrolled) return { label: "Enrolled · click to remove", can: true };
+  return { label: "Click to add", can: true };
 }
 
 function CatalogModal({ S }) {
   return (
-    <Modal title="课程目录" onClose={() => S.setShowCatalog(false)}>
-      <p className="text-[11px] text-slate-500 dark:text-slate-400">只有已开放、且你已获得权限的课程才能添加。权限由后台管理，选择课程不等于开通权限。</p>
+    <Modal title="Course catalog" onClose={() => S.setShowCatalog(false)}>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">You can add only courses that are open and that you have access to. Access is managed by the school; choosing a course does not grant access.</p>
       {S.actionError && <p className="text-[11px] text-rose-600 dark:text-rose-300">{HSProvider.errorText(S.actionError.code)}</p>}
       <div className="grid grid-cols-2 gap-2">
         {S.catalog.map((c) => {
@@ -285,14 +327,14 @@ function CatalogModal({ S }) {
           );
         })}
       </div>
-      <button onClick={() => S.setShowCatalog(false)} className={"w-full min-h-[44px] py-2 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm " + BTN}>完成</button>
+      <button onClick={() => S.setShowCatalog(false)} className={"w-full min-h-[44px] py-2 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm " + BTN}>Done</button>
     </Modal>
   );
 }
 
 function ManifestModal({ S }) {
   return (
-    <Modal title="Twin 摘要（GET /api/twin）" onClose={() => S.setShowManifest(false)}>
+    <Modal title="Twin summary (GET /api/twin)" onClose={() => S.setShowManifest(false)}>
       <pre className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap font-mono">{JSON.stringify({
         twin: S.twin,
         entitlements: S.entitlements,

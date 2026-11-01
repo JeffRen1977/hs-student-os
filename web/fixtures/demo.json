@@ -98,7 +98,7 @@
       {
         "courseId": "dsat",
         "name": "Digital SAT",
-        "description": "Digital SAT Math and Reading & Writing preparation. Diagnostics enabled in M3.",
+        "description": "Digital SAT Math practice as an independent course (choice sets scored by answer key).",
         "category": "SAT",
         "availability": "planned",
         "entitled": true,
@@ -117,7 +117,7 @@
         "courseId": "calc_bc",
         "taskType": "SOCRATIC_STUDY",
         "mode": "GPA_SYNC",
-        "title": "攻克隐函数求导与变化率",
+        "title": "Master implicit differentiation and related rates",
         "durationMin": 20,
         "scheduledDate": "2026-10-30",
         "status": "IN_PROGRESS",
@@ -135,7 +135,7 @@
         "courseId": "calc_bc",
         "taskType": "FRQ_PRACTICE",
         "mode": "EXAM_CRUNCH",
-        "title": "FRQ 精批：圆锥水箱推导",
+        "title": "FRQ grading: conical tank derivation",
         "durationMin": 25,
         "scheduledDate": "2026-10-30",
         "status": "IN_PROGRESS",
@@ -153,7 +153,7 @@
         "courseId": "calc_bc",
         "taskType": "SOCRATIC_STUDY",
         "mode": "GPA_SYNC",
-        "title": "作业：参数方程的二阶导数",
+        "title": "Homework: second derivative of parametric equations",
         "durationMin": 15,
         "scheduledDate": "2026-10-30",
         "status": "IN_PROGRESS",
@@ -171,7 +171,7 @@
         "courseId": "calc_bc",
         "taskType": "FRQ_PRACTICE",
         "mode": "EXAM_CRUNCH",
-        "title": "手写推导：链式法则",
+        "title": "Handwritten derivation: chain rule",
         "durationMin": 20,
         "scheduledDate": "2026-10-30",
         "status": "IN_PROGRESS",
@@ -189,7 +189,7 @@
         "courseId": "calc_bc",
         "taskType": "FRQ_PRACTICE",
         "mode": "EXAM_CRUNCH",
-        "title": "级数收敛：比值判别法",
+        "title": "Series convergence: ratio test",
         "durationMin": 20,
         "scheduledDate": "2026-10-30",
         "status": "PLANNED",
@@ -313,7 +313,7 @@
       "inputRequest": {
         "inputRequestId": "input_demo_ocr_04",
         "kind": "OCR_CONFIRMATION",
-        "prompt": "请确认手写识别结果是否正确"
+        "prompt": "Please confirm the handwriting recognition is correct"
       },
       "result": null
     }
@@ -430,45 +430,45 @@
       "agent": "DSAT",
       "kind": "math",
       "mode": "ADAPTIVE",
-      "title": "Math：复合函数变式",
+      "title": "Math: composite function variations",
       "durationMin": 15,
-      "desc": "规划中：只有在 SAT 诊断确认前置技能薄弱后才会生成"
+      "desc": "Planned Digital SAT practice format"
     },
     {
       "id": "preview_dsat_rw",
       "agent": "DSAT",
       "kind": "rw",
       "mode": "ADAPTIVE",
-      "title": "Reading：双篇科学文，分清假设与结论",
+      "title": "Reading: paired science passages, assumption vs. conclusion",
       "durationMin": 20,
-      "desc": "规划中的阅读练习形态"
+      "desc": "Planned reading practice format"
     },
     {
       "id": "preview_dsat_mock",
       "agent": "DSAT",
       "kind": "mock",
       "mode": "ADAPTIVE",
-      "title": "自适应模考：Module 1 → Module 2",
+      "title": "Adaptive mock test: Module 1 → Module 2",
       "durationMin": 35,
-      "desc": "规划中的模考形态"
+      "desc": "Planned mock test format"
     },
     {
       "id": "preview_adm_interview",
       "agent": "ADMISSIONS",
       "kind": "interview",
       "mode": "INTERVIEW",
-      "title": "主文书访谈：机器人视觉与社区",
+      "title": "Personal essay interview: robot vision and community",
       "durationMin": 30,
-      "desc": "规划中（M5）。学生自己写，不代写。"
+      "desc": "Planned (M5). The student writes it; nothing is ghostwritten."
     },
     {
       "id": "preview_adm_activities",
       "agent": "ADMISSIONS",
       "kind": "activities",
       "mode": "ACTIVITIES",
-      "title": "活动列表：压到 150 字符",
+      "title": "Activities list: cut to 150 characters",
       "durationMin": 20,
-      "desc": "规划中（M5）。事实需学生确认。"
+      "desc": "Planned (M5). Facts need student confirmation."
     }
   ]
 }

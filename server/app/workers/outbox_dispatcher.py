@@ -40,15 +40,20 @@ class OutboxDispatcher:
             return await tx.outbox.get(actor, delivery_id)
 
         entry = await self._uow.transaction(load)
-        if entry is None or entry.status is OutboxStatus.DISPATCHED:
+        if entry is None or entry.status is not OutboxStatus.PENDING:
             return False
         await self._queue.enqueue(
-            Delivery(delivery_id=entry.delivery_id, student_id=student_id, run_id=entry.run_id)
+            Delivery(
+                delivery_id=entry.delivery_id,
+                student_id=student_id,
+                run_id=entry.run_id,
+                kind=entry.kind,
+            )
         )
 
         async def mark(tx: Tx) -> bool:
             current = await tx.outbox.get(actor, delivery_id)
-            if current is None or current.status is OutboxStatus.DISPATCHED:
+            if current is None or current.status is not OutboxStatus.PENDING:
                 return False
             tx.outbox.save(
                 actor,

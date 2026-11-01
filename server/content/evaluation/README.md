@@ -6,9 +6,6 @@ until a named content reviewer signs off.
 
 - `calc_bc/` — annotated answers: correct, incorrect, partial, assisted (hints),
   ambiguous, and insufficient work shown.
-- `prerequisites/` — counterexamples (calculus errors that must **not** suggest a SAT
-  weakness) and one supporting case (repeated algebra errors → `prerequisite.suspected`
-  only; confirmation requires a separate diagnostic).
 - `dimensions.json` — evaluation dimensions. Thresholds are `null` until set by a reviewer.
 - `report-template.md` — versioned report template.
 

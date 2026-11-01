@@ -13,7 +13,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import install_error_handlers
 from app.api.request_id import install_request_id
-from app.api.routes import assessments, courses, events, health, runs, sessions, tasks, twin
+from app.api.routes import (
+    assessments,
+    courses,
+    events,
+    health,
+    plans,
+    runs,
+    sessions,
+    tasks,
+    twin,
+)
 from app.bootstrap import Services, build_services
 from app.config import APP_VERSION, QueueProvider, Settings, get_settings
 
@@ -71,7 +81,9 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
             ],
             expose_headers=["ETag", "X-Request-Id", "Idempotency-Replayed"],
         )
-    for module in (health, twin, courses, tasks, sessions, runs, assessments, events):
+    for module in (
+        health, twin, courses, tasks, sessions, runs, assessments, events, plans,
+    ):  # fmt: skip
         app.include_router(module.router)
     return app
 

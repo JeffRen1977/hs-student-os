@@ -155,19 +155,19 @@
   // ---- Display helpers ---------------------------------------------------------------
 
   const RUN_STATUS_VIEW = Object.freeze({
-    QUEUED: { label: "排队中", tone: "slate", terminal: false },
-    RUNNING: { label: "批改中", tone: "indigo", terminal: false },
-    WAITING_INPUT: { label: "等待你确认", tone: "amber", terminal: false },
+    QUEUED: { label: "Queued", tone: "slate", terminal: false },
+    RUNNING: { label: "Grading", tone: "indigo", terminal: false },
+    WAITING_INPUT: { label: "Waiting for you", tone: "amber", terminal: false },
     // SUCCEEDED means the execution finished; it does NOT mean the task is complete.
-    SUCCEEDED: { label: "执行完成", tone: "emerald", terminal: true },
-    FAILED: { label: "失败", tone: "rose", terminal: true },
-    CANCELLED: { label: "已取消", tone: "slate", terminal: true },
+    SUCCEEDED: { label: "Run finished", tone: "emerald", terminal: true },
+    FAILED: { label: "Failed", tone: "rose", terminal: true },
+    CANCELLED: { label: "Cancelled", tone: "slate", terminal: true },
   });
 
   function describeRun(run) {
     if (!run) return null;
     const view = RUN_STATUS_VIEW[run.status];
-    if (!view) return { label: "未知状态", tone: "slate", terminal: false, retryable: false };
+    if (!view) return { label: "Unknown status", tone: "slate", terminal: false, retryable: false };
     return {
       label: view.label,
       tone: view.tone,
@@ -178,30 +178,42 @@
 
   // Safe, student-facing text for server error codes (Run errors and command errors).
   const ERROR_TEXT = Object.freeze({
-    BUDGET_EXCEEDED: "今天的辅导额度已用完，请稍后再试。",
-    MODEL_OUTPUT_INVALID: "这次批改没有得到可用的结果，没有记录任何评估。可以重新提交。",
-    MODEL_REFUSED: "这次请求未能处理，没有记录任何评估。",
-    MODEL_UNAVAILABLE: "批改服务暂时不可用。",
-    EXECUTION_RETRIES_EXHAUSTED: "批改服务暂时不可用，已多次重试。",
-    ASSESSMENT_REJECTED: "批改结果未通过服务器校验，没有记录任何评估。",
-    CONTENT_VERSION_CHANGED: "课程内容已更新，请开始新的练习。",
-    COURSE_CONTENT_UNAVAILABLE: "课程内容暂不可用。",
-    COURSE_NOT_ENROLLED: "你已不在这门课程中。",
-    COURSE_ACCESS_REQUIRED: "需要开通这门课程的权限。",
-    COURSE_NOT_AVAILABLE: "这门课程即将上线。",
-    RUN_IN_PROGRESS: "上一条还在处理中，请稍候。",
-    COMPLETION_REQUIREMENTS_NOT_MET: "需要先有一次被接受的评估才能完成本次练习。",
-    OPEN_SESSION_EXISTS: "请先完成或放弃这门课程中进行中的练习。",
-    NOT_CONNECTED: "无法连接服务器。重试会使用同一个请求编号，不会重复提交。",
+    BUDGET_EXCEEDED: "You have used today's tutoring budget. Please try again later.",
+    MODEL_OUTPUT_INVALID: "Grading did not produce a usable result, so nothing was recorded. You can resubmit.",
+    MODEL_REFUSED: "This request could not be processed. Nothing was recorded.",
+    MODEL_UNAVAILABLE: "Grading is temporarily unavailable.",
+    EXECUTION_RETRIES_EXHAUSTED: "Grading is temporarily unavailable after several retries.",
+    ASSESSMENT_REJECTED: "The grading result failed server validation. Nothing was recorded.",
+    CONTENT_VERSION_CHANGED: "The course content was updated. Please start a new practice session.",
+    COURSE_CONTENT_UNAVAILABLE: "Course content is not available right now.",
+    COURSE_NOT_ENROLLED: "You are not enrolled in this course.",
+    COURSE_ACCESS_REQUIRED: "You need access to this course.",
+    COURSE_NOT_AVAILABLE: "This course is coming soon.",
+    RUN_IN_PROGRESS: "Your last request is still being processed. Please wait.",
+    COMPLETION_REQUIREMENTS_NOT_MET: "You need an accepted assessment before completing this session.",
+    OPEN_SESSION_EXISTS: "Finish or abandon the open session in this course first.",
+    VERSION_CONFLICT: "This task was just updated (for example by a replan). Refresh and try again.",
+    TASK_NOT_OPEN: "This task is closed and can no longer be changed.",
+    RUN_ATTEMPTS_EXHAUSTED: "Still not done after several attempts. Nothing was changed.",
+    NOT_CONNECTED: "Cannot reach the server. Retrying reuses the same request ID, so nothing is submitted twice.",
   });
 
   function errorText(code) {
-    return ERROR_TEXT[code] || "出现错误（" + code + "）。";
+    return ERROR_TEXT[code] || "Something went wrong (" + code + ").";
+  }
+
+  // ---- Choice sets (any course using the choice-scoring ability) ----------------------
+
+  // Choice sets are answered one item per line ("1: B"); the server scores them by key.
+  function formatChoiceAnswer(items, selections) {
+    const picked = selections || {};
+    const lines = (items || []).map(function (it) { return picked[it.itemId] ? it.itemId + ": " + picked[it.itemId] : null; });
+    return lines.every(Boolean) ? lines.join("\n") : null;
   }
 
   function predictionLabel(entry) {
-    if (!entry || entry.status === "unavailable") return "暂无预测（未校准）";
-    return "暂无预测";
+    if (!entry || entry.status === "unavailable") return "No prediction (not calibrated)";
+    return "No prediction";
   }
 
   // ---- Providers --------------------------------------------------------------------
@@ -333,6 +345,12 @@
       fetchRun: function (runId) { return request("/api/runs/" + encodeURIComponent(runId)); },
       fetchEvents: function (afterSequence, limit) {
         return request("/api/events" + buildQuery({ after: afterSequence || 0, limit: limit }));
+      },
+      fetchLatestPlan: function () { return request("/api/plans/latest"); },
+      requestReplan: function (actionId) { return command("replan:" + actionId, "/api/plans/replan", {}); },
+      // Students may only reschedule, lock or skip; `version` is the task's ETag value.
+      patchTask: function (taskId, version, patch) {
+        return request("/api/tasks/" + encodeURIComponent(taskId), { method: "PATCH", body: patch, ifMatch: version });
       },
       // Product previews exist only in demo mode.
       fetchPreviews: function () { return Promise.resolve([]); },
@@ -595,6 +613,7 @@
     createSseParser: createSseParser,
     createEventSubscription: createEventSubscription,
     predictionLabel: predictionLabel,
+    formatChoiceAnswer: formatChoiceAnswer,
     createApiProvider: createApiProvider,
     createDemoProvider: createDemoProvider,
     createProvider: createProvider,

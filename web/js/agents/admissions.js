@@ -19,15 +19,15 @@ function AdmissionsPanel({ preview, onNote }) {
       )}
       {kind === "activities" && (
         <div className="text-xs space-y-2">
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800 text-slate-500 dark:text-slate-400">原描述：帮助学弟学妹学编程，组织了几次活动。</div>
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800 text-slate-500 dark:text-slate-400">Original: Helped younger students learn to code and organized a few events.</div>
           <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300 dark:ring-emerald-700">Led 12 weekly Java labs for 28 students; 19 finished a published ArrayList project.</div>
-          <div className="text-slate-500">148 / 150 字符。事实需学生确认后才保存。</div>
+          <div className="text-slate-500">148 / 150 characters. Facts are saved only after the student confirms them.</div>
         </div>
       )}
       {kind !== "matrix" && kind !== "activities" && (
-        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">你写到机器人视觉。招生官还看不出这件事和社区有什么关系。那次调试发生在谁身上，你当时改了哪一个判断？</p>
+        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">You wrote about robot vision. An admissions reader can't yet see how it connects to your community. Who was that debugging session for, and which decision did you change?</p>
       )}
-      <button onClick={() => onNote(kind === "spike" ? "主线缺口：有 AP CSA 与数学，缺少能支撑 AI 伦理叙事的人文活动。" : "演示：「" + session.title + "」未加入计划（规划功能）。")} className={"px-4 min-h-[40px] py-1.5 rounded-full ring-1 ring-emerald-500 dark:ring-emerald-600 text-xs font-medium text-emerald-700 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 " + BTN}>把这条记入本周任务（演示）</button>
+      <button onClick={() => onNote(kind === "spike" ? "Theme gap: AP CSA and math are there, but no humanities activity supports the AI-ethics story." : "Demo: “" + session.title + "” was not added to the plan (planned feature).")} className={"px-4 min-h-[40px] py-1.5 rounded-full ring-1 ring-emerald-500 dark:ring-emerald-600 text-xs font-medium text-emerald-700 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 " + BTN}>Add to this week's tasks (demo)</button>
     </section>
   );
 }

@@ -327,3 +327,25 @@ async def test_internal_routes_are_not_on_the_student_api(harness: Harness) -> N
         "/internal/runs/execute", json={}, headers=harness.auth(SID)
     )
     assert response.status_code == 404
+
+
+async def test_consumer_endpoint_requires_service_identity(
+    worker_client: tuple[Harness, AsyncClient],
+) -> None:
+    h, client = worker_client
+    body = {"deliveryId": "wake.evt_x", "studentId": SID}
+    assert (await client.post("/internal/consumers/process", json=body)).status_code == 401
+    student = await client.post("/internal/consumers/process", json=body, headers=h.auth(SID))
+    assert student.status_code == 401
+    ok = await client.post(
+        "/internal/consumers/process",
+        json=body,
+        headers={"Authorization": "Bearer local-worker-token-123"},
+    )
+    assert ok.status_code == 200 and ok.json() == {"result": "done"}
+    bad = await client.post(
+        "/internal/consumers/process",
+        json={**body, "runId": "run_1"},
+        headers={"Authorization": "Bearer local-worker-token-123"},
+    )
+    assert bad.status_code == 400  # wakes carry ids only, never a run or payload

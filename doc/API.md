@@ -1,6 +1,6 @@
 # High School Student OS — API 契约 v0.3
 
-更新：2026-10-31。M2 实现补充：评估/掌握度/完成/事件流接口与字段（标注 “M2”，见 §1.4、§1.5、§2.6、§4、§8）。M1 实现补充：`COURSE_NOT_ENROLLED`、目录 `status`/`agent` 字段、消息资源、身份映射与 `date=today`（标注 “M1”）。2026-10-30 增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
+更新：2026-11-01：M3 改为课程平台，移除跨课程前置技能接口与事件，新增 `PRACTICE` 任务类型（§6.2）。2026-10-31：M2 实现补充：评估/掌握度/完成/事件流接口与字段（标注 “M2”，见 §1.4、§1.5、§2.6、§4、§8）。M1 实现补充：`COURSE_NOT_ENROLLED`、目录 `status`/`agent` 字段、消息资源、身份映射与 `date=today`（标注 “M1”）。2026-10-30 增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
 
 ## 0. 通用约定
 
@@ -187,7 +187,7 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
 }
 ```
 
-无 Session/Run 的 Planner 事件相应字段为 null。sequence 在同一学生范围递增。常见事件：session.started、run.queued、run.started、run.waiting_input、run.completed、run.failed、run.cancelled、assessment.completed、mastery.updated、session.completed、session.abandoned、prerequisite.suspected、prerequisite.confirmed、prerequisite.unsupported、plan.updated。
+无 Session/Run 的 Planner 事件相应字段为 null。sequence 在同一学生范围递增。常见事件：session.started、run.queued、run.started、run.waiting_input、run.completed、run.failed、run.cancelled、assessment.completed、mastery.updated、session.completed、session.abandoned、plan.updated、course.enrolled、course.unenrolled。
 
 事件由服务端在事务中创建。客户端不能声明事件来源或伪造结果。UI 只接收脱敏的学生事件，不接收内部 outbox、原始模型推理或敏感工具参数。
 
@@ -325,7 +325,7 @@ M1：`status` 为派生字段 —— `enrolled`、`available`（active + entitle
 
 - `GET /api/tasks?date=2026-10-29&cursor=...&limit=50` → tasks、nextCursor；日期按 preferences.timezone 解释，GET 不触发重新规划。M1：`date` 可省略（全部）或为 `today`（按学生时区当天）；另支持 `status`、`courseId`；只返回 active 注册课程的任务（取消注册后隐藏、重新注册后恢复）。
 - 对未注册课程的 Task/Session/命令操作返回 409 `COURSE_NOT_ENROLLED`（M1 新增错误码）；检查顺序：课程存在（404）→ active（409 `COURSE_NOT_AVAILABLE`）→ entitlement（403 `COURSE_ACCESS_REQUIRED`）→ 注册（409 `COURSE_NOT_ENROLLED`）。
-- `PATCH /api/tasks/{taskId}` + If-Match → 只允许 scheduledDate、studentLocked、status=SKIPPED（仅未开始任务）。
+- `PATCH /api/tasks/{taskId}` + If-Match → 只允许 scheduledDate、studentLocked、status=SKIPPED（仅未开始任务）。M3：`skipReason`（`no_time`/`already_know`/`not_relevant`/`other`）只能与 status=SKIPPED 同时出现；改 scheduledDate 默认同时锁定（studentLocked=true），除非同一 patch 显式给出 studentLocked。Task 新增只读字段 `dueDate`、`skipReason`、`reason.explanation`（服务端写的说明，非模型输出）。
 - `POST /api/plans/replan` + Idempotency-Key → 202 返回 PLANNING Run；重排保留进行中、已完成与锁定任务，并返回可解释变更。
 
 ### 2.2 创建与恢复 Session
@@ -462,6 +462,21 @@ M2：流开始前先校验 cursor，所以 400/410 是真正的 HTTP 错误；�
 Run FAILED 的 `error.code`（面向学生，不含供应商消息）：`BUDGET_EXCEEDED`、`MODEL_OUTPUT_INVALID`（有限次重试后输出仍不可用）、`MODEL_REFUSED`、`MODEL_UNAVAILABLE`、`EXECUTION_RETRIES_EXHAUSTED`、`ASSESSMENT_REJECTED`（服务端语义校验未通过，整个提交回滚）、`CONTENT_VERSION_CHANGED`、`COURSE_CONTENT_UNAVAILABLE`、`SKILL_NOT_ENABLED`。这些失败都不写评估、不改掌握度。
 
 会话或当天预算已用完时，新的消息/提交命令返回 429 `BUDGET_EXCEEDED`。预算按 Run、Session、学生每个 UTC 日计，重试也计入；不会为省预算降级评分模型。
+
+## 6.2 M3 课程平台：独立课程、选择题与计划
+
+2026-11-01 起取消跨课程前置技能映射：`GET /api/prerequisites`（及 `/{findingId}`）、`prerequisite.suspected|confirmed|unsupported|inconclusive` 事件、Task reason `PREREQUISITE_DIAGNOSTIC`/`PREREQUISITE_REINFORCEMENT` 均已移除，路由返回 404。一门课程的证据不会在另一门课程中产生事件、任务或掌握度变化。尚无真实学生数据，因此不做旧事件迁移。
+
+**独立课程与选择题**：Digital SAT（`dsat`）是一门独立课程，也是 M3 第二门课程的候选。新增通用 Task 类型 `PRACTICE`（技能练习，如选择题组）。课程包选用 `choice-scoring` 能力后，选择题 Session 的 `activity` 包含 `items[{itemId, prompt, choices[{key,text}]}]`，**不含答案键**。作答仍走 `POST /api/sessions/{id}/submissions`，`answer.text` 每题一行（如 `1: B`）。服务端按答案键评分（`provenance.modelVersion = rule:choice-scoring-v1`，不调用模型），无法读出每题一个选项时为 `insufficient_evidence`。rubric 得分从不换算成考试分数。
+
+**事件**：`plan.updated` payload：`planId`、`changedTaskIds`、`reason`（`replan`）。课程内后续规则（Step 24.2）引入新的事件或原因值时，先在本节补充契约。
+
+**计划**：
+
+- `POST /api/plans/replan` + Idempotency-Key，body `{}` → 202 `{runId, status}`（PLANNING Run，sessionId=null）。同一学生同时只能有一个未结束的 PLANNING Run，否则 409 `RUN_IN_PROGRESS`。
+- `GET /api/plans/latest`（还没有计划时 404）、`GET /api/plans/{planId}` → `planId`、`runId`、`ruleVersion`（`planner-rules-v1`）、`localDate`、`horizonEnd`、`weeklyMinutes`、`dailyMinutes`、`evidenceAvailable`、`entries[{taskId, courseId, durationMin, previousDate, scheduledDate, priority, placement, explanation, sourceEventIds}]`。
+- `priority`：`deadline` > `evidence_gap` > `practice`（固定任务为 null）。所有已注册课程的任务共用每周时间；排序不会用一门课程的证据评判另一门课程的任务。`placement`：`fixed`（进行中/已完成/学生锁定）、`kept`、`moved`、`deferred`（本周时间已满，顺延到下周）、`over_budget`（为截止日期超出每日预算）。
+- GET 从不触发重排。PLANNING Run 失败码：`RUN_ATTEMPTS_EXHAUSTED`。
 
 ## 7. v0.1 → v0.2 迁移与验收
 

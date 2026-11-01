@@ -29,6 +29,10 @@
     {"collectionGroup": "outbox", "queryScope": "COLLECTION_GROUP", "fields": [
       {"fieldPath": "status", "order": "ASCENDING"},
       {"fieldPath": "createdAt", "order": "ASCENDING"}]},
+    {"collectionGroup": "outbox", "queryScope": "COLLECTION_GROUP", "fields": [
+      {"fieldPath": "kind", "order": "ASCENDING"},
+      {"fieldPath": "status", "order": "ASCENDING"},
+      {"fieldPath": "dispatchedAt", "order": "ASCENDING"}]},
     {"collectionGroup": "runs", "queryScope": "COLLECTION_GROUP", "fields": [
       {"fieldPath": "status", "order": "ASCENDING"},
       {"fieldPath": "updatedAt", "order": "ASCENDING"}]},

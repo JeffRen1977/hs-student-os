@@ -37,6 +37,42 @@
         "sourceEventIds": []
       },
       "questionId": "q_calc_bc_002"
+    },
+    {
+      "taskId": "task_alex_dsat_01",
+      "studentId": "stu_alex",
+      "agent": "DSAT",
+      "courseId": "dsat",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Equivalent expressions: set 1",
+      "durationMin": 10,
+      "scheduledDate": "2026-11-04",
+      "status": "PLANNED",
+      "version": 1,
+      "reason": {
+        "code": "INITIAL_PRACTICE",
+        "sourceEventIds": []
+      },
+      "questionId": "q_dsat_equiv_001"
+    },
+    {
+      "taskId": "task_alex_dsat_02",
+      "studentId": "stu_alex",
+      "agent": "DSAT",
+      "courseId": "dsat",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Function composition: set 1",
+      "durationMin": 10,
+      "scheduledDate": "2026-11-05",
+      "status": "PLANNED",
+      "version": 1,
+      "reason": {
+        "code": "INITIAL_PRACTICE",
+        "sourceEventIds": []
+      },
+      "questionId": "q_dsat_nonlin_001"
     }
   ]
 }

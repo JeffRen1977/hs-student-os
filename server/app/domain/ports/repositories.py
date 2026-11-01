@@ -20,12 +20,14 @@ from typing import Protocol
 from app.domain.types.actor import ActorContext
 from app.domain.types.assessment import Assessment
 from app.domain.types.common import IdempotencyRecord, PageRequest, PaginatedResponse
+from app.domain.types.consumer import ConsumerOffset, ConsumerReceipt
 from app.domain.types.course import CourseEnrollment, EnrollmentStatus
 from app.domain.types.event import DomainEvent, EventType
 from app.domain.types.file import StoredFile
 from app.domain.types.mastery import MasteryState
 from app.domain.types.message import Message
 from app.domain.types.outbox import OutboxEntry, RunInput
+from app.domain.types.plan import Plan, PlanState
 from app.domain.types.run import Run
 from app.domain.types.session import Session, SessionStatus
 from app.domain.types.student import Entitlements, Student
@@ -192,6 +194,28 @@ class OutboxStore(Protocol):
     def save(self, actor: ActorContext, entry: OutboxEntry) -> None: ...
 
 
+class ReceiptStore(Protocol):
+    async def get(self, actor: ActorContext, receipt_id: str) -> ConsumerReceipt | None: ...
+
+    def create(self, actor: ActorContext, receipt: ConsumerReceipt) -> None: ...
+
+
+class ConsumerOffsetStore(Protocol):
+    async def get(self, actor: ActorContext, consumer: str) -> ConsumerOffset | None: ...
+
+    def save(self, actor: ActorContext, offset: ConsumerOffset) -> None: ...
+
+
+class PlanStore(Protocol):
+    async def get(self, actor: ActorContext, plan_id: str) -> Plan | None: ...
+
+    def save(self, actor: ActorContext, plan: Plan) -> None: ...
+
+    async def get_state(self, actor: ActorContext) -> PlanState: ...
+
+    def save_state(self, actor: ActorContext, state: PlanState) -> None: ...
+
+
 class Tx(Protocol):
     @property
     def students(self) -> StudentStore: ...
@@ -225,6 +249,12 @@ class Tx(Protocol):
     def usage(self) -> UsageStore: ...
     @property
     def tool_results(self) -> ToolResultStore: ...
+    @property
+    def receipts(self) -> ReceiptStore: ...
+    @property
+    def consumer_offsets(self) -> ConsumerOffsetStore: ...
+    @property
+    def plans(self) -> PlanStore: ...
 
 
 class UnitOfWork(Protocol):
@@ -248,3 +278,9 @@ class OperationsStore(Protocol):
     async def stalled_runs(
         self, *, queued_before: datetime, lease_expired_before: datetime, limit: int
     ) -> Sequence[Run]: ...
+
+    async def stalled_consumer_wakes(
+        self, *, dispatched_before: datetime, limit: int
+    ) -> Sequence[OutboxEntry]:
+        """Consumer wakes dispatched long ago whose consumers never reported completion."""
+        ...

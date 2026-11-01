@@ -15,7 +15,7 @@ from app.domain.session_service import with_active_run
 from app.domain.types.actor import ActorContext
 from app.domain.types.event import EventType
 from app.domain.types.outbox import OutboxEntry, OutboxStatus
-from app.domain.types.run import RUN_TRANSITIONS, Run, RunError, RunResult, RunStatus
+from app.domain.types.run import RUN_TRANSITIONS, Run, RunError, RunKind, RunResult, RunStatus
 from app.domain.types.transitions import ensure_transition
 
 _TERMINAL_EVENTS = {
@@ -81,6 +81,12 @@ async def finish_run(
         if session is not None and session.active_run_id == run.run_id:
             tx.sessions.save(
                 actor, dataclasses.replace(with_active_run(session, None), updated_at=now)
+            )
+    if run.kind is RunKind.PLANNING:
+        state = await tx.plans.get_state(actor)
+        if state.active_run_id == run.run_id:
+            tx.plans.save_state(
+                actor, dataclasses.replace(state, active_run_id=None, version=state.version + 1)
             )
     payload: dict[str, object] = {"kind": run.kind.value}
     if error is not None:

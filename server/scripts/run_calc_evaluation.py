@@ -314,7 +314,6 @@ def render_report(
         "| Report version | 1 |",
         f"| Date (UTC) | {datetime.now(UTC).strftime('%Y-%m-%d %H:%M')} |",
         f"| Evaluation set | `content/evaluation/{COURSE_ID}/` ({n} cases) |",
-        "| Prerequisite set | not run (prerequisite consumers arrive in M3) |",
         f"| Pack / rubric versions | {run.pack_version} / per-question rubric v1 |",
         f"| Workflow version | {run.workflow_version} |",
         f"| Model + version | {run.model_version} |",
@@ -345,7 +344,6 @@ def render_report(
         row("False insufficient rate", "↓", "false-insufficient-rate", run.false_insufficient),
         row("Hint-dependency tracking", "↑", "hint-dependency-tracking", run.hint_tracking),
         row("Feedback usefulness", "↑", "feedback-usefulness", "reviewer rating pending"),
-        row("Prerequisite precision", "↑", "prerequisite-precision", "not run (M3)"),
         "",
         "A dimension with no reviewer-set threshold is reported as **not gated**, not as passing.",
         f"Mean model usage per graded case: {run.mean_tokens} (retries included).",
@@ -365,11 +363,7 @@ def render_report(
         )
     lines += [
         "",
-        "## 5. Prerequisite cases",
-        "",
-        "Not run: prerequisite mapping and consumers are M3 (Steps 22–24).",
-        "",
-        "## 6. Failures and scope decisions",
+        "## 5. Failures and scope decisions",
         "",
         "To be completed by the reviewer for every mismatch above (fix, narrow scope, or "
         "accept with justification).",

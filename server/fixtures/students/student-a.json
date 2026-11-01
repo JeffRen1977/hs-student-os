@@ -16,13 +16,15 @@
   "preferences": {
     "timezone": "America/Los_Angeles",
     "weeklyAvailableMinutes": 300,
-    "selectedCourses": ["calc_bc"],
+    "selectedCourses": ["calc_bc", "dsat"],
     "notifications": {"enabled": false, "channels": [], "quietHours": {"start": "21:00", "end": "08:00"}}
   },
   "enrollments": [
-    {"courseId": "calc_bc", "status": "active", "enrolledAt": "2026-10-01T16:00:00Z"}
+    {"courseId": "calc_bc", "status": "active", "enrolledAt": "2026-10-01T16:00:00Z"},
+    {"courseId": "dsat", "status": "active", "enrolledAt": "2026-10-01T16:05:00Z"}
   ],
   "predictionSummary": {
-    "calc_bc": {"status": "unavailable", "reason": "not_calibrated"}
+    "calc_bc": {"status": "unavailable", "reason": "not_calibrated"},
+    "dsat": {"status": "unavailable", "reason": "not_calibrated"}
   }
 }

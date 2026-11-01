@@ -12,7 +12,7 @@ import json
 import re
 from typing import Any
 
-from app.domain.types.outbox import Delivery
+from app.domain.types.outbox import Delivery, OutboxKind
 
 _TASK_NAME_SAFE = re.compile(r"[^A-Za-z0-9_-]")
 
@@ -35,21 +35,26 @@ class CloudTasksQueue:
     ) -> None:
         self._client = client
         self._parent = client.queue_path(project, location, queue)
-        self._worker_url = worker_url.rstrip("/") + "/internal/runs/execute"
+        base = worker_url.rstrip("/")
+        self._urls = {
+            OutboxKind.RUN: base + "/internal/runs/execute",
+            OutboxKind.CONSUMERS: base + "/internal/consumers/process",
+        }
         self._service_account = service_account_email
         self._audience = audience
 
     def build_task(self, delivery: Delivery) -> dict[str, Any]:
-        body = {
+        body: dict[str, str] = {
             "deliveryId": delivery.delivery_id,
             "studentId": delivery.student_id,
-            "runId": delivery.run_id,
         }
+        if delivery.run_id is not None:
+            body["runId"] = delivery.run_id
         return {
             "name": f"{self._parent}/tasks/{task_name_for(delivery.delivery_id)}",
             "http_request": {
                 "http_method": "POST",
-                "url": self._worker_url,
+                "url": self._urls[delivery.kind],
                 "headers": {"Content-Type": "application/json"},
                 "body": json.dumps(body).encode(),
                 "oidc_token": {

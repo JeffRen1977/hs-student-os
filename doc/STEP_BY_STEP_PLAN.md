@@ -1,28 +1,28 @@
-# High School Student OS — Step-by-Step Implementation Plan v4.0
+# High School Student OS — Step-by-Step Implementation Plan v5.0
 
-Updated: 2026-10-31. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). Checked boxes mark sub-tasks implemented in the working tree; each step's **Status** line records what was actually verified.
+Updated: 2026-11-01 (v5.0: M3 redefined from Calc→SAT transfer to a course platform; see M3). Previously 2026-10-31. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). Checked boxes mark sub-tasks implemented in the working tree; each step's **Status** line records what was actually verified.
 
-The first product slice is **Calculus practice → supported assessment → saved evidence → SAT prerequisite diagnostic → justified follow-up → an explained plan**. M0–M4 deliver the pilot; M5 contains independently selectable extensions.
+The product is a **course platform with one shared runtime**: third parties add courses as data (skills, question bank, rubrics and criteria, course requirements, completion criteria) and every course runs the same loop: **practice → supported assessment → saved evidence → in-course follow-up → an explained plan across enrolled courses**. Courses are independent; there is no cross-course inference. Calc BC is the first-party reference course. M0–M4 deliver the pilot (Calc BC plus one course authored through the package path); M5 contains independently selectable extensions.
 
 ## Current state
 
-### Implementation status (as of 2026-10-31)
+### Implementation status (as of 2026-11-01)
 
 | Milestone | Steps | Status |
 |---|---|---|
 | M0 Contracts and baseline | 1–7 | **Implemented; verification partial**: emulator tests not yet run, content not yet human-reviewed |
 | M1 Reliable foundation | 8–15 | **Implemented; verified over the in-memory backend**: Firestore-emulator run pending (no Java), Cloud Tasks/OIDC verified in staging (Step 30) |
 | M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: real-model evaluation (Step 21) and real-provider smoke test pending an API key; emulator run pending (no Java) |
-| M3 Validated SAT transfer | 22–27 | Not started |
-| M4 Proactive planning and pilot | 28–33 | Not started |
+| M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. Package contract, ability catalog, authoring/review and the authored rebuild are not started. |
+| M4 Proactive planning and pilot | 28–33 | Not started (pilot: Calc BC + Digital SAT, authored) |
 | M5 Optional expansion | 34–38 | Not started |
 
-Last local verification (`make check`, after M2): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **435 passed, 6 skipped** (5 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **29 passed**. Browser check in Chrome against `make server-memory` (synthetic execution).
+Last local verification (`make check`, 2026-11-01, after removing the Calc→SAT layer in Step 22.4): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **487 passed, 8 skipped** (7 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **33 passed**.
 
 Open items before M0–M2 can be called complete:
 - **Real-model evaluation (Steps 16, 21):** needs a model API key (Anthropic or OpenAI; OpenAI smoke test passed 2026-10-31). Run `tests/evaluation/test_real_provider_smoke.py` (`HSOS_RUN_REAL_LLM_SMOKE=1`) and `scripts/run_calc_evaluation.py`, which writes `content/evaluation/calc_bc/report-v1.md`. All M2 grading tests so far use a scripted model, so they say nothing about grading quality.
 - **Emulator verification (Steps 5, 9, 14, 15):** `make emulators` / `make test-emulator` have not been run on this machine (no Java runtime installed; Firebase emulators need Java 11+). `tests/emulator/test_seed_emulator.py` and `tests/emulator/test_firestore_flows.py` are written but currently skip. M1 transaction behaviour is proven only over the in-memory store until they run.
-- **Content review (Steps 4, 7):** questions, rubrics, and evaluation cases are `draft`; prerequisite mappings are `candidate`. None has a named reviewer yet. Evaluation thresholds in `dimensions.json` are unset until a content reviewer sets them.
+- **Content review (Steps 4, 7, 26):** questions, rubrics and evaluation cases are `draft` with no named reviewer. Evaluation thresholds in `dimensions.json` are unset until a content reviewer sets them. From M3 on, review happens through the platform review gate (Step 26), which applies to first-party courses too.
 
 ### Checkout contents
 
@@ -32,7 +32,8 @@ Open items before M0–M2 can be called complete:
 - `web/` — vanilla JS frontend. The async `data-provider.js` (Bearer auth, Idempotency-Key, request states, event dedupe) is the new seam; `?demo=true` loads `web/fixtures/demo.json` (validated against backend schemas). Predictions show "unavailable", and Task/Session/Run are kept as separate state. `window.HSData` now holds display metadata only.
 - M1: Firebase token auth → `ActorContext`; Firestore repositories on a `DocTxn` seam with an in-memory test backend; twin, course catalog/enrollment/agent, task, session, message/submission, and run routes; transactional command acceptance with idempotency and outbox; outbox dispatcher, local queue, Cloud Tasks adapter, a lease/fencing-token run worker with its own HTTP service, a stalled-run recovery scan, and a labeled synthetic executor
 - M2: LLM gateway with budgets and tier routing, Socratic and rubric-assessment skills, math-verify tool, atomic AssessmentService commit with mastery projection, session complete, durable event feed with SSE, frontend wired to the real API (sign-in, sessions, submissions, assessments), evaluation runner
-- Not built yet: prerequisite mapping/consumers, planner, file upload/OCR, regrade trigger, event purge job
+- M3 so far: outbox-woken replay-safe consumer infrastructure (receipts + offsets + wake recovery; no production consumer yet), PLANNING runs with planner-rules-v1 and plan API, task skip reasons and reschedule-locks, `choice-scoring` in the shared runtime, Digital SAT as an independent course, plan view. The Calc→SAT mappings, findings API/card and `prerequisite.*` events were removed (Step 22.4)
+- Not built yet: file upload/OCR, regrade trigger, event purge job, scheduled (timezone-aware) planning
 
 Each step below is a reviewable change with verification criteria.
 
@@ -140,7 +141,7 @@ Each step below is a reviewable change with verification criteria.
 - [x] 4.6 Create `content/packs/calc_bc/rubrics/` — rubric definitions with criterionId, description, maxPoints, evidence requirements
 - [x] 4.7 Create `content/packs/apush/manifest.json` — availability `planned` (cannot open sessions)
 - [x] 4.8 Create `content/packs/physics_c/manifest.json` — availability `planned`
-- [x] 4.9 Create `content/mappings/calc-to-sat-prerequisites.json` — versioned mapping candidates with source AP skill, target SAT skill, conditions, counterexamples
+- [x] 4.9 Create `content/mappings/calc-to-sat-prerequisites.json` — versioned mapping candidates with source AP skill, target SAT skill, conditions, counterexamples *(superseded 2026-11-01: cross-course mappings are removed in Step 22.4)*
 - [x] 4.10 Write fixture validation tests: all fixtures pass their JSON schemas; student IDs are isolated; planned packs are recognized but cannot be treated as active
 
 **Verify:** Fixture schemas pass validation. No real student information. Exam predictions are `unavailable`. Entitlements are separate from selectedCourses. Planned packs are distinct from active packs.
@@ -210,7 +211,7 @@ Each step below is a reviewable change with verification criteria.
 - [x] 7.4 Define evaluation dimensions: rubric accuracy, evidence quality, false acceptance rate, false insufficient rate, hint-dependency tracking, feedback usefulness
 - [x] 7.5 Create `content/evaluation/report-template.md` — versioned evaluation report template with columns for each dimension, reviewer sign-off, and pass/fail thresholds (thresholds TBD by content reviewer, not inferred from examples)
 
-**Verify:** Each evaluation case has a reviewable expected outcome with provenance. Counterexamples exist for prerequisite mappings. This is a content gate — no model quality evaluation yet.
+**Verify:** Each evaluation case has a reviewable expected outcome with provenance. Counterexamples exist for prerequisite mappings *(the prerequisite cases are retired with the mappings in Step 22.4; each course package now carries its own evaluation set)*. This is a content gate — no model quality evaluation yet.
 
 **Status:** 🟡 Structure done, review pending. 6 Calc BC cases, 4 prerequisite cases (2 counterexamples), `dimensions.json` (7 dimensions), and `report-template.md` are in `server/content/evaluation/`; `tests/unit/test_evaluation_content.py` passes. The content gate stays open until a reviewer signs off each case and sets the thresholds.
 
@@ -717,156 +718,123 @@ Each step below is a reviewable change with verification criteria.
 
 ---
 
-## M3 — Validated SAT Transfer (Steps 22–27)
+## M3 — Course Platform: Package Contract and Course-Agnostic Loop (Steps 22–27)
 
-### Step 22 — Implement reviewed prerequisite mappings
+**Direction change (2026-11-01).** The platform no longer infers weaknesses in one course from evidence in another. Cross-course prerequisite mappings (Calc BC → Digital SAT), `prerequisite.*` events and the findings view are dropped. The goal is now a platform on which **third parties add courses as data** (skills, question bank, rubrics and criteria, course requirements, completion criteria), choosing from abilities the platform provides. Every course runs on the same runtime. Courses are independent: evidence in one course never changes another course's record or tasks.
 
-**Goal:** AP assessment evidence can suggest (not confirm) related SAT skill weaknesses.
+Decisions behind this milestone:
+- **Data only.** A course package contains no code. New ability types (e.g. code grading, essay feedback) are platform work, added once and then available to every course.
+- **Platform review gate.** A package is validated automatically, then approved by a platform reviewer before it can become `active`. Authors cannot self-publish.
+- **Keep the generic M3 work.** The M3 change built consumers, outbox wakes, the planner, key-scored choice items and task fields that are course-agnostic; those stay. The cross-course mapping layer is removed in Step 22.
+- **Pilot:** Calc BC (first-party reference course) plus **Digital SAT** as the second course, rebuilt only through the authoring path (Step 27).
 
-- [ ] 22.1 Create `app/domain/prerequisite_service.py`:
-  - Load versioned mappings from `content/mappings/`
-  - Only eligible `accepted` assessments trigger `prerequisite.suspected` events
-  - Retain source assessment ID and mapping version
-  - `suspected` is a recommendation for diagnosis, not a confirmed SAT weakness
-- [ ] 22.2 Implement mapping rules:
-  - Mathematical topic overlap alone is insufficient
-  - Suppress unrelated calculus-only errors (e.g., L'Hôpital-specific issues don't map to SAT)
-  - Only errors involving shared prerequisite skills (e.g., algebraic manipulation) are candidates
-- [ ] 22.3 Write tests using evaluation cases from Step 7:
-  - Positive mapping: calc error with shared prerequisite → `prerequisite.suspected`
-  - Negative mapping: calc-only error → no event
-  - Missing evidence → no event
-  - Unknown mapping version → rejected
-  - Repeated source evidence → deduplicated
-  - Student sees uncertainty (suspected, not confirmed)
+### Step 22 — Define the course package contract v1 and remove cross-course mappings
 
-**Verify:** Reviewed mapping cases pass. False positives from counterexamples are suppressed. Uncertainty is visible.
+**Goal:** One versioned, documented, data-only format that fully describes a course, and a validator that accepts or rejects a package with actionable errors.
 
----
+- [ ] 22.1 Contract first: write the package schema in `app/schemas/` and document it (new `doc/COURSE_PACKAGE.md`; update API.md/BACKEND.md). A package contains:
+  - Manifest: courseId, version, title/description, publisher (author org), content license, availability, model tier ceiling, abilities used and their settings, tool whitelist (from the platform catalog only)
+  - Skill taxonomy: skill IDs, names, optional prerequisite edges **within the course**
+  - Question bank: versioned questions with source/license, skills tagged, answer format (free response / choice items), rubric or answer-key reference
+  - Rubrics and criteria: criterionId, maxPoints, evidence requirements, skill per criterion, version
+  - Course requirements: e.g. recommended weekly minutes, known exam/assignment dates with a source, enrollment eligibility
+  - Completion and mastery criteria: what counts as an accepted assessment and when a task or the course is complete, expressed with platform-defined rule types and parameters (no expressions or code)
+  - Evaluation set: annotated cases the course must pass before review
+- [ ] 22.2 Validator: schema check plus cross-reference checks (every question's skills and rubric exist, criteria map to skills, abilities have the data they need, answer keys never in student-facing fields, license present, no unknown fields). Returns all errors with paths, not just the first.
+- [ ] 22.3 Re-express `calc_bc` in the v1 format; the runtime loads only through the validated contract. (`dsat` is rebuilt through the authoring path in Step 27.)
+- [x] 22.4 Remove the cross-course layer: `content/mappings/`, the mapping registry, `prerequisite_service` mapping rules, the `prerequisite-mapper` consumer's cross-course logic, `prerequisite.*` events and payloads, `/api/prerequisites`, the findings card, and the prerequisite evaluation cases. Keep the event feed contract backward compatible where events were already stored (or document the cut, since no real student data exists).
+- [ ] 22.5 Tests: valid packages load; each class of invalid package is rejected with the right error path; a package cannot reference another course's skills or content; contract parity between schema, domain types and docs.
 
-### Step 23 — Add SAT short diagnostic workflow
+**Verify:** Calc BC runs end to end from a validated v1 package. No code path depends on a specific courseId. No cross-course effect remains.
 
-**Goal:** A short SAT diagnostic that independently tests a suspected prerequisite skill.
-
-- [ ] 23.1 Create `content/packs/dsat/manifest.json` — DSAT pack with diagnostic capability for selected prerequisites
-- [ ] 23.2 Create `content/packs/dsat/questions/` — reviewed SAT-style diagnostic questions targeting specific prerequisite skills
-- [ ] 23.3 Create `app/domain/skills/sat_diagnostic.py`:
-  - Require DSAT entitlement and available diagnostic content
-  - Record independent performance (no hints from the AP session)
-  - Use the same AssessmentService for evidence commit
-  - Outcomes: `supported` (weakness confirmed), `unsupported` (no weakness found), `insufficient` (not enough evidence)
-  - Do NOT convert short diagnostic into a SAT exam score
-- [ ] 23.4 Wire into Task/Session/Run lifecycle (shared runtime, not a separate service)
-- [ ] 23.5 Write tests:
-  - Correct answers → `unsupported` (no weakness)
-  - Incorrect answers → `supported` (weakness confirmed)
-  - Hints used → tracked
-  - Insufficient evidence → appropriate outcome
-  - No DSAT entitlement → 403
-  - No diagnostic content for this prerequisite → appropriate error
-
-**Verify:** SAT diagnostic works through the same Task/Session/Run pipeline. No separate service needed. No SAT score generated from a few questions.
+**Status: 🟡 22.4 done (2026-11-01); 22.1–22.3 and 22.5 not started.** Removed: mapping content and registry, prerequisite rules/service/types/repository, the three cross-course consumers, `/api/prerequisites`, `prerequisite.*` events and payloads, `PREREQUISITE_*` task reasons, the planner's `confirmed_prerequisite` priority, prerequisite evaluation cases and the `prerequisite-precision` dimension, and the web findings card. API.md §6.2 and BACKEND.md updated first. Kept and made generic: the consumer infrastructure (subscriptions now come from the consumers registered at startup — none in production yet), the planner, and answer-key scoring, renamed `sat-diagnostic` → `choice-scoring`. Digital SAT became an independent course: four choice sets (`q_dsat_equiv_001/002`, `q_dsat_nonlin_001/002`, still draft), new task type `PRACTICE`, Alex enrolled with two seeded practice tasks. Tests: `tests/contract/test_dsat_course.py` (key-scored loop, no model call, no answer key to the client, no cross-course effect, access/isolation, removed route 404), `tests/contract/test_event_consumers.py` (consumer guarantees with a test-only consumer), `tests/unit/test_choice_scoring.py`, `tests/unit/test_content.py` (no cross-course content). Groundwork for 22.1–22.2: pack manifests and question/rubric registries with cross-checks (`app/registries/content.py`).
 
 ---
 
-### Step 24 — Implement replay-safe domain event consumers
+### Step 23 — Platform ability catalog
 
-**Goal:** Events drive follow-up actions atomically and idempotently.
+**Goal:** The runtime offers a fixed, versioned set of abilities that any course package can select and configure; nothing is course-specific.
 
-- [ ] 24.1 Create `app/workers/consumers/prerequisite_consumer.py`:
-  - Consume `assessment.completed` events → evaluate prerequisite mappings → emit `prerequisite.suspected`
-  - Consumer receipt: `(consumerName, eventId, targetSkill)` — written in same transaction as target Task
-- [ ] 24.2 Create `app/workers/consumers/diagnostic_consumer.py`:
-  - Consume `prerequisite.suspected` → create diagnostic Task (if DSAT entitled and content available)
-  - Atomically write Task + receipt; deduplicate by consumer/event/targetSkill
-- [ ] 24.3 Create `app/workers/consumers/reinforcement_consumer.py`:
-  - Consume `prerequisite.confirmed` → create reinforcement Task
-  - `unsupported`/`insufficient` → no reinforcement created; record reason
-- [ ] 24.4 Implement consumer infrastructure:
-  - Per-consumer offset tracking
-  - At-least-once delivery; idempotent with receipt checks
-  - Domain-level dedupe key (in addition to event dedupe): repeated related observations don't flood existing active diagnostics
-- [ ] 24.5 Write tests:
-  - Crash before receipt commit → replay creates task on retry
-  - Crash after receipt commit → no duplicate task
-  - Replayed events → idempotent
-  - Repeated observations for same skill → single diagnostic
-  - Two-student isolation
-  - Unsupported outcome → no reinforcement task created
+- [ ] 23.1 Define the catalog: each ability's ID, version, the package data it requires, its settings, model tier floor and the evidence it produces. Initial abilities (`choice-scoring` already exists as a generic ability):
+  - `socratic-guidance` (hints, records hint usage)
+  - `rubric-assessment` (model grading against the course rubric, evidence validated by AssessmentService)
+  - `choice-scoring` (answer-key scoring, no model) — generalizes the M3 `sat-diagnostic` key scoring
+  - `diagnostic` (short skill check with course-defined thresholds → supported / unsupported / inconclusive for a skill **in the same course**)
+- [ ] 23.2 Abilities read only the package's data and the student's record for that course. Course text in prompts is treated as content, not instructions (prompt-injection checks on author-supplied text).
+- [ ] 23.3 Per-course model budget and tier ceiling from the manifest, enforced by the LLM gateway.
+- [ ] 23.4 Tests: each ability on two different courses with no code change; missing required data → package rejected at validation, not at runtime; author text cannot change grading rules or reveal answer keys.
 
-**Verify:** Exactly one intended Task per dedupe scope. Crash-safe across all windows. No orphan tasks.
+**Verify:** Two courses that select the same ability behave identically apart from their data.
+
+**Status: 🟡 partly implemented.** Socratic guidance, rubric assessment and `choice-scoring` exist (`app/domain/skill_executor.py`, `app/domain/skills/`); the catalog contract, the in-course `diagnostic` ability, per-course budget and injection checks are not built.
 
 ---
 
-### Step 25 — Implement evidence-aware incremental planning
+### Step 24 — Replay-safe domain event consumers (course-internal)
 
-**Goal:** The Planner updates the schedule based on new evidence, respecting time budgets and student controls.
+**Goal:** Events drive follow-up actions atomically and idempotently, using rules each course declares as data.
 
-- [ ] 25.1 Create `app/domain/planner_service.py`:
-  - Rank learning needs: deadlines > diagnosed prerequisites > evidence gaps > new practice
-  - Place tasks within student's available weekly minutes
-  - Preserve IN_PROGRESS, COMPLETED, and student-locked tasks
-  - Defer suggestions if time budget is full
-  - Explain each task placement with real assessment/mapping/schedule references
-- [ ] 25.2 Implement `POST /api/plans/replan` + Idempotency-Key → 202 (PLANNING Run)
-- [ ] 25.3 Implement student controls:
-  - `PATCH /api/tasks/:taskId` — scheduledDate, studentLocked, status=SKIPPED
-  - Locked tasks are preserved during replanning
-  - Skipped tasks record reason
-- [ ] 25.4 Write tests:
-  - Full schedule → defer new suggestions
-  - Conflicting deadlines → prioritize correctly
-  - Manual locks preserved during replan
-  - No reliable assessment data → conservative suggestions
-  - Concurrent plan updates → consistent (no duplicated/disappearing tasks)
-  - Explanations reference real events
+- [x] 24.1 Consumer infrastructure: `publish()` writes a `kind=consumers` outbox wake in the same transaction as the event; per-consumer offsets; receipts `(consumer, eventId, target)` written with the effect; one subscribed event per transaction; stale-wake recovery
+- [ ] 24.2 Replace the cross-course consumers with course-internal ones driven by the package's follow-up rules: e.g. repeated independent errors on a skill → a diagnostic for that skill or its in-course prerequisite; supported diagnostic → follow-up practice; unsupported/inconclusive → reason recorded, no practice
+- [ ] 24.3 Domain dedupe per (course, skill): repeated observations do not flood active diagnostics or practice
+- [x] 24.4 Reliability tests for the infrastructure (`tests/contract/test_event_consumers.py`, test-only consumer): crash before commit → retry applies exactly once; duplicate wakes and full-log replay → no change; lost wake → recovery; two-student isolation; no consumer registered → no wake
+- [ ] 24.5 Tests for the course-internal rules, run on two courses with different rule parameters
 
-**Verify:** Planning is incremental, respects time budgets, preserves student choices, and explains decisions.
+**Verify:** Exactly one intended task per dedupe scope; no effect ever crosses into another course.
+
+**Status: 🟡 infrastructure implemented (M3); no production consumer.** `app/workers/consumers/` (runner, receipts, offsets), `EventPublisher`, outbox `kind`, `/internal/consumers/process` and `RecoveryService.reissue_stalled_wakes` are kept; the Calc→SAT consumers were removed (Step 22.4). Course-internal rules (24.2) are next. Emulator variant: `tests/emulator/test_consumers_and_planning_emulator.py` (skips without Java).
 
 ---
 
-### Step 26 — Verify the complete cross-domain transfer slice
+### Step 25 — Evidence-aware incremental planning across enrolled courses
 
-**Goal:** End-to-end evidence that the first product differentiator works.
+**Goal:** One planner schedules tasks from every enrolled course within the student's time, respecting student controls and each course's requirements.
 
-- [ ] 26.1 Test the positive chain:
-  1. Calculus answer reveals eligible prerequisite issue
-  2. Student sees why a SAT diagnostic is proposed
-  3. Diagnostic confirms weakness → reinforcement task created in plan
-  4. Student can explain the recommendation and change its timing
-- [ ] 26.2 Test the negative chain:
-  1. Calculus error is calc-specific (no SAT implication)
-  2. No diagnostic proposed
-- [ ] 26.3 Test the unsupported chain:
-  1. Diagnostic is taken but weakness not confirmed
-  2. No reinforcement task created; reason recorded
-- [ ] 26.4 Test reliability:
-  - Restarts during each step → consistent state
-  - Duplicate event deliveries → no duplicate tasks
-  - SSE reconnection → events replayed correctly
-- [ ] 26.5 Test isolation:
-  - Cross-student access at every step → 404
+- [x] 25.1 `planner_service.build_plan` (planner-rules-v1): 7-day horizon, weekly minutes / 7 per day; priority deadline > diagnosed need > evidence gap > practice; fixed/kept/moved/deferred/over-budget placements, each with an explanation citing real events
+- [x] 25.2 `POST /api/plans/replan` + Idempotency-Key → 202 PLANNING run; `GET /api/plans/latest|{id}`
+- [x] 25.3 Student controls: reschedule (implies lock unless the same patch says otherwise), lock, skip with reason
+- [ ] 25.4 Read course requirements from packages: dated items (exams, assignments) with their source become deadlines; recommended weekly minutes inform the split
+- [ ] 25.5 Fair split across courses when the week is full, explained to the student
+- [x] 25.6 Tests: full week defers, conflicting deadlines, locks preserved, conservative without evidence, concurrent replans consistent, crash at commit leaves nothing
+- [ ] 25.7 Tests for multi-course balancing and package-sourced deadlines
 
-**Verify M3:** Both positive and negative chains work with reviewed content. Cross-student and replay checks pass. Mapping mistakes identified and content revised before widening coverage.
+**Verify:** Planning is incremental, respects time budgets and student choices, and explains every placement.
+
+**Status: 🟡 core implemented (M3).** Not built: package-sourced deadlines (no due dates are set by any flow yet) and cross-course balancing. The `confirmed_prerequisite` priority was removed (Step 22.4); priorities are now deadline > evidence gap > practice.
 
 ---
 
-### Step 27 — Display cross-domain flow in the frontend
+### Step 26 — Author role, review gate and publishing
 
-**Goal:** The UI shows prerequisite suggestions, diagnostics, and reinforcement with clear explanations.
+**Goal:** A third-party author can submit a course; only platform-approved versions reach students.
 
-- [ ] 27.1 Show `prerequisite.suspected` events as diagnostic suggestions with:
-  - Source assessment reference ("Based on your Calculus answer about...")
-  - Explanation of what the diagnostic will test
-  - Clear label: suspected, not confirmed
-- [ ] 27.2 Show diagnostic Task in task list with context
-- [ ] 27.3 After diagnostic completion, show outcome:
-  - Supported → reinforcement task appears with explanation
-  - Unsupported → "No SAT weakness found for this skill" message
-- [ ] 27.4 Show plan explanations: why each task was added, source events, time allocation
-- [ ] 27.5 Test in browser: complete the full cross-domain flow visually
+- [ ] 26.1 Identities and roles: author accounts belong to an author organization; `ActorContext` gains `author` and `platform_reviewer` roles with their own permissions. Authors never see student data (aggregate, privacy-safe course metrics are a later step).
+- [ ] 26.2 Submission: authenticated API to upload a package version → validator report (Step 22) → `submitted`. Authors see only their own organization's packages; other organizations' packages return 404.
+- [ ] 26.3 Review workflow: `draft → submitted → approved → active`, plus `rejected` (with reviewer notes) and `retired`. Approval records reviewer, time, evaluation-set results and license attestation. Only `active` versions appear in the catalog.
+- [ ] 26.4 Versioning: each Run pins the package version; a new version never changes open sessions or past assessments; retiring a course stops new enrollments and tasks without deleting student records.
+- [ ] 26.5 Entitlements stay platform-managed (an author cannot grant students access); content storage and retrieval are scoped per course.
+- [ ] 26.6 Tests: author isolation (org A vs org B → 404), students cannot call authoring routes, unapproved versions are never served, version pinning across an upgrade, retire with an open session, idempotent submission.
 
-**Verify:** Student can understand the full flow from AP assessment to SAT diagnostic to reinforcement/no-reinforcement.
+**Verify:** A package goes from upload to `active` only through validation plus reviewer approval, and every state change is auditable.
+
+**Status: ⏳ not started.** Today's review gate is the `review.status` field in content files plus `HSOS_REQUIRE_REVIEWED_CONTENT`.
+
+---
+
+### Step 27 — Prove the shared runtime with an authored Digital SAT course; course-driven frontend
+
+**Goal:** Evidence that a new course needs data only.
+
+- [x] 27.1a Second course chosen (2026-11-01): **Digital SAT**. Its current draft content (four choice sets) was converted by hand in Step 22.4 and does not count as authored.
+- [ ] 27.1 Rebuild Digital SAT as a package through the Step 26 path, by someone working only on content (no edits under `server/app/` or `web/js/` for that course)
+- [ ] 27.2 Pass the package's evaluation set, review and approval; enroll a synthetic student; run the full loop (task → session → assessment → mastery → follow-up → plan) for both courses side by side
+- [ ] 27.3 Frontend renders everything from course data: answer formats (free response, choice items), skill names, rubric feedback, follow-up reasons, plan entries per course. Remove the findings card. UI language is English.
+- [ ] 27.4 Record the course's authoring time, validator errors hit and any platform gap found; a gap becomes a platform ability or contract change, never course-specific code
+- [ ] 27.5 Test in browser: both courses, enrolment through completion and replan
+
+**Verify M3:** The second course reaches `active` and works end to end with no platform code change made for it; Calc BC still passes its regression and evaluation cases; isolation and replay checks pass for both courses.
+
+**Status: ⏳ not started.** Digital SAT is chosen. The web UI was switched to English and the findings card removed on 2026-11-01.
 
 ---
 
@@ -970,10 +938,11 @@ Each step below is a reviewable change with verification criteria.
 
 ### Step 32 — Full integration testing in staging
 
-**Goal:** All M0–M3 acceptance chains run in the cloud environment.
+**Goal:** All M0–M3 acceptance chains, including authoring and publishing, run in the cloud environment.
 
 - [ ] 32.1 Run the complete Calculus learning loop in staging
-- [ ] 32.2 Run the cross-domain transfer slice (positive + negative + unsupported chains) in staging
+- [ ] 32.2 Run the authored pilot course end to end in staging, side by side with Calc BC, including in-course follow-up chains (supported + unsupported + inconclusive)
+- [ ] 32.2a Run the authoring path in staging: upload → validation report → review → active → version upgrade with an open session
 - [ ] 32.3 Test SSE reconnection across Cloud Run instances
 - [ ] 32.4 Test worker crash recovery in cloud
 - [ ] 32.5 Test cross-student isolation for all resources: sessions, events, files, assessments
@@ -990,7 +959,8 @@ Each step below is a reviewable change with verification criteria.
 - [ ] 33.1 Quality gate:
   - Reviewed rubric feedback accuracy
   - Unsupported-answer behavior (no false acceptance)
-  - Validated prerequisite mapping (positive + negative cases)
+  - Each pilot course package approved through the review gate, with its evaluation set passing
+  - In-course follow-up rules checked (supported + unsupported cases)
   - Independent follow-up performance measurement
   - Plan explanations are comprehensible
 - [ ] 33.2 Reliability gate:
@@ -1000,7 +970,8 @@ Each step below is a reviewable change with verification criteria.
   - Failed/waiting states are truthful
 - [ ] 33.3 Access gate:
   - Auth and student isolation verified across all resources
-  - Entitlements cannot be self-granted
+  - Entitlements cannot be self-granted (by students or authors)
+  - Authors cannot see student data or other organizations' packages
   - No default parent access to private material
 - [ ] 33.4 Operations gate:
   - Model budget limits enforced
@@ -1018,13 +989,13 @@ Each step below is a reviewable change with verification criteria.
 
 Each extension is independently selected and verified. None are prerequisites for the pilot.
 
-### Step 34 — Expand AP coverage, starting with APUSH
+### Step 34 — Grow the course catalog through the authoring path
 
-- [ ] 34.1 Create reviewed APUSH content: questions, rubrics (DBQ, LEQ, SAQ, MCQ)
-- [ ] 34.2 Add APUSH-specific skills (document analysis, argumentative writing feedback)
-- [ ] 34.3 Add necessary UI for APUSH answer formats
-- [ ] 34.4 Evaluate APUSH quality before changing `planned` → `active`
-- [ ] 34.5 Verify existing Calculus regression cases still pass
+- [ ] 34.1 Author-facing web portal: upload, validator report, preview as a student, submission status and reviewer notes (M3 ships the API only)
+- [ ] 34.2 New platform abilities when courses need them, added once for all courses (e.g. document-based writing feedback for APUSH, sandboxed code grading for CSA); never course-specific code
+- [ ] 34.3 Onboard further courses (APUSH first) as packages through review; each is evaluated before `active`
+- [ ] 34.4 Privacy-safe aggregate course metrics for authors (no individual student data)
+- [ ] 34.5 Verify existing courses' regression and evaluation cases still pass after each new ability
 
 ### Step 35 — Add admissions interviews and sourced planning
 
@@ -1062,9 +1033,9 @@ Each extension is independently selected and verified. None are prerequisites fo
 | M0 Contracts and baseline | 1–7 | Buildable skeleton, schemas, fixtures, evaluation cases, Firebase emulators, frontend contract | Implemented; emulator + content review pending |
 | M1 Reliable foundation | 8–15 | Independent auth, Firestore repos, course enrollment, Task/Session/Run lifecycle, queue/outbox/worker, two-student isolation | Implemented; emulator + staging verification pending |
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; real-model evaluation, emulator and staging verification pending |
-| M3 Validated SAT transfer | 22–27 | Prerequisite mappings, SAT diagnostic, event consumers, planner, cross-domain E2E, frontend display | Not started |
-| M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate | Not started |
-| M5 Optional expansion | 34–38 | Individually validated extensions (APUSH, admissions, parent, predictions, infrastructure) | Not started |
+| M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
+| M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | Not started |
+| M5 Optional expansion | 34–38 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure) | Not started |
 
 ## Superseded patterns
 
@@ -1076,3 +1047,5 @@ The following old patterns are replaced and must not be carried forward:
 - Public event POST → server-generated events from typed commands
 - Uncalibrated predictions (4.5/4.8) → `unavailable` until calibrated
 - Jev/MCP as M0–M4 prerequisites → optional M5 evaluation
+- Cross-course prerequisite mappings (Calc BC → SAT suspected/confirmed findings, `/api/prerequisites`, `prerequisite.*` events) → independent course packages; follow-up rules act only inside their own course
+- Course-specific runtime code → course packages as data, platform abilities shared by all courses

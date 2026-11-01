@@ -15,9 +15,9 @@ const PACK_META = {
     skills: [
       { name: "Socratic Math Step-by-Step", modes: ["GPA_SYNC"] },
       { name: "STEM FRQ Point-by-Point Grader", modes: ["EXAM_CRUNCH"] },
-      { name: "Handwriting OCR -> LaTeX（文本闭环后启用）", modes: ["GPA_SYNC", "EXAM_CRUNCH"] },
+      { name: "Handwriting OCR -> LaTeX (enabled after the text loop)", modes: ["GPA_SYNC", "EXAM_CRUNCH"] },
     ],
-    rag: ["Calc BC 原创题库 v1（待审阅）"],
+    rag: ["Calc BC original question bank v1 (pending review)"],
     tools: ["math-verify", "content-retrieval"],
   },
   apush: { shortName: "APUSH", icon: "📜", family: "humanities", canvas: "history", currentUnit: "", skills: [], rag: [], tools: [] },
@@ -28,12 +28,12 @@ const PACK_META = {
 const FALLBACK_META = { shortName: "", icon: "📘", family: "stem", canvas: "calc", currentUnit: "", skills: [], rag: [], tools: [] };
 
 const MODE_LABEL = {
-  GPA_SYNC: "日常作业",
-  EXAM_CRUNCH: "大考精批",
-  ADAPTIVE: "SAT 练习",
-  INTERVIEW: "文书访谈",
-  SCHOOL_LIST: "选校",
-  ACTIVITIES: "活动列表",
+  GPA_SYNC: "Daily homework",
+  EXAM_CRUNCH: "Exam grading",
+  ADAPTIVE: "SAT practice",
+  INTERVIEW: "Essay interview",
+  SCHOOL_LIST: "College list",
+  ACTIVITIES: "Activities list",
 };
 
 // Presentation seam kept from the prototype. It now serves display metadata only.

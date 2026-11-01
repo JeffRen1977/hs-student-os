@@ -26,13 +26,15 @@ async def test_list_filters_by_date_status_and_course(harness: Harness) -> None:
     assert [t.task_id for t in all_tasks.tasks] == [
         "task_alex_calc_01",
         "task_alex_calc_02",
+        "task_alex_dsat_01",
         "task_a",
+        "task_alex_dsat_02",
         "task_b",
-    ]  # ordered by scheduledDate, then taskId
+    ]  # ordered by scheduledDate, then taskId (both enrolled courses)
     on_day = await _list(harness, "stu_alex", "?date=2026-11-05")
-    assert {t.task_id for t in on_day.tasks} == {"task_a", "task_b"}
+    assert {t.task_id for t in on_day.tasks} == {"task_a", "task_alex_dsat_02", "task_b"}
     planned = await _list(harness, "stu_alex", "?date=2026-11-05&status=PLANNED")
-    assert [t.task_id for t in planned.tasks] == ["task_a"]
+    assert [t.task_id for t in planned.tasks] == ["task_a", "task_alex_dsat_02"]
     by_course = await _list(harness, "stu_alex", "?courseId=calc_bc&limit=1")
     assert len(by_course.tasks) == 1 and by_course.next_cursor
     page2 = await _list(

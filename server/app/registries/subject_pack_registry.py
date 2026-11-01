@@ -12,6 +12,7 @@ from collections.abc import Sequence
 
 from app.domain.ports.content import (
     AnswerCheck,
+    ChoiceItemContent,
     CriterionContent,
     MaterialContent,
     ModelTier,
@@ -62,6 +63,20 @@ def _question(q: Question) -> QuestionContent:
             else None
         ),
         reviewed=q.review.status == "reviewed",
+        items=(
+            tuple(
+                ChoiceItemContent(
+                    item_id=i.item_id,
+                    prompt=i.prompt,
+                    choices=tuple((c.key, c.text) for c in i.choices),
+                    answer_key=i.answer_key,
+                    criterion_id=i.criterion_id,
+                )
+                for i in q.items
+            )
+            if q.items is not None
+            else None
+        ),
     )
 
 

@@ -54,15 +54,6 @@
       "direction": "higher_is_better",
       "threshold": null,
       "thresholdSetBy": null
-    },
-    {
-      "dimensionId": "prerequisite-precision",
-      "name": "Prerequisite precision",
-      "definition": "Counterexample cases produce no forbidden prerequisite events.",
-      "measurement": "Share of prerequisite cases with no forbidden events emitted",
-      "direction": "higher_is_better",
-      "threshold": null,
-      "thresholdSetBy": null
     }
   ]
 }

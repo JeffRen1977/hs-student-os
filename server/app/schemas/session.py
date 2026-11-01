@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
@@ -24,6 +24,19 @@ class CompletionEligibility(ApiModel):
         return self
 
 
+class ActivityChoice(ApiModel):
+    key: Literal["A", "B", "C", "D"]
+    text: str
+
+
+class ActivityItem(ApiModel):
+    """A multiple-choice item. The answer key is never part of the projection."""
+
+    item_id: str
+    prompt: str
+    choices: list[ActivityChoice]
+
+
 class SessionActivity(ApiModel):
     """The question this session works on, at the version pinned when it opened."""
 
@@ -31,6 +44,8 @@ class SessionActivity(ApiModel):
     question_version: str
     topic: str
     prompt: str
+    # Choice sets: answer one line per item, e.g. "1: B" (scored by key, not a model).
+    items: list[ActivityItem] | None = None
 
 
 class Session(ApiModel):

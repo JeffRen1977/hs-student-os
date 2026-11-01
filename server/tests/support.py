@@ -12,6 +12,7 @@ import base64
 import itertools
 import json
 import secrets
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -31,6 +32,7 @@ from app.domain.types.common import AgentType, StudyMode, TaskType
 from app.domain.types.task import Task, TaskReason, TaskReasonCode, TaskStatus
 from app.main import create_app
 from app.registries.fixtures import load_seed_students
+from app.workers.consumers.base import Consumer
 
 PROJECT = "demo-hs-student-os"
 START = datetime(2026, 11, 2, 18, 0, tzinfo=UTC)  # 10:00 in Los Angeles, 13:00 in New York
@@ -133,9 +135,16 @@ class Harness:
         self.store.put(path, data)
 
     async def drain(self) -> int:
-        """Run one local worker cycle: dispatch the outbox, then execute deliveries."""
+        """Run one local worker cycle: dispatch the outbox, then execute deliveries (runs
+        and consumer wakes)."""
         await self.services.dispatcher.dispatch_pending()
-        return await self.queue.drain(self.services.run_execution.process)
+        return await self.queue.drain(self.services.deliveries.process)
+
+    async def settle(self, rounds: int = 5) -> None:
+        """Drain until nothing is pending: runs, then the consumer wakes they caused."""
+        for _ in range(rounds):
+            if not await self.drain():
+                return
 
 
 Reply = dict[str, Any] | Exception | str
@@ -227,6 +236,7 @@ def build_harness(
     *,
     executor: RunExecutor | None = None,
     llm_provider: LlmProvider | None = None,
+    consumers: Sequence[Consumer] = (),
     **settings_overrides: Any,
 ) -> Harness:
     settings = harness_settings(monkeypatch, **settings_overrides)
@@ -242,6 +252,7 @@ def build_harness(
         executor=executor,
         worker_id="worker-test",
         llm_provider=llm_provider,
+        consumers=consumers,
     )
     app = create_app(settings, services)
     transport = ASGITransport(app=app, raise_app_exceptions=False)

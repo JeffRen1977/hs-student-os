@@ -11,8 +11,6 @@
 | Report version | |
 | Date (UTC) | |
 | Evaluation set | `content/evaluation/{{courseId}}/` @ commit |
-| Prerequisite set | `content/evaluation/prerequisites/` @ commit |
-| Mapping set / version | `calc-bc-to-dsat` / |
 | Pack / rubric versions | |
 | Workflow version | |
 | Model + version | |
@@ -36,7 +34,6 @@
 | False insufficient rate | ↓ | | | | |
 | Hint-dependency tracking | ↑ | | | | |
 | Feedback usefulness | ↑ | | | | |
-| Prerequisite precision | ↑ | | | | |
 
 A dimension with no reviewer-set threshold is reported as **not gated**, not as passing.
 
@@ -46,13 +43,7 @@ A dimension with no reviewer-set threshold is reported as **not gated**, not as 
 |---|---|---|---|---|---|---|---|---|
 | | | | | | | | | |
 
-## 5. Prerequisite cases
-
-| Case ID | Category | Expected events | Emitted events | Forbidden emitted? | Notes |
-|---|---|---|---|---|---|
-| | | | | | |
-
-## 6. Failures and scope decisions
+## 5. Failures and scope decisions
 
 List each failure, its suspected cause, and the decision (fix, narrow scope, or accept
 with justification). If quality is insufficient, narrow scope rather than ship known-bad

@@ -17,8 +17,8 @@
   "use strict";
 
   const SYNTHETIC_STUDENTS = Object.freeze([
-    { uid: "stu_alex", label: "Alex（合成学生，11 年级）" },
-    { uid: "stu_beth", label: "Beth（合成学生，10 年级）" },
+    { uid: "stu_alex", label: "Alex (synthetic student, grade 11)" },
+    { uid: "stu_beth", label: "Beth (synthetic student, grade 10)" },
   ]);
   const DEV_UID_KEY = "hsos.localEmulatorUid";
   const FIREBASE_SDK = "https://www.gstatic.com/firebasejs/10.12.2/";

@@ -8,7 +8,7 @@ from app.adapters.firestore.paging import paged_query
 from app.domain.ports.repositories import TaskQuery
 from app.domain.types.actor import ActorContext
 from app.domain.types.common import AgentType, PageRequest, PaginatedResponse, StudyMode, TaskType
-from app.domain.types.task import Task, TaskReason, TaskReasonCode, TaskStatus
+from app.domain.types.task import SkipReason, Task, TaskReason, TaskReasonCode, TaskStatus
 
 
 def task_to_doc(task: Task) -> Doc:
@@ -28,10 +28,13 @@ def task_to_doc(task: Task) -> Doc:
         "reason": {
             "code": task.reason.code.value,
             "sourceEventIds": list(task.reason.source_event_ids),
+            "explanation": task.reason.explanation,
         },
         "studentLocked": task.student_locked,
         "openSessionId": task.open_session_id,
         "questionId": task.question_id,
+        "dueDate": task.due_date.isoformat() if task.due_date else None,
+        "skipReason": task.skip_reason.value if task.skip_reason else None,
     }
 
 
@@ -51,10 +54,13 @@ def task_from_doc(doc: Doc) -> Task:
         reason=TaskReason(
             code=TaskReasonCode(doc["reason"]["code"]),
             source_event_ids=tuple(doc["reason"].get("sourceEventIds", [])),
+            explanation=doc["reason"].get("explanation", ""),
         ),
         student_locked=bool(doc.get("studentLocked", False)),
         open_session_id=doc.get("openSessionId"),
         question_id=doc.get("questionId"),
+        due_date=date.fromisoformat(doc["dueDate"]) if doc.get("dueDate") else None,
+        skip_reason=SkipReason(doc["skipReason"]) if doc.get("skipReason") else None,
     )
 
 

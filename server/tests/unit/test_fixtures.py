@@ -83,7 +83,11 @@ def test_enrollments_are_active_entitled_courses(seeds: list[SeedStudent]) -> No
         for enrollment in seed.student.enrollments:
             assert enrollment.status is EnrollmentStatus.ACTIVE
             assert enrollment.course_id in content.active_course_ids()
-            assert enrollment.course_id in seed.entitlements.entitlements.ap_courses
+            granted = seed.entitlements.entitlements
+            if enrollment.course_id == "dsat":  # SAT access is a flag, AP access a list
+                assert granted.dsat
+            else:
+                assert enrollment.course_id in granted.ap_courses
 
 
 def test_selected_planned_course_is_not_treated_as_active() -> None:

@@ -46,6 +46,17 @@ class AnswerCheck:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class ChoiceItemContent:
+    """A multiple-choice item. `answer_key` is server-only; never project it to a client."""
+
+    item_id: str
+    prompt: str
+    choices: Sequence[tuple[str, str]]  # (key, text)
+    answer_key: str
+    criterion_id: str
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class QuestionContent:
     question_id: str
     version: str
@@ -57,6 +68,7 @@ class QuestionContent:
     rubric_version: str
     answer_check: AnswerCheck | None = None
     reviewed: bool = False
+    items: Sequence[ChoiceItemContent] | None = None  # set → scored by key (choice-scoring)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

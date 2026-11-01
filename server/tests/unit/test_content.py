@@ -1,4 +1,4 @@
-"""Step 4: versioned content packs, questions, rubrics, and prerequisite mappings."""
+"""Step 4 / M3: versioned course packs (questions, rubrics, skills); courses stay independent."""
 
 from __future__ import annotations
 
@@ -17,9 +17,10 @@ def registry():  # type: ignore[no-untyped-def]
     return load_content()
 
 
-def test_calc_bc_is_the_only_active_pack(registry) -> None:  # type: ignore[no-untyped-def]
-    assert registry.active_course_ids() == {"calc_bc"}
-    for cid in ("apush", "physics_c", "dsat"):
+def test_active_packs_are_calc_bc_and_dsat(registry) -> None:  # type: ignore[no-untyped-def]
+    # Digital SAT is an independent course (the M3 second-course candidate).
+    assert registry.active_course_ids() == {"calc_bc", "dsat"}
+    for cid in ("apush", "physics_c"):
         pack = registry.pack(cid)
         assert pack is not None
         assert pack.manifest.availability is Availability.PLANNED
@@ -58,14 +59,17 @@ def test_rubric_criteria_cover_question_skills(registry) -> None:  # type: ignor
         assert set(q.skill_ids) <= rubric_skills, q.question_id
 
 
-def test_prerequisite_mappings(registry) -> None:  # type: ignore[no-untyped-def]
-    mapping_set = registry.mapping_sets["calc-bc-to-dsat"]
-    assert mapping_set.version
-    for m in mapping_set.mappings:
-        assert m.conditions and m.counterexamples
-        assert m.status == "candidate"  # unreviewed mappings are candidates only
-    sources = {m.source_skill_id for m in mapping_set.mappings}
-    assert "calc_bc.lhopital" not in sources  # calculus-only skill: no SAT mapping
+def test_no_cross_course_content() -> None:
+    # Cross-course prerequisite mappings were removed: no mapping content is loaded, and
+    # every question/rubric uses only its own course's skills.
+    assert not (DEFAULT_CONTENT_ROOT / "mappings").exists()
+    registry = load_content()
+    for cid, pack in registry.packs.items():
+        for q in pack.questions.values():
+            assert all(s.startswith(cid + ".") for s in q.skill_ids), q.question_id
+        for r in pack.rubrics.values():
+            for c in r.criteria:
+                assert all(s.startswith(cid + ".") for s in c.skill_ids), r.rubric_id
 
 
 def _copy_content(tmp_path: Path) -> Path:
@@ -124,13 +128,13 @@ def test_reviewed_status_requires_named_reviewer(tmp_path: Path) -> None:
         load_content(root)
 
 
-def test_mapping_without_counterexamples_is_rejected(tmp_path: Path) -> None:
+def test_question_cannot_use_another_courses_skill(tmp_path: Path) -> None:
     root = _copy_content(tmp_path)
-    path = root / "mappings/calc-to-sat-prerequisites.json"
+    path = root / "packs/dsat/questions/q_dsat_equiv_001.json"
     data = json.loads(path.read_text())
-    data["mappings"][0]["counterexamples"] = []
+    data["skillIds"] = ["calc_bc.algebraic-manipulation"]
     path.write_text(json.dumps(data))
-    with pytest.raises(ContentError):
+    with pytest.raises(ContentError, match="unknown skills"):
         load_content(root)
 
 

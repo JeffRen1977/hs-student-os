@@ -23,6 +23,7 @@ class AgentType(StrEnum):
 class TaskType(StrEnum):
     SOCRATIC_STUDY = "SOCRATIC_STUDY"
     FRQ_PRACTICE = "FRQ_PRACTICE"
+    PRACTICE = "PRACTICE"  # course-agnostic skill practice (e.g. a choice set)
     DIAGNOSTIC = "DIAGNOSTIC"
     REINFORCEMENT = "REINFORCEMENT"
 

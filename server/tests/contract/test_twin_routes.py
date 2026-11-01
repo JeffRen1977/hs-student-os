@@ -145,7 +145,8 @@ async def test_selecting_a_course_grants_nothing(harness: Harness) -> None:
     enroll = await harness.client.post(
         "/api/courses/enroll", json={"courseId": "dsat"}, headers=harness.cmd("stu_beth")
     )
-    assert enroll.status_code == 409  # planned; and Beth has no dsat entitlement either
+    assert enroll.status_code == 403  # selecting it granted nothing: no dsat entitlement
+    assert enroll.json()["error"]["code"] == "COURSE_ACCESS_REQUIRED"
 
 
 async def test_data_survives_restart(harness: Harness, clean_env: pytest.MonkeyPatch) -> None:

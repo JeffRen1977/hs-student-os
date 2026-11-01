@@ -31,7 +31,7 @@ python3 -m http.server 8000 -d web
 | `fixtures/demo.json` | 演示数据。由 `server/tests/contract/test_web_demo_fixtures.py` 按后端 Pydantic schema 校验。 |
 | `js/data.js` | 仅展示元数据（图标、简称、模式标签）。`window.HSData.getPackMeta / getModeLabel`。不含任何学生数据或分数。 |
 | `js/store.js` | `useAppState(data)`：全部 React state。Task、Session、Run 分开保存；服务端事件日志（去重）与本地演示操作（`demoNotes`）分开。 |
-| `js/ui.js` | 共享 UI：`Card`、`Badge`、`Modal`、`PredictionBadge`（固定显示“暂无预测”）、`RunStatusBadge`、`DemoBanner`、`StatusScreen`、`ModeToggle`。 |
+| `js/ui.js` | 共享 UI：`Card`、`Badge`、`Modal`、`PredictionBadge`（固定显示 “No prediction”）、`RunStatusBadge`、`DemoBanner`、`StatusScreen`、`ModeToggle`。 |
 | `js/agents/ap.js` | AP 课程面板（演示模式）：Task / Session / Run 状态卡、GPA 工作区、考试工作区、作答输入（本地草稿）。 |
 | `js/agents/course_session.js` | API 模式的课程 agent 学习流程：开始练习、对话（提示）、提交解答、全部 Run 状态、评估结果（含“证据不足不计入掌握度”）、完成 / 放弃 / 取消、网络错误按同一 Idempotency-Key 重试、刷新后从服务端恢复。 |
 | `js/auth.js` | 普通脚本（`window.HSAuth`）：ID token 来源（Firebase / 本地模拟器开发登录 / 未配置）。 |

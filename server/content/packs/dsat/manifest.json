@@ -1,11 +1,26 @@
 {
   "courseId": "dsat",
   "name": "Digital SAT",
-  "description": "Digital SAT Math and Reading & Writing preparation. Diagnostics enabled in M3.",
+  "description": "Digital SAT Math practice as an independent course: short multiple-choice sets scored by answer key, with Socratic hints. No SAT score predictions.",
   "category": "SAT",
   "version": "0.1.0",
-  "availability": "planned",
+  "availability": "active",
   "agentType": "DSAT",
-  "supportedTaskTypes": [],
-  "supportedModes": []
+  "supportedTaskTypes": [
+    "PRACTICE"
+  ],
+  "supportedModes": [
+    "ADAPTIVE"
+  ],
+  "skills": [
+    "socratic-guidance",
+    "choice-scoring"
+  ],
+  "tools": [
+    "content-retrieval"
+  ],
+  "modelTier": "balanced",
+  "contextBudgetTokens": 6000,
+  "systemPromptPath": "system_prompt.md",
+  "workflowVersion": "dsat-practice-v1"
 }

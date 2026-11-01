@@ -1,7 +1,8 @@
 """Load and cross-validate versioned content from `server/content/`.
 
 Validation is two-level: each file must satisfy its Pydantic schema, and references
-between files (question → rubric, rubric/question → skill, mapping → skill) must resolve.
+between files (question → rubric, rubric/question → skill) must resolve. A course never
+references another course's skills or content.
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ from app.domain.types.common import Availability
 from app.schemas.content import (
     Material,
     PackManifest,
-    PrerequisiteMappingSet,
     Question,
     Rubric,
     SkillCatalog,
@@ -63,7 +63,6 @@ class Pack:
 @dataclass(slots=True)
 class ContentRegistry:
     packs: dict[str, Pack]
-    mapping_sets: dict[str, PrerequisiteMappingSet]
 
     def pack(self, course_id: str) -> Pack | None:
         return self.packs.get(course_id)
@@ -162,6 +161,17 @@ def _check_pack_references(pack: Pack) -> None:
                 )
             if check.tool not in pack.manifest.tools:
                 raise ContentError(f"question {question.question_id}: tool not in pack")
+        if question.items is not None:
+            # Every item scores exactly one rubric criterion, and every criterion one item.
+            rubric = pack.rubrics[(ref.rubric_id, ref.version)]
+            if sorted(i.criterion_id for i in question.items) != sorted(
+                c.criterion_id for c in rubric.criteria
+            ):
+                raise ContentError(
+                    f"question {question.question_id}: items and rubric criteria differ"
+                )
+            if "choice-scoring" not in pack.manifest.skills:
+                raise ContentError(f"question {question.question_id}: pack cannot score items")
     for material in pack.materials.values():
         if material.course_id != cid:
             raise ContentError(f"material {material.material_id}: courseId mismatch")
@@ -176,20 +186,4 @@ def load_content(root: Path = DEFAULT_CONTENT_ROOT) -> ContentRegistry:
         pack = _load_pack(directory)
         packs[pack.manifest.course_id] = pack
 
-    registry = ContentRegistry(packs=packs, mapping_sets={})
-    all_skills = registry.all_skill_ids()
-    for path in sorted((root / "mappings").glob("*.json")):
-        mapping_set = _parse(PrerequisiteMappingSet, path)
-        for course in (mapping_set.source_course_id, mapping_set.target_course_id):
-            if course not in packs:
-                raise ContentError(f"{path}: unknown course {course}")
-        for mapping in mapping_set.mappings:
-            for skill in (mapping.source_skill_id, mapping.target_skill_id):
-                if skill not in all_skills:
-                    raise ContentError(f"{path}: unknown skill {skill}")
-            if not mapping.source_skill_id.startswith(mapping_set.source_course_id + "."):
-                raise ContentError(f"{path}: {mapping.mapping_id} source is not in source course")
-            if not mapping.target_skill_id.startswith(mapping_set.target_course_id + "."):
-                raise ContentError(f"{path}: {mapping.mapping_id} target is not in target course")
-        registry.mapping_sets[mapping_set.mapping_set_id] = mapping_set
-    return registry
+    return ContentRegistry(packs=packs)

@@ -5,13 +5,15 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, StringConstraints, model_validator
 
 from app.domain.types.common import AgentType, StudyMode, TaskType
-from app.domain.types.task import TaskReasonCode, TaskStatus
+from app.domain.types.task import SkipReason, TaskReasonCode, TaskStatus
 from app.schemas.common import ApiModel, CourseId, LocalDate, OpaqueId, RequestModel
 
 
 class TaskReason(ApiModel):
     code: TaskReasonCode
     source_event_ids: list[OpaqueId] = Field(default_factory=list, max_length=50)
+    # Server-written sentence explaining why the task exists (never model output).
+    explanation: Annotated[str, StringConstraints(max_length=600)] = ""
 
 
 class Task(ApiModel):
@@ -29,6 +31,8 @@ class Task(ApiModel):
     reason: TaskReason
     student_locked: bool = False
     question_id: OpaqueId | None = None  # the pack question this task practices, if any
+    due_date: LocalDate | None = None  # a real deadline; the planner ranks these first
+    skip_reason: SkipReason | None = None
 
 
 class TaskList(ApiModel):
@@ -45,9 +49,12 @@ class TaskPatchRequest(RequestModel):
     scheduled_date: LocalDate | None = None
     student_locked: bool | None = None
     status: Literal[TaskStatus.SKIPPED] | None = None
+    skip_reason: SkipReason | None = None  # only with status=SKIPPED
 
     @model_validator(mode="after")
     def _not_empty(self) -> Self:
         if not self.model_fields_set:
             raise ValueError("patch must change at least one field")
+        if self.skip_reason is not None and self.status is not TaskStatus.SKIPPED:
+            raise ValueError("skipReason is only allowed with status SKIPPED")
         return self

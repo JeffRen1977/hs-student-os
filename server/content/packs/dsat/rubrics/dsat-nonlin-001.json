@@ -1,0 +1,50 @@
+{
+  "rubricId": "dsat-nonlin-001",
+  "version": "1",
+  "courseId": "dsat",
+  "criteria": [
+    {
+      "criterionId": "item-1",
+      "description": "Item 1: selects the correct choice.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Selects choice A for item 1"
+      ],
+      "skillIds": [
+        "dsat.advanced-math.nonlinear-functions"
+      ]
+    },
+    {
+      "criterionId": "item-2",
+      "description": "Item 2: selects the correct choice.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Selects choice B for item 2"
+      ],
+      "skillIds": [
+        "dsat.advanced-math.nonlinear-functions"
+      ]
+    },
+    {
+      "criterionId": "item-3",
+      "description": "Item 3: selects the correct choice.",
+      "maxPoints": 1,
+      "evidenceRequirements": [
+        "Selects choice A for item 3"
+      ],
+      "skillIds": [
+        "dsat.advanced-math.nonlinear-functions"
+      ]
+    }
+  ],
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

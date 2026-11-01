@@ -8,7 +8,7 @@ from app.adapters.firestore.documents import Doc, DocTxn, Filter, GroupReader, Q
 from app.adapters.firestore.run_repository import run_from_doc
 from app.domain.types.actor import ActorContext
 from app.domain.types.file import FileStatus, StoredFile
-from app.domain.types.outbox import OutboxEntry, OutboxStatus
+from app.domain.types.outbox import OutboxEntry, OutboxKind, OutboxStatus
 from app.domain.types.run import Run, RunStatus
 
 
@@ -16,10 +16,11 @@ def outbox_from_doc(d: Doc) -> OutboxEntry:
     return OutboxEntry(
         delivery_id=d["deliveryId"],
         student_id=d["studentId"],
-        run_id=d["runId"],
+        run_id=d.get("runId"),
         status=OutboxStatus(d["status"]),
         created_at=d["createdAt"],
         dispatched_at=d.get("dispatchedAt"),
+        kind=OutboxKind(d.get("kind", OutboxKind.RUN.value)),
     )
 
 
@@ -42,6 +43,7 @@ class FirestoreOutboxStore:
                 "deliveryId": e.delivery_id,
                 "studentId": e.student_id,
                 "runId": e.run_id,
+                "kind": e.kind.value,
                 "status": e.status.value,
                 "createdAt": e.created_at,
                 "dispatchedAt": e.dispatched_at,
@@ -107,3 +109,20 @@ class FirestoreOperationsStore:
             ),
         )
         return [run_from_doc(d) for d in queued + running]
+
+    async def stalled_consumer_wakes(
+        self, *, dispatched_before: datetime, limit: int
+    ) -> Sequence[OutboxEntry]:
+        docs = await self._reader.query_group(
+            "outbox",
+            QuerySpec(
+                filters=[
+                    Filter("kind", "==", OutboxKind.CONSUMERS.value),
+                    Filter("status", "==", OutboxStatus.DISPATCHED.value),
+                    Filter("dispatchedAt", "<=", dispatched_before),
+                ],
+                order_by=("dispatchedAt",),
+                limit=limit,
+            ),
+        )
+        return [outbox_from_doc(d) for d in docs]

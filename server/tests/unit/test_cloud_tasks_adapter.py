@@ -8,7 +8,7 @@ from typing import Any
 from google.api_core.exceptions import AlreadyExists
 
 from app.adapters.queue.cloud_tasks_adapter import CloudTasksQueue, task_name_for
-from app.domain.types.outbox import Delivery
+from app.domain.types.outbox import Delivery, OutboxKind
 
 
 class FakeTasksClient:
@@ -55,3 +55,17 @@ async def test_task_is_named_by_delivery_and_carries_ids_only() -> None:
 
 def test_task_names_are_sanitized() -> None:
     assert task_name_for("run_1.g1:x") == "run_1-g1-x"
+
+
+async def test_consumer_wakes_go_to_the_consumer_endpoint_without_a_run_id() -> None:
+    client = FakeTasksClient()
+    wake = Delivery(
+        delivery_id="wake.evt_1", student_id="stu_alex", run_id=None, kind=OutboxKind.CONSUMERS
+    )
+    await _queue(client).enqueue(wake)
+    [task] = client.created
+    assert task["http_request"]["url"] == "https://worker.example.test/internal/consumers/process"
+    assert json.loads(task["http_request"]["body"]) == {
+        "deliveryId": "wake.evt_1",
+        "studentId": "stu_alex",
+    }

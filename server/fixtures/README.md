@@ -9,5 +9,8 @@ Everything here is **synthetic**. No real student names, emails, answers, or rec
 
 | Student | Grade | Timezone | Entitlements | Enrolled |
 |---|---|---|---|---|
-| `stu_alex` | 11 | America/Los_Angeles | calc_bc + dsat | calc_bc |
+| `stu_alex` | 11 | America/Los_Angeles | calc_bc + dsat | calc_bc + dsat |
 | `stu_beth` | 10 | America/New_York | calc_bc | calc_bc |
+
+`stu_alex` also has two Digital SAT practice tasks (`task_alex_dsat_01/02`, choice sets
+scored by answer key): Digital SAT is an independent course, the M3 second-course candidate.

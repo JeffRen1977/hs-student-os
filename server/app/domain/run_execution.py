@@ -21,6 +21,7 @@ from enum import StrEnum
 from app.domain.access import is_enrolled, is_entitled
 from app.domain.assessment_service import AssessmentRejectedError, AssessmentService
 from app.domain.errors import ErrorCode
+from app.domain.planner_service import PlannerService
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.execution import (
     ExecutionFailure,
@@ -56,7 +57,7 @@ class ProcessResult(StrEnum):
 @dataclass(frozen=True, slots=True, kw_only=True)
 class LeaseGrant:
     token: int
-    request: ExecutionRequest
+    request: ExecutionRequest | None  # None for PLANNING runs: no model, no session
 
 
 class RunExecutionService:
@@ -72,9 +73,11 @@ class RunExecutionService:
         lease_seconds: int,
         max_attempts: int,
         assessments: AssessmentService | None = None,
+        planner: PlannerService | None = None,
     ) -> None:
         self._uow = uow
         self._assessments = assessments
+        self._planner = planner
         self._catalog = catalog
         self._executor = executor
         self._clock = clock
@@ -89,33 +92,38 @@ class RunExecutionService:
     async def process(self, delivery: Delivery) -> ProcessResult:
         actor = self.actor_for(delivery.student_id)
         actor.require(Permission.RUN_EXECUTE)
-        acquired = await self.acquire(actor, delivery.run_id)
+        run_id = delivery.run_id
+        if run_id is None:  # not a run delivery: nothing to execute
+            return ProcessResult.DONE
+        acquired = await self.acquire(actor, run_id)
         if isinstance(acquired, ProcessResult):
             return acquired
+        if acquired.request is None:
+            return await self._process_planning(actor, run_id, acquired.token)
         try:
             output = await self._executor.execute(acquired.request)
         except RetryableExecutionError:
-            logger.warning("run_retryable_error", extra={"runId": delivery.run_id})
-            return await self._after_retryable_error(actor, delivery.run_id, acquired.token)
+            logger.warning("run_retryable_error", extra={"runId": run_id})
+            return await self._after_retryable_error(actor, run_id, acquired.token)
         except ExecutionFailure as exc:
-            logger.warning("run_execution_failed", extra={"runId": delivery.run_id,
+            logger.warning("run_execution_failed", extra={"runId": run_id,
                                                           "error": exc.code})  # fmt: skip
-            await self.fail(actor, delivery.run_id, acquired.token, exc.code, False)
+            await self.fail(actor, run_id, acquired.token, exc.code, False)
             return ProcessResult.DONE
         except Exception as exc:
             logger.exception(
                 "run_execution_error",
-                extra={"runId": delivery.run_id, "error": type(exc).__name__},
+                extra={"runId": run_id, "error": type(exc).__name__},
             )
-            await self.fail(actor, delivery.run_id, acquired.token, "EXECUTION_FAILED", False)
+            await self.fail(actor, run_id, acquired.token, "EXECUTION_FAILED", False)
             return ProcessResult.DONE
         try:
-            await self.commit(actor, delivery.run_id, acquired.token, output)
+            await self.commit(actor, run_id, acquired.token, output)
         except AssessmentRejectedError as exc:
             # The commit transaction aborted as a whole: no assessment, no mastery change.
-            logger.warning("assessment_rejected", extra={"runId": delivery.run_id,
+            logger.warning("assessment_rejected", extra={"runId": run_id,
                                                          "reason": exc.reason})  # fmt: skip
-            await self.fail(actor, delivery.run_id, acquired.token, "ASSESSMENT_REJECTED", False)
+            await self.fail(actor, run_id, acquired.token, "ASSESSMENT_REJECTED", False)
         return ProcessResult.DONE
 
     # ---- Lease ------------------------------------------------------------------------
@@ -131,7 +139,9 @@ class RunExecutionService:
             if run.cancel_requested:
                 await finish_run(tx, actor, run, RunStatus.CANCELLED, now=now, ids=self._ids)
                 return ProcessResult.DONE
-            if run.session_id is None:  # PLANNING runs arrive with the planner (M3/M4)
+            if run.kind is RunKind.PLANNING:
+                return await self._lease_planning(tx, actor, run, now)
+            if run.session_id is None:
                 await self._fail_in_tx(tx, actor, run, "UNSUPPORTED_RUN_KIND", now)
                 return ProcessResult.DONE
             session = await tx.sessions.get(actor, run.session_id)
@@ -199,6 +209,71 @@ class RunExecutionService:
             )
 
         return await self._uow.transaction(body)
+
+    async def _lease_planning(
+        self, tx: Tx, actor: ActorContext, run: Run, now: datetime
+    ) -> LeaseGrant | ProcessResult:
+        if self._planner is None:
+            await self._fail_in_tx(tx, actor, run, "UNSUPPORTED_RUN_KIND", now)
+            return ProcessResult.DONE
+        if run.attempt_count >= self._max_attempts:
+            await self._fail_in_tx(tx, actor, run, "RUN_ATTEMPTS_EXHAUSTED", now)
+            return ProcessResult.DONE
+        token = run.lease_fencing_token + 1
+        tx.runs.save(
+            actor,
+            dataclasses.replace(
+                run,
+                status=RunStatus.RUNNING,
+                attempt_count=run.attempt_count + 1,
+                lease_fencing_token=token,
+                lease_owner=self._worker_id,
+                lease_expires_at=now + self._lease,
+                updated_at=now,
+            ),
+        )
+        if run.status is RunStatus.QUEUED:
+            await tx.events.append(
+                actor,
+                EventDraft(
+                    type=EventType.RUN_STARTED,
+                    causation_id=run.run_id,
+                    run_id=run.run_id,
+                    payload={"kind": run.kind.value},
+                ),
+                event_id=self._ids.new("evt"),
+                now=now,
+            )
+        return LeaseGrant(token=token, request=None)
+
+    async def _process_planning(
+        self, actor: ActorContext, run_id: str, token: int
+    ) -> ProcessResult:
+        """Planning is deterministic and reads only stored state, so it runs entirely in
+        the commit transaction: the plan, moved tasks, plan.updated and the Run's
+        terminal state land together or not at all."""
+        planner = self._planner
+        assert planner is not None
+
+        async def body(tx: Tx) -> bool:
+            run = await self._current_if_ours(tx, actor, run_id, token)
+            if run is None:
+                return False
+            now = self._clock.now()
+            if run.cancel_requested:
+                await finish_run(tx, actor, run, RunStatus.CANCELLED, now=now, ids=self._ids)
+                return True
+            plan = await planner.replan_in_tx(tx, actor, run, now)
+            await finish_run(
+                tx, actor, run, RunStatus.SUCCEEDED, now=now, ids=self._ids,
+                result=RunResult(plan_id=plan.plan_id),
+            )  # fmt: skip
+            return True
+
+        # A failed commit propagates like an assessment commit does: the lease expires,
+        # recovery re-queues, and the attempt limit ends a deterministic failure.
+        await self._uow.transaction(body)
+        return ProcessResult.DONE
 
     async def _history(self, tx: Tx, actor: ActorContext, session_id: str) -> list[Message]:
         messages: list[Message] = []

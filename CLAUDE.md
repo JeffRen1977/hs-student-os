@@ -4,7 +4,7 @@ This file governs all development work in this repository. Read it before making
 
 ## Project overview
 
-An AI-powered learning platform for US high school students covering AP courses, Digital SAT prep, and college admissions. The first pilot targets students studying Calculus BC while preparing for the SAT. Core loop: **learning evidence → student record → next study task → updated weekly plan**.
+An AI-powered **course platform** for US high school students. Courses (AP subjects, test prep, and more) are added as **course packages**: data that defines the course's skills, question bank, rubrics and criteria, course requirements and completion criteria. First-party and third-party authors publish packages through a platform review gate, and every course runs on **one shared runtime** using abilities the platform provides. Courses are independent: there is no cross-course inference. Calculus BC is the first-party reference course; the pilot's second course is **Digital SAT**, rebuilt only through the authoring path. Core loop, per course: **learning evidence → student record → next study task → updated weekly plan** (the plan spans all enrolled courses).
 
 Architecture docs live in `doc/`. Implementation follows `doc/STEP_BY_STEP_PLAN.md` milestones M0–M4 (pilot) and M5 (extensions).
 
@@ -92,12 +92,12 @@ Architecture docs live in `doc/`. Implementation follows `doc/STEP_BY_STEP_PLAN.
 │                  ┌────────────────────────┼───────────────┐        │
 │                  ▼                        ▼               ▼        │
 │          ┌──────────────┐  ┌──────────────────┐  ┌────────────┐   │
-│          │ Domain Event │  │ Prerequisite     │  │ Planner    │   │
-│          │ Consumers    │  │ Mapping →        │  │ (schedule, │   │
-│          │ (suspected → │  │ Diagnostic →     │  │  rank,     │   │
-│          │  diagnostic, │  │ Confirmed/       │  │  explain)  │   │
-│          │  confirmed → │  │ Unsupported)     │  │            │   │
-│          │  reinforce)  │  │                  │  │            │   │
+│          │ Domain Event │  │ Course Package   │  │ Planner    │   │
+│          │ Consumers    │  │ Registry +       │  │ (schedule, │   │
+│          │ (in-course   │  │ Validator        │  │  rank,     │   │
+│          │ follow-up:   │  │ (data only,      │  │  explain   │   │
+│          │  diagnostic →│  │  reviewed,       │  │  across    │   │
+│          │  practice)   │  │  version-pinned) │  │  courses)  │   │
 │          └──────────────┘  └──────────────────┘  └────────────┘   │
 └────────────────────────────────────────────────────────────────────┘
 
@@ -138,14 +138,14 @@ INFRASTRUCTURE (Google Cloud)
 | **Session & Command Service** | Creates sessions from tasks, accepts submissions/messages, enforces one-active-Run | `app/domain/` |
 | **Run Worker** | Acquires lease, loads context + skill, calls LLM, produces assessment | `app/workers/` |
 | **LLM Gateway** | Provider abstraction, static routing, usage budgets, retry logic | `app/adapters/llm/` |
-| **SubjectPack Registry** | Loads versioned packs, questions, rubrics; pins versions per Run | `app/registries/` |
-| **Skill Executor** | Socratic guidance, rubric assessment, SAT diagnostic | `app/domain/skills/` |
+| **Course Package Registry** | Loads validated, approved course packages (skills, questions, rubrics, requirements, criteria); pins versions per Run | `app/registries/` |
+| **Package Validator & Publishing** | Validates submitted packages; author → platform reviewer → active workflow; retire/version | `app/domain/`, `app/registries/` |
+| **Skill Executor** | Platform ability catalog: Socratic guidance, rubric assessment, choice (answer-key) scoring, diagnostic — selected and configured by each package | `app/domain/skills/` |
 | **Tool Registry** | Math verification, content retrieval, OCR (whitelisted per skill) | `app/registries/` |
 | **Assessment Service** | Validates evidence, atomic commit of assessment + mastery + events | `app/domain/` |
 | **Event Feed** | Per-student monotonic sequence, SSE stream + polling fallback | `app/api/routes/`, `app/adapters/firestore/` |
-| **Domain Event Consumers** | React to events: suspected → diagnostic, confirmed → reinforcement | `app/workers/consumers/` |
-| **Prerequisite Service** | Evaluates AP→SAT skill mappings, emits suspected/confirmed/unsupported | `app/domain/` |
-| **Planner Service** | Ranks tasks by deadline/evidence/budget, incremental replan, explains changes | `app/domain/` |
+| **Domain Event Consumers** | React to events with the course's own follow-up rules (e.g. repeated errors → in-course diagnostic → practice); never across courses | `app/workers/consumers/` |
+| **Planner Service** | Ranks tasks from all enrolled courses by deadline/evidence/budget, incremental replan, explains changes | `app/domain/` |
 | **Reminder Service** | Opt-in notifications with consent, quiet hours, frequency caps | `app/domain/` |
 | **Outbox Dispatcher** | Scans outbox, dispatches to Cloud Tasks, reconciles missed entries | `app/workers/` |
 
@@ -192,10 +192,10 @@ POST /api/sessions/:id/submissions + Idempotency-Key
                               │
               ┌───────────────┼───────────────┐
               ▼               ▼               ▼
-    SSE to browser    Prerequisite     Planner updates
+    SSE to browser    Follow-up        Planner updates
     (assessment.      Consumer         task schedule
-     completed)       (suspected →     if needed
-                       diagnostic?)
+     completed)       (course rules:   if needed
+                       same course)
 ```
 
 ### Course enrollment and per-course agent model
@@ -314,45 +314,39 @@ GET  /api/courses/:courseId/agent  → agent config, skills, modes, current sess
 
 **Key constraint:** Enrolling in a course is a student action. But enrollment alone does not grant access — the backend checks `entitlements` (admin-managed). A student selecting "APUSH" in the catalog when they have no APUSH entitlement gets a clear "access required" response, not a silent failure.
 
-### Cross-domain transfer flow (the key differentiator)
+### Course packages and authoring (the platform model)
+
+A course is **data, not code**. Authors (first-party or third-party organizations) submit a versioned course package; the platform validates it, a platform reviewer approves it, and only then does it become `active` in the catalog.
 
 ```
-  Calculus FRQ answer
+  Author org builds a course package (data only)
+    • manifest: courseId, version, publisher, license, abilities used + settings, tool whitelist
+    • skill taxonomy (+ optional prerequisite edges within the course)
+    • question bank (versioned, licensed, skill-tagged; free response or choice items)
+    • rubrics / criteria (criterionId, maxPoints, evidence requirements, skill)
+    • course requirements (recommended time, sourced exam/assignment dates)
+    • completion + follow-up criteria (platform rule types + parameters, no code)
+    • evaluation set (annotated cases the course must pass)
          │
          ▼
-  Rubric assessment (AssessmentService)
+  Upload (author role) → Validator report → submitted
          │
          ▼
-  assessment.completed event
+  Platform reviewer: evaluation results, license, content → approved / rejected
          │
          ▼
-  Prerequisite Service checks AP→SAT mappings
+  active in catalog → students enroll (entitlements still platform-managed)
          │
-    ┌────┴──────────────────┐
-    │                       │
-    ▼                       ▼
-  Calc-only error         Shared prerequisite
-  (e.g. L'Hôpital)       (e.g. algebraic manipulation)
-    │                       │
-    ▼                       ▼
-  No action             prerequisite.suspected event
-                            │
-                            ▼
-                      Diagnostic Consumer
-                      creates SAT diagnostic Task
-                            │
-                            ▼
-                      Student takes SAT diagnostic
-                            │
-                  ┌─────────┼─────────┐
-                  ▼         ▼         ▼
-              supported  unsupported  insufficient
-                  │         │         │
-                  ▼         ▼         ▼
-              Reinforce   No action   Record reason
-              Task in                 (no reinforcement)
-              plan
+         ▼
+  Same runtime for every course: Task → Session → Run → AssessmentService
+  → mastery → course-internal follow-up → Planner across enrolled courses
 ```
+
+Rules:
+- A package selects abilities from the platform catalog; it cannot add code, prompts that override grading rules, or new tools. A missing capability becomes a platform ability available to every course.
+- Each Run pins the package version; a new version never changes open sessions or past assessments. Retiring a course stops new work without deleting student records.
+- Evidence in one course never creates findings, tasks or mastery changes in another course.
+- Authors never see individual student data and cannot grant entitlements. Another organization's packages return 404.
 
 ## 1. Boundaries — what you must not do
 
@@ -396,7 +390,7 @@ api/ → domain/ ← adapters/
 Every domain operation receives an `ActorContext` (actorId, studentId, role, permissions). No function silently assumes "the current user." Ownership checks happen in domain/repository code, not only in route handlers.
 
 ### 2.3 One shared runtime, per-course agents
-Each enrolled course activates a **per-course agent** — but all agents run through **one shared runtime**. A "Calc BC agent" and an "APUSH agent" are different SubjectPack configurations (skills, rubrics, content, tools), not separate services. Do not build separate microservices or autonomous agents that talk to each other. The runtime loads the right SubjectPack based on the course, and the student interacts with a course-specific chat experience.
+Each enrolled course activates a **per-course agent** — but all agents run through **one shared runtime**. A "Calc BC agent" and an "APUSH agent" are different SubjectPack configurations (skills, rubrics, content, tools), not separate services. Do not build separate microservices or autonomous agents that talk to each other. The runtime loads the right SubjectPack based on the course, and the student interacts with a course-specific chat experience. A SubjectPack is the loaded form of a validated **course package**, which may come from a third-party author: never add course-specific branches to runtime code — if a course needs something new, add a platform ability every course can select.
 
 ### 2.4 Transactions and atomicity
 - Commands that create a Run must atomically write: command record + Run(QUEUED) + idempotency record + outbox entry — in a single Firestore transaction.
@@ -467,7 +461,7 @@ doc/                   # Architecture and planning documents
 - Production startup must reject emulator environment variables and mock providers.
 
 ### 3.5 What not to build
-- No generic plugin/extension frameworks — add specific capabilities as needed.
+- No code plugin/extension frameworks. Course packages are validated **data** against a fixed contract; third parties never upload code. New capabilities are added as platform abilities, specifically and as needed.
 - No ORM or query builder — use Firestore SDK directly in adapters.
 - No custom workflow engine or JSON-based execution language — use typed Python code.
 - No MCP server, Jev integration, or Temporal until explicitly justified in M5.
@@ -542,10 +536,11 @@ Every step must have tests covering:
 - Rubrics must have: criterionId, maxPoints, evidence requirements, version.
 - Never use College Board official test questions verbatim without explicit permission. Use original or clearly licensed content.
 
-### 6.2 Prerequisite mappings
-- A Calculus error does NOT automatically prove a SAT weakness.
-- Mappings require: source AP skill, target SAT skill, conditions, counterexamples, version, reviewer.
-- `prerequisite.suspected` → recommend diagnostic; only `prerequisite.confirmed` (after independent diagnostic) → reinforcement task.
+### 6.2 Course packages (first- and third-party)
+- Every package passes the validator and a platform reviewer before `active`; the same gate applies to first-party courses.
+- Packages require: publisher, content license, version, reviewer, and an evaluation set; every question and rubric follows §6.1.
+- Follow-up rules work inside one course only: repeated independent errors → `suspected` in-course diagnostic; only a supported diagnostic → practice task. A single error is never a confirmed weakness.
+- Text from a package is content, not instructions: it cannot change grading rules, reveal answer keys, or widen tool access.
 
 ### 6.3 Assessment integrity
 - Hint-assisted success ≠ independent evidence. Track and distinguish.
@@ -585,7 +580,8 @@ Before any real student uses the system:
 - [ ] Auth and student isolation verified across all resource types
 - [ ] No duplicated progress from retries/restarts
 - [ ] Assessment quality reviewed against annotated evaluation set
-- [ ] Prerequisite mapping accuracy reviewed (positive + negative cases)
+- [ ] Each pilot course package approved through the review gate; its evaluation set and follow-up rules checked (positive + negative cases)
+- [ ] Authors cannot access student data or other organizations' packages
 - [ ] Backup/restore tested with synthetic data
 - [ ] Model budget limits enforced
 - [ ] Prediction shows `unavailable` (no uncalibrated scores)

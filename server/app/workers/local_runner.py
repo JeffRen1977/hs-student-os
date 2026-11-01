@@ -13,7 +13,7 @@ import logging
 
 from app.adapters.queue.local_queue import LocalQueue
 from app.domain.recovery import RecoveryService
-from app.domain.run_execution import RunExecutionService
+from app.workers.delivery_router import DeliveryRouter
 from app.workers.outbox_dispatcher import OutboxDispatcher
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class LocalWorkerLoop:
         queue: LocalQueue,
         dispatcher: OutboxDispatcher,
         recovery: RecoveryService,
-        execution: RunExecutionService,
+        execution: DeliveryRouter,
         poll_seconds: float,
     ) -> None:
         self._queue = queue
@@ -38,6 +38,7 @@ class LocalWorkerLoop:
 
     async def tick(self) -> int:
         await self._recovery.requeue_stalled()
+        await self._recovery.reissue_stalled_wakes()
         await self._dispatcher.dispatch_pending()
         return await self._queue.drain(self._execution.process)
 

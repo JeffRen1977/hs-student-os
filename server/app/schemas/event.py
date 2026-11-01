@@ -6,7 +6,7 @@ event type so internal fields (outbox ids, model reasoning, tool args) can never
 
 from __future__ import annotations
 
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
@@ -43,16 +43,10 @@ class MasteryUpdatedPayload(EventPayload):
     assessment_id: OpaqueId
 
 
-class PrerequisitePayload(EventPayload):
-    mapping_id: OpaqueId
-    source_skill_id: SkillId
-    target_skill_id: SkillId
-    task_id: OpaqueId | None = None
-
-
 class PlanUpdatedPayload(EventPayload):
     plan_id: OpaqueId
     changed_task_ids: list[OpaqueId] = Field(default_factory=list)
+    reason: Literal["replan"] = "replan"
 
 
 class CoursePayload(EventPayload):
@@ -71,9 +65,6 @@ PAYLOAD_TYPES: dict[EventType, type[EventPayload]] = {
     EventType.RUN_CANCELLED: RunPayload,
     EventType.ASSESSMENT_COMPLETED: AssessmentCompletedPayload,
     EventType.MASTERY_UPDATED: MasteryUpdatedPayload,
-    EventType.PREREQUISITE_SUSPECTED: PrerequisitePayload,
-    EventType.PREREQUISITE_CONFIRMED: PrerequisitePayload,
-    EventType.PREREQUISITE_UNSUPPORTED: PrerequisitePayload,
     EventType.PLAN_UPDATED: PlanUpdatedPayload,
     EventType.COURSE_ENROLLED: CoursePayload,
     EventType.COURSE_UNENROLLED: CoursePayload,

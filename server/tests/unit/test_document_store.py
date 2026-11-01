@@ -89,3 +89,21 @@ def test_cursor_round_trip_and_rejects_garbage() -> None:
     for bad in ("@@@", encode_cursor(["only-one"])):
         with pytest.raises(DomainError):
             decode_cursor(bad, 2)
+
+
+def test_outbox_documents_written_before_m3_still_load() -> None:
+    from datetime import UTC, datetime
+
+    from app.adapters.firestore.outbox_repository import outbox_from_doc
+    from app.domain.types.outbox import OutboxKind
+
+    entry = outbox_from_doc(
+        {
+            "deliveryId": "run_1.g1",
+            "studentId": "stu_alex",
+            "runId": "run_1",
+            "status": "pending",
+            "createdAt": datetime(2026, 11, 1, tzinfo=UTC),
+        }
+    )
+    assert entry.kind is OutboxKind.RUN and entry.run_id == "run_1"

@@ -20,6 +20,7 @@ from datetime import datetime
 
 from app.domain.commands import CommandKey, Outcome, find_replay, remember
 from app.domain.errors import DomainError, ErrorCode
+from app.domain.events import EventPublisher
 from app.domain.mastery_service import apply_assessment
 from app.domain.ports.content import QuestionContent, RubricContent, SubjectPackRegistry
 from app.domain.ports.repositories import EventDraft, Tx, UnitOfWork
@@ -157,12 +158,18 @@ def validate_draft(
 
 class AssessmentService:
     def __init__(
-        self, uow: UnitOfWork, registry: SubjectPackRegistry, clock: Clock, ids: IdFactory
+        self,
+        uow: UnitOfWork,
+        registry: SubjectPackRegistry,
+        clock: Clock,
+        ids: IdFactory,
+        publisher: EventPublisher,
     ) -> None:
         self._uow = uow
         self._registry = registry
         self._clock = clock
         self._ids = ids
+        self._publisher = publisher
 
     # ---- Commit (worker, inside the run's commit transaction) -------------------------
 
@@ -287,7 +294,9 @@ class AssessmentService:
         now: datetime,
         payload: dict[str, object],
     ) -> None:
-        await tx.events.append(
+        # A subscribed event also writes a consumer wake (outbox, same transaction).
+        await self._publisher.publish(
+            tx,
             actor,
             EventDraft(
                 type=kind,

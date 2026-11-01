@@ -21,7 +21,7 @@ function ApPanel({ S }) {
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <div className="text-[10px] text-slate-500 dark:text-slate-400">AP 预测</div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400">AP prediction</div>
               <PredictionBadge entry={(S.twin.predictionSummary || {})[pack.id]} />
             </div>
             <ModeToggle apMode={S.apMode} setApMode={S.setApMode} />
@@ -55,15 +55,15 @@ function ApPanel({ S }) {
           onTier2={() => S.setTier2(true)}
           onFix={() => {
             S.setFixedSteps((p) => Object.assign({}, p, { [pack.id]: true }));
-            S.noteDemo("demo.note", "演示：订正只在本地显示。是否需要 SAT 诊断由服务端在评估被接受后判断。");
+            S.noteDemo("demo.note", "Demo: the correction is shown locally only. Any follow-up practice is decided by the server after an accepted assessment.");
           }}
-          onVocab={demoOnly("演示：语境词同步属于规划功能，未保存。")}
+          onVocab={demoOnly("Demo: context-vocabulary sync is a planned feature; nothing was saved.")}
         />
       ) : (
         <ExamWorkspace pack={pack} fixed={!!S.fixedFrq[pack.id]}
           onAdopt={() => {
             S.setFixedFrq((p) => Object.assign({}, p, { [pack.id]: true }));
-            S.noteDemo("demo.note", "演示：改写已在本地采纳。AP 预测保持“暂无”（未校准），一次订正不会改变预测。");
+            S.noteDemo("demo.note", "Demo: the rewrite was adopted locally. The AP prediction stays unavailable (not calibrated); one correction does not change it.");
           }}
         />
       )}
@@ -78,31 +78,31 @@ function TaskSessionRunCard({ task, session, run, architect, demoOnly }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
       <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800">
-        <div className="text-slate-400">任务</div>
+        <div className="text-slate-400">Task</div>
         <div className="font-semibold text-slate-800 dark:text-slate-100">{task.title}</div>
         <div className="text-slate-500">{TASK_STATUS_LABEL[task.status]}{architect ? " · " + task.taskId : ""}</div>
       </div>
       <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800">
-        <div className="text-slate-400">本次练习</div>
+        <div className="text-slate-400">This session</div>
         {session ? (
           <React.Fragment>
-            <div className="font-semibold text-slate-800 dark:text-slate-100">{session.status === "OPEN" ? "进行中" : session.status}</div>
-            <div className="text-slate-500">{session.completion.eligible ? "可以完成" : "完成前需要被接受的评估"}{architect ? " · " + session.sessionId : ""}</div>
+            <div className="font-semibold text-slate-800 dark:text-slate-100">{session.status === "OPEN" ? "In progress" : session.status}</div>
+            <div className="text-slate-500">{session.completion.eligible ? "Ready to complete" : "Needs an accepted assessment to complete"}{architect ? " · " + session.sessionId : ""}</div>
           </React.Fragment>
         ) : (
-          <div className="text-slate-500">尚未开始</div>
+          <div className="text-slate-500">Not started</div>
         )}
       </div>
       <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/70 dark:ring-slate-800 space-y-1">
-        <div className="text-slate-400">批改</div>
-        {run ? <RunStatusBadge run={run} architect={architect} /> : <div className="text-slate-500">没有进行中的批改</div>}
+        <div className="text-slate-400">Grading</div>
+        {run ? <RunStatusBadge run={run} architect={architect} /> : <div className="text-slate-500">No grading in progress</div>}
         {run && run.status === "WAITING_INPUT" && run.inputRequest && <div className="text-amber-700 dark:text-amber-200">{run.inputRequest.prompt}</div>}
         {run && run.status === "FAILED" && run.error && <div className="text-rose-600 dark:text-rose-300">{run.error.code}</div>}
         {run && run.status === "WAITING_INPUT" && (
-          <button onClick={demoOnly("演示：确认识别结果会以新的证据版本提交（POST /api/runs/{id}/input），本地未发送。")} className={"px-3 min-h-[32px] rounded-full ring-1 ring-amber-300 text-amber-800 dark:text-amber-200 " + BTN}>确认识别结果</button>
+          <button onClick={demoOnly("Demo: confirming the recognized text submits a new evidence version (POST /api/runs/{id}/input); nothing was sent.")} className={"px-3 min-h-[32px] rounded-full ring-1 ring-amber-300 text-amber-800 dark:text-amber-200 " + BTN}>Confirm recognized text</button>
         )}
         {run && run.status === "FAILED" && run.error && run.error.retryable && (
-          <button onClick={demoOnly("演示：重试会使用同一个 Idempotency-Key 重新提交，本地未发送。")} className={"px-3 min-h-[32px] rounded-full ring-1 ring-rose-300 text-rose-700 dark:text-rose-200 " + BTN}>重试</button>
+          <button onClick={demoOnly("Demo: a retry resubmits with the same Idempotency-Key; nothing was sent.")} className={"px-3 min-h-[32px] rounded-full ring-1 ring-rose-300 text-rose-700 dark:text-rose-200 " + BTN}>Retry</button>
         )}
       </div>
     </div>
@@ -115,7 +115,7 @@ function AnswerComposer({ S }) {
     e.preventDefault();
     if (!S.draft.trim()) return;
     if (S.demo) {
-      S.noteDemo("demo.note", "演示：答案未发送到服务器，也未被评估。");
+      S.noteDemo("demo.note", "Demo: the answer was not sent to the server or assessed.");
       S.clearDraft();
     }
     // API mode: POST /api/sessions/{id}/submissions with an Idempotency-Key (M1 Step 14).
@@ -123,10 +123,10 @@ function AnswerComposer({ S }) {
   return (
     <form onSubmit={send} className="space-y-1">
       <div className="flex gap-2">
-        <input value={S.draft} onChange={(e) => S.setDraft(e.target.value)} placeholder="用你自己的话回答追问..." className="flex-1 min-h-[44px] bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition" />
-        <button disabled={!S.demo} className={"px-5 min-h-[44px] rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-semibold shadow-sm " + BTN}>发送</button>
+        <input value={S.draft} onChange={(e) => S.setDraft(e.target.value)} placeholder="Answer the follow-up in your own words..." className="flex-1 min-h-[44px] bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition" />
+        <button disabled={!S.demo} className={"px-5 min-h-[44px] rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-semibold shadow-sm " + BTN}>Send</button>
       </div>
-      {S.draftSavedAt && <div className="text-[10px] text-slate-400 px-4">草稿仅保存在本机，尚未发送。</div>}
+      {S.draftSavedAt && <div className="text-[10px] text-slate-400 px-4">Draft saved on this device only; not sent yet.</div>}
     </form>
   );
 }
@@ -136,10 +136,10 @@ function GpaWorkspace({ pack, fixed, tier2, architect, onTier2, onFix, onVocab }
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <section className={CARD + " p-4 text-xs space-y-2.5"}>
-        <div className="font-semibold text-emerald-600 dark:text-emerald-300">苏格拉底引导 · 不直接给答案</div>
+        <div className="font-semibold text-emerald-600 dark:text-emerald-300">Socratic guidance · no direct answers</div>
         <p className="text-slate-600 dark:text-slate-300 leading-relaxed">{prompt}</p>
         {!tier2 ? (
-          <button onClick={onTier2} className={"px-3 min-h-[36px] rounded-full ring-1 ring-amber-300 dark:ring-amber-500/40 text-amber-700 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 " + BTN}>展开 Tier 2 提示</button>
+          <button onClick={onTier2} className={"px-3 min-h-[36px] rounded-full ring-1 ring-amber-300 dark:ring-amber-500/40 text-amber-700 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 " + BTN}>Show Tier 2 hint</button>
         ) : (
           <p className="text-amber-800 dark:text-amber-100/90 leading-relaxed">{tier2Text(pack)}</p>
         )}
@@ -160,7 +160,7 @@ function CanvasBody({ pack, fixed, onFix, onVocab }) {
           “This, then, is held to be the duty of the man of Wealth: first, to set an example of modest, <span className="bg-amber-200/60 dark:bg-amber-400/20 text-amber-800 dark:text-amber-200 px-1 rounded">unostentatious</span> living...”
         </p>
         <div className="text-[10px] text-slate-400 dark:text-slate-500">Andrew Carnegie, The Gospel of Wealth (1889)</div>
-        <button onClick={onVocab} className={"w-full min-h-[40px] py-1.5 rounded-full bg-sky-600 hover:bg-sky-500 text-white font-semibold " + BTN}>提取高亮词和原句（规划中）</button>
+        <button onClick={onVocab} className={"w-full min-h-[40px] py-1.5 rounded-full bg-sky-600 hover:bg-sky-500 text-white font-semibold " + BTN}>Extract highlighted words and sentences (planned)</button>
       </div>
     );
   }
@@ -169,9 +169,9 @@ function CanvasBody({ pack, fixed, onFix, onVocab }) {
       <div className="space-y-2 font-mono">
         <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800">for (int i = 0; i &lt;= list.size(); i++)</div>
         <div className={"p-2.5 rounded-xl ring-1 " + (fixed ? "ring-emerald-300 dark:ring-emerald-500 bg-emerald-50 dark:bg-transparent text-emerald-700 dark:text-emerald-200" : "ring-rose-300 dark:ring-rose-500 bg-rose-50 dark:bg-transparent text-rose-700 dark:text-rose-200")}>
-          {fixed ? "i < list.size()  · 边界已改" : "i <= list.size()  · 会越界"}
+          {fixed ? "i < list.size()  · bound fixed" : "i <= list.size()  · out of bounds"}
         </div>
-        <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已在本地修正" : "修正边界"}</button>
+        <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "Fixed locally" : "Fix the bound"}</button>
       </div>
     );
   }
@@ -180,9 +180,9 @@ function CanvasBody({ pack, fixed, onFix, onVocab }) {
       <div className="space-y-2 font-mono">
         <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800">W = ∫ F · dr ✓</div>
         <div className={"p-2.5 rounded-xl ring-1 " + (fixed ? "ring-emerald-300 dark:ring-emerald-500 bg-emerald-50 dark:bg-transparent text-emerald-700 dark:text-emerald-200" : "ring-rose-300 dark:ring-rose-500 bg-rose-50 dark:bg-transparent text-rose-700 dark:text-rose-200")}>
-          {fixed ? "P = dW/dt = F · v ✓" : "P = F  · 漏了速度"}
+          {fixed ? "P = dW/dt = F · v ✓" : "P = F  · missing velocity"}
         </div>
-        <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已在本地修正" : "修正此步"}</button>
+        <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "Fixed locally" : "Fix this step"}</button>
       </div>
     );
   }
@@ -191,9 +191,9 @@ function CanvasBody({ pack, fixed, onFix, onVocab }) {
       <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800">Step 1: r = 1/2 h ✓</div>
       <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 ring-1 ring-slate-200/60 dark:ring-slate-800">Step 2: V = (π/12) h³ ✓</div>
       <div className={"p-2.5 rounded-xl ring-1 " + (fixed ? "ring-emerald-300 dark:ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-200" : "ring-rose-300 dark:ring-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-200")}>
-        {fixed ? "Step 3: dV/dt = (π/4) h² · dh/dt ✓" : "Step 3: dV/dt = (π/4) h²  · 漏乘 dh/dt"}
+        {fixed ? "Step 3: dV/dt = (π/4) h² · dh/dt ✓" : "Step 3: dV/dt = (π/4) h²  · missing × dh/dt"}
       </div>
-      <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "已在本地修正" : "修正 Step 3"}</button>
+      <button onClick={onFix} className={"w-full min-h-[40px] py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans " + BTN}>{fixed ? "Fixed locally" : "Fix Step 3"}</button>
     </div>
   );
 }
@@ -203,10 +203,10 @@ function ExamWorkspace({ pack, fixed, onAdopt }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
       <section className={CARD + " lg:col-span-7 ring-rose-200 dark:ring-rose-500/40 p-4 text-xs space-y-2.5"}>
-        <div className="font-semibold text-rose-600 dark:text-rose-300">采分点精批</div>
+        <div className="font-semibold text-rose-600 dark:text-rose-300">Point-by-point grading</div>
         <p className="text-slate-500 dark:text-slate-400">{pack.shortName} · {pack.currentUnit}</p>
         <div className={"p-3 rounded-xl ring-1 " + (fixed ? "bg-emerald-50 dark:bg-emerald-950/30 ring-emerald-200 dark:ring-emerald-500/40" : "bg-rose-50 dark:bg-rose-950/40 ring-rose-200 dark:ring-rose-500/40")}>
-          <div className="font-semibold mb-1">{fixed ? "这一分已经拿到" : "这一分还没拿到"}</div>
+          <div className="font-semibold mb-1">{fixed ? "This point is earned" : "This point is not earned yet"}</div>
           <p className="text-slate-700 dark:text-slate-200 leading-relaxed">{fixed ? rubric.fixedLine : rubric.missLine}</p>
         </div>
         {!fixed && (
@@ -215,12 +215,12 @@ function ExamWorkspace({ pack, fixed, onAdopt }) {
           </div>
         )}
         {!fixed && (
-          <button onClick={onAdopt} className={"px-4 min-h-[40px] py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold " + BTN}>采纳改写</button>
+          <button onClick={onAdopt} className={"px-4 min-h-[40px] py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold " + BTN}>Adopt rewrite</button>
         )}
-        {fixed && <div className="text-emerald-600 dark:text-emerald-300">这一步已订正。正式评分以服务端评估为准，AP 预测保持“暂无”。</div>}
+        {fixed && <div className="text-emerald-600 dark:text-emerald-300">This step is corrected. Official scoring comes from the server assessment; the AP prediction stays unavailable.</div>}
       </section>
       <section className={CARD + " lg:col-span-5 p-4 text-xs space-y-2"}>
-        <div className="font-semibold text-slate-800 dark:text-slate-200">Rubric 核验</div>
+        <div className="font-semibold text-slate-800 dark:text-slate-200">Rubric check</div>
         {rubric.rows.map((row) => (
           <div key={row.name} className="flex justify-between border-b border-slate-100 dark:border-slate-800 py-1.5">
             <span>{row.name}</span>
@@ -235,36 +235,36 @@ function ExamWorkspace({ pack, fixed, onAdopt }) {
 function gpaPrompt(pack, fixed) {
   if (pack.canvas === "calc") {
     return fixed
-      ? "Step 3 已经补上 dh/dt。用一句话说明：为什么 h 必须写成 h(t)，而不是常数？"
-      : "你在右侧 Step 3 写出 dV/dt = (π/4) h²。想一想：h 是常数，还是时间 t 的函数 h(t)？";
+      ? "Step 3 now has dh/dt. In one sentence: why must h be written as h(t) rather than a constant?"
+      : "In Step 3 on the right you wrote dV/dt = (π/4) h². Think: is h a constant, or a function of time h(t)?";
   }
-  if (pack.canvas === "history") return "卡内基说富人有责任做示范。他在为哪一种行为辩护，又把谁排除在外？";
-  if (pack.canvas === "code") return "循环条件写成 i <= list.size()。最后一次循环时，i 指向哪里？";
-  if (pack.canvas === "physics") return "功率不是力本身。力已经在做功，还要再乘上哪个随时间变化的量？";
-  return "这篇演讲的中心论点是什么？找出一个作者用来压住反方的词。";
+  if (pack.canvas === "history") return "Carnegie says the rich have a duty to set an example. What behavior is he defending, and whom does he leave out?";
+  if (pack.canvas === "code") return "The loop condition is i <= list.size(). On the last iteration, what does i point to?";
+  if (pack.canvas === "physics") return "Power is not the force itself. The force is already doing work; what time-varying quantity must it be multiplied by?";
+  return "What is the central claim of this speech? Find one word the author uses to shut down the other side.";
 }
 
 function tier2Text(pack) {
-  if (pack.canvas === "calc") return "提示：体积是高度的函数，高度又是时间的函数。外层对 h 求导之后，还要乘 dh/dt。";
-  if (pack.canvas === "history") return "提示：先标出他在替谁说话，再找一个被他称为“不负责任”的群体。";
-  if (pack.canvas === "code") return "提示：合法下标是 0 到 size()-1。等于 size() 时 get 会抛异常。";
-  if (pack.canvas === "physics") return "提示：P = dW/dt。功对时间求导之后，力还要点乘速度。";
-  return "提示：先用自己的话复述论点，再指出一个被作者重定义的词。";
+  if (pack.canvas === "calc") return "Hint: volume is a function of height, and height is a function of time. After differentiating the outer function in h, multiply by dh/dt.";
+  if (pack.canvas === "history") return "Hint: first mark whom he speaks for, then find a group he calls “irresponsible”.";
+  if (pack.canvas === "code") return "Hint: valid indexes are 0 to size()-1. get throws when the index equals size().";
+  if (pack.canvas === "physics") return "Hint: P = dW/dt. After differentiating work with respect to time, dot the force with velocity.";
+  return "Hint: restate the claim in your own words, then point to one word the author redefines.";
 }
 
 function canvasTitle(pack) {
-  if (pack.canvas === "calc") return "STEM 推导画布";
-  if (pack.canvas === "history" || pack.canvas === "lang") return "史料原文";
-  if (pack.canvas === "code") return "代码追踪";
-  return "受力与能量";
+  if (pack.canvas === "calc") return "STEM derivation canvas";
+  if (pack.canvas === "history" || pack.canvas === "lang") return "Primary source";
+  if (pack.canvas === "code") return "Code trace";
+  return "Forces and energy";
 }
 
 function rubricFor(pack, fixed) {
   if (pack.family === "humanities") {
     return {
-      missLine: "文章直接从卡内基的引言开始，没有把镀金时代的劳资冲突放进上下文。",
-      fixedLine: "1877 年铁路罢工之后，卡内基把私人财富写成公共责任，这是在回应全国对工业巨头的不信任。",
-      advice: "补上一个早于文献的具体背景（年代 + 冲突），这一句就可以拿到 Contextualization 的 1 分。",
+      missLine: "The essay opens straight with Carnegie's quote and never places it in the Gilded Age labor conflict.",
+      fixedLine: "After the 1877 railroad strike, Carnegie framed private wealth as a public duty, answering national distrust of industrial magnates.",
+      advice: "Add one specific context that predates the document (date + conflict) and this sentence earns the Contextualization point.",
       rows: [
         { name: "Thesis", got: 1, max: 1 },
         { name: "Contextualization", got: fixed ? 1 : 0, max: 1 },
@@ -273,13 +273,13 @@ function rubricFor(pack, fixed) {
     };
   }
   return {
-    missLine: "dV/dt = (π/4) h²。体积对高度求导之后，没有乘上 dh/dt。",
-    fixedLine: "dV/dt = (π/4) h² · dh/dt。链式法则过程分可以拿到。",
-    advice: "把高度写成 h(t)，并乘上内层导数。这一行就是过程分。",
+    missLine: "dV/dt = (π/4) h². After differentiating volume with respect to height, dh/dt was not multiplied in.",
+    fixedLine: "dV/dt = (π/4) h² · dh/dt. This earns the chain-rule process point.",
+    advice: "Write height as h(t) and multiply by the inner derivative. That line is the process point.",
     rows: [
-      { name: "列式", got: 1, max: 1 },
-      { name: "链式法则", got: fixed ? 1 : 0, max: 1 },
-      { name: "单位与结论", got: 1, max: 1 },
+      { name: "Setup", got: 1, max: 1 },
+      { name: "Chain rule", got: fixed ? 1 : 0, max: 1 },
+      { name: "Units and conclusion", got: 1, max: 1 },
     ],
   };
 }

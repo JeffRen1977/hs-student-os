@@ -1,0 +1,100 @@
+{
+  "questionId": "q_dsat_equiv_001",
+  "version": "1",
+  "courseId": "dsat",
+  "topic": "Equivalent expressions: set 1",
+  "skillIds": [
+    "dsat.advanced-math.equivalent-expressions"
+  ],
+  "difficulty": "medium",
+  "prompt": "Three items on rewriting and simplifying expressions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+  "expectedAnswer": "1: A, 2: C, 3: B",
+  "rubricRef": {
+    "rubricId": "dsat-equiv-001",
+    "version": "1"
+  },
+  "items": [
+    {
+      "itemId": "1",
+      "prompt": "Which expression is equivalent to (6x² − 9x)/(3x), for x ≠ 0?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "2x − 3"
+        },
+        {
+          "key": "B",
+          "text": "2x − 9x"
+        },
+        {
+          "key": "C",
+          "text": "6x − 3"
+        },
+        {
+          "key": "D",
+          "text": "2x² − 3x"
+        }
+      ],
+      "answerKey": "A",
+      "criterionId": "item-1"
+    },
+    {
+      "itemId": "2",
+      "prompt": "Which expression is equivalent to 3(x − 2) − 2(x + 1)?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "x − 4"
+        },
+        {
+          "key": "B",
+          "text": "5x − 8"
+        },
+        {
+          "key": "C",
+          "text": "x − 8"
+        },
+        {
+          "key": "D",
+          "text": "x − 1"
+        }
+      ],
+      "answerKey": "C",
+      "criterionId": "item-2"
+    },
+    {
+      "itemId": "3",
+      "prompt": "Which expression is equivalent to (x² − 9)/(x − 3), for x ≠ 3?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "x − 3"
+        },
+        {
+          "key": "B",
+          "text": "x + 3"
+        },
+        {
+          "key": "C",
+          "text": "x² − 3"
+        },
+        {
+          "key": "D",
+          "text": "x + 9"
+        }
+      ],
+      "answerKey": "B",
+      "criterionId": "item-3"
+    }
+  ],
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

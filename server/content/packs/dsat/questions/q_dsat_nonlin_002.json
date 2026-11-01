@@ -1,0 +1,100 @@
+{
+  "questionId": "q_dsat_nonlin_002",
+  "version": "1",
+  "courseId": "dsat",
+  "topic": "Function composition: set 2",
+  "skillIds": [
+    "dsat.advanced-math.nonlinear-functions"
+  ],
+  "difficulty": "easy",
+  "prompt": "Three items on composing functions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+  "expectedAnswer": "1: A, 2: B, 3: C",
+  "rubricRef": {
+    "rubricId": "dsat-nonlin-002",
+    "version": "1"
+  },
+  "items": [
+    {
+      "itemId": "1",
+      "prompt": "f(x) = 2x + 1 and g(x) = x². What is f(g(3))?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "19"
+        },
+        {
+          "key": "B",
+          "text": "49"
+        },
+        {
+          "key": "C",
+          "text": "13"
+        },
+        {
+          "key": "D",
+          "text": "10"
+        }
+      ],
+      "answerKey": "A",
+      "criterionId": "item-1"
+    },
+    {
+      "itemId": "2",
+      "prompt": "f(x) = x − 5 and g(x) = 3x. Which expression equals g(f(x))?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "3x − 5"
+        },
+        {
+          "key": "B",
+          "text": "3x − 15"
+        },
+        {
+          "key": "C",
+          "text": "x − 15"
+        },
+        {
+          "key": "D",
+          "text": "3x + 15"
+        }
+      ],
+      "answerKey": "B",
+      "criterionId": "item-2"
+    },
+    {
+      "itemId": "3",
+      "prompt": "f(g(x)) = √(x + 7) and f(u) = √u. Which could be g(x)?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "x"
+        },
+        {
+          "key": "B",
+          "text": "√x + 7"
+        },
+        {
+          "key": "C",
+          "text": "x + 7"
+        },
+        {
+          "key": "D",
+          "text": "x² + 7"
+        }
+      ],
+      "answerKey": "C",
+      "criterionId": "item-3"
+    }
+  ],
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

@@ -6,12 +6,17 @@ from app.adapters.firestore.assessment_repository import (
     FirestoreAssessmentStore,
     FirestoreMasteryStore,
 )
+from app.adapters.firestore.consumer_repository import (
+    FirestoreConsumerOffsetStore,
+    FirestoreReceiptStore,
+)
 from app.adapters.firestore.course_repository import FirestoreEnrollmentStore
 from app.adapters.firestore.documents import DocTxn, DocumentStore
 from app.adapters.firestore.event_repository import FirestoreEventStore
 from app.adapters.firestore.idempotency_repository import FirestoreIdempotencyStore
 from app.adapters.firestore.message_repository import FirestoreMessageStore
 from app.adapters.firestore.outbox_repository import FirestoreFileStore, FirestoreOutboxStore
+from app.adapters.firestore.plan_repository import FirestorePlanStore
 from app.adapters.firestore.run_repository import FirestoreRunInputStore, FirestoreRunStore
 from app.adapters.firestore.session_repository import FirestoreSessionStore
 from app.adapters.firestore.student_repository import FirestoreStudentStore
@@ -41,6 +46,9 @@ class FirestoreTx:
         self.mastery = FirestoreMasteryStore(txn)
         self.usage = FirestoreUsageStore(txn)
         self.tool_results = FirestoreToolResultStore(txn)
+        self.receipts = FirestoreReceiptStore(txn)
+        self.consumer_offsets = FirestoreConsumerOffsetStore(txn)
+        self.plans = FirestorePlanStore(txn)
 
 
 class DocumentUnitOfWork:

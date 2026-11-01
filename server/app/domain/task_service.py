@@ -73,8 +73,8 @@ class TaskService:
     async def patch_task(
         self, actor: ActorContext, task_id: str, patch: TaskPatch, *, expected_version: int
     ) -> Task:
-        """Students may reschedule, lock, or skip a not-yet-started task. Completion is
-        decided by the Session completion rules, never by a PATCH."""
+        """Students may reschedule, lock, or skip (with a reason) a not-yet-started task.
+        Completion is decided by the Session completion rules, never by a PATCH."""
         actor.require(Permission.LEARNING_COMMAND)
         if patch.scheduled_date is None and patch.student_locked is None and not patch.skip:
             raise DomainError(ErrorCode.VALIDATION_FAILED, "patch must change at least one field")
@@ -92,14 +92,20 @@ class TaskService:
             if patch.skip:
                 ensure_transition(TASK_TRANSITIONS, task.status, TaskStatus.SKIPPED, entity="Task")
                 status = TaskStatus.SKIPPED
+            # Moving a task is a student choice the planner must keep, so a new date
+            # locks it unless the same patch says otherwise.
+            locked = task.student_locked
+            if patch.scheduled_date is not None and patch.scheduled_date != task.scheduled_date:
+                locked = True
+            if patch.student_locked is not None:
+                locked = patch.student_locked
             updated = dataclasses.replace(
                 task,
                 status=status,
                 version=task.version + 1,
                 scheduled_date=patch.scheduled_date or task.scheduled_date,
-                student_locked=(
-                    task.student_locked if patch.student_locked is None else patch.student_locked
-                ),
+                student_locked=locked,
+                skip_reason=patch.skip_reason if patch.skip else task.skip_reason,
             )
             tx.tasks.save(actor, updated, now=self._clock.now())
             return updated

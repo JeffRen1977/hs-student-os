@@ -137,8 +137,8 @@ test("demo data has no prediction scores", () => {
     assert.equal(text.includes(forbidden), false, forbidden);
   }
   for (const entry of Object.values(DEMO.twin.predictionSummary)) assert.equal(entry.status, "unavailable");
-  assert.equal(P.predictionLabel(DEMO.twin.predictionSummary.calc_bc), "暂无预测（未校准）");
-  assert.equal(P.predictionLabel(undefined), "暂无预测（未校准）");
+  assert.equal(P.predictionLabel(DEMO.twin.predictionSummary.calc_bc), "No prediction (not calibrated)");
+  assert.equal(P.predictionLabel(undefined), "No prediction (not calibrated)");
 });
 
 test("active run wins over event history", () => {
@@ -227,7 +227,7 @@ test("describeRun covers every Run status and never calls SUCCEEDED 'completed t
     const view = P.describeRun({ status });
     assert.ok(view.label, status);
   }
-  assert.equal(P.describeRun({ status: "SUCCEEDED" }).label.includes("任务"), false);
+  assert.equal(P.describeRun({ status: "SUCCEEDED" }).label.includes("task"), false);
   assert.equal(P.describeRun({ status: "FAILED", error: { code: "X", retryable: true } }).retryable, true);
   assert.equal(P.describeRun({ status: "FAILED", error: { code: "X", retryable: false } }).retryable, false);
   assert.equal(P.describeRun(null), null);

@@ -35,14 +35,14 @@ async def test_catalog_reflects_entitlements_per_student(harness: Harness) -> No
     alex = await _catalog(harness, "stu_alex")
     assert set(alex) == {"calc_bc", "apush", "physics_c", "dsat"}
     assert alex["calc_bc"]["status"] == "enrolled"
-    assert alex["dsat"]["entitled"] is True and alex["dsat"]["status"] == "coming_soon"
+    assert alex["dsat"]["entitled"] is True and alex["dsat"]["status"] == "enrolled"
     assert alex["apush"]["status"] == "coming_soon"
     assert alex["calc_bc"]["agent"]["supportedTaskTypes"] == ["SOCRATIC_STUDY", "FRQ_PRACTICE"]
     _revoke_calc(harness, "stu_beth")
     await _unenroll(harness, "stu_beth", "calc_bc")
     beth = await _catalog(harness, "stu_beth")
     assert beth["calc_bc"]["status"] == "locked"
-    assert beth["dsat"]["entitled"] is False
+    assert beth["dsat"]["entitled"] is False and beth["dsat"]["status"] == "locked"
 
 
 async def test_course_detail_and_unknown_course(harness: Harness) -> None:
@@ -96,11 +96,11 @@ async def test_unenroll_reenroll_lifecycle_preserves_history(harness: Harness) -
     off = await _unenroll(harness, "stu_alex", "calc_bc")
     assert off.status_code == 200 and off.json()["status"] == "unenrolled"
     enrolled = await harness.client.get("/api/courses/enrolled", headers=harness.auth("stu_alex"))
-    assert enrolled.json() == {"enrollments": []}
+    assert [e["courseId"] for e in enrolled.json()["enrollments"]] == ["dsat"]
     agent = await harness.client.get("/api/courses/calc_bc/agent", headers=harness.auth("stu_alex"))
     assert agent.status_code == 404
     tasks = await harness.client.get("/api/tasks", headers=harness.auth("stu_alex"))
-    assert tasks.json()["tasks"] == []  # hidden while unenrolled...
+    assert {t["courseId"] for t in tasks.json()["tasks"]} == {"dsat"}  # calc hidden...
 
     on = await _enroll(harness, "stu_alex", "calc_bc")
     assert on.status_code == 200 and on.json()["status"] == "active"
@@ -166,7 +166,7 @@ async def test_enrolled_and_agent_show_only_own_enrollments(harness: Harness) ->
     await _unenroll(harness, "stu_beth", "calc_bc")
     alex = await harness.client.get("/api/courses/enrolled", headers=harness.auth("stu_alex"))
     beth = await harness.client.get("/api/courses/enrolled", headers=harness.auth("stu_beth"))
-    assert [e["courseId"] for e in alex.json()["enrollments"]] == ["calc_bc"]
+    assert [e["courseId"] for e in alex.json()["enrollments"]] == ["calc_bc", "dsat"]
     assert alex.json()["enrollments"][0]["agent"]["agentType"] == "AP_BASE"
     assert beth.json()["enrollments"] == []
     agent = await harness.client.get("/api/courses/calc_bc/agent", headers=harness.auth("stu_beth"))

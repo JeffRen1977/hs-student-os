@@ -82,7 +82,9 @@ M1 实现说明：仓储写在 `DocTxn` 接缝上（读穿透事务、写缓冲�
 
 M2 实现说明：新增 `usage/{run-<id>|session-<id>|day-<UTC 日期>}`（预算计数与在途预留，预留超时失效）与 `toolResults/{id}`（工具账本，只存状态和输出，不存输入）。`mastery/{skillId}` 保存投影结果及其证据贡献列表（键为 evidence application id `{assessmentId}:{skillId}`，因此同一证据只应用一次，重评替换贡献，可由评估重建）。Assessment ID 由 Run 确定（`asm_{runId}`），重放提交返回已有结果。Submission 在接受时冻结服务端事实：此前提示次数 `serverHintCount` 与同题先前尝试次数 `priorAttemptCount`。
 
-按 studentId、状态、到期时间等实际查询建立索引。后台 outbox collection-group 查询仅服务身份可用；客户端不得用全局查询绕过学生边界。题目、rubric、课程包和技能映射为独立版本化内容目录。
+M3 实现说明：新增 `consumerReceipts/{consumer}:{eventId}:{target}`、`consumerState/{consumer}`（消费者已处理的事件序号）、`plans/{planId}` 与 `planState/current`（当前 PLANNING Run 与最新计划）。outbox 条目增加 `kind`（`run` / `consumers`）；旧文档缺省为 `run`。
+
+按 studentId、状态、到期时间等实际查询建立索引。后台 outbox collection-group 查询仅服务身份可用；客户端不得用全局查询绕过学生边界。题目、rubric 与技能都属于各自的课程包，是独立版本化内容目录；课程之间不互相引用（2026-11-01 起不再有跨课程技能映射）。
 
 | 数据 | 规则 |
 |---|---|
@@ -150,7 +152,7 @@ Worker 在步骤 3 中使用 ContextLoader 组装 LLM 调用的完整上下文�
 | 跨 Session 记忆 | 首版不自动加载历史 Session 的消息；同一课程的 mastery 状态已作为学生上下文摘要传递，提供间接的跨 Session 连续性 |
 | 提示记录 | 每次 HINT Run 的回复记录在 messages 中，后续 ASSESS Run 可见该 Session 内的提示历史，用于评估 hintUsage |
 
-ContextLoader 不加载其他课程的 Session 消息。跨域上下文只通过 mastery 和事件（§8 消费者）间接传递，不把 Calculus 对话历史直接注入 SAT agent 的 prompt。
+ContextLoader 不加载其他课程的 Session 消息，也不加载其他课程的 mastery。课程彼此独立，不把一门课程的对话或掌握度注入另一门课程 agent 的 prompt。
 
 **Agent 回复持久化：** Worker 生成的回复作为 message 写入 `students/{studentId}/messages/{messageId}`，关联 sessionId 和 runId，后续对话加载时与学生消息合并排序。
 
@@ -168,7 +170,7 @@ ContextLoader 不加载其他课程的 Session 消息。跨域上下文只通过
 
 ## 7. 内容、模型与工具
 
-Registry 加载版本化 manifest（agent、pack、skill），只启用已验证内容。首发 AP 包 calc_bc，DSAT 在 M3 启用指定诊断能力，Admissions 保持 planned。Run 固定 pack/skill/rubric/workflow 版本，升级不改变正在运行的行为。
+Registry 加载版本化 manifest（agent、pack、skill），只启用已验证内容。第一方参考课程包 calc_bc；Digital SAT（dsat）是独立课程、M3 第二门课程候选（选择题按答案键评分）；Admissions 保持 planned。Run 固定 pack/skill/rubric/workflow 版本，升级不改变正在运行的行为。
 
 ### 7.1 SubjectPack manifest 与 system prompt
 
@@ -181,7 +183,6 @@ content/packs/{courseId}/
   questions/               # 题目库
   rubrics/                 # 评分标准
   skills/                  # 技能定义与前置关系
-  mappings/                # 跨域前置技能映射（M3）
 ```
 
 manifest.json 示例：
@@ -225,13 +226,17 @@ Jev 仅为 M5 后的 DecisionService 实验选项；接入前核验供应商实�
 
 持久事件是权威记录，进程 pub/sub 只作唤醒优化。UI 读取经过过滤的领域事件投影，不暴露完整工具参数、模型推理过程、凭证或私有文书正文。内部 outbox 与运营日志不直接作为学生事件流。
 
-每个消费者用 `(consumerName, eventId, targetSkill)` 收据；创建目标任务与写收据在同一事务中。事件至少投递一次；失败可重放，不用“恰好一次传输”作保证。跨域结果经过 suspected → diagnostic → confirmed/unsupported 的明确规则；不将任意 AP 失误直接变成 SAT 弱点。
+每个消费者用 `(consumerName, eventId, targetSkill)` 收据；创建目标任务与写收据在同一事务中。事件至少投递一次；失败可重放，不用“恰好一次传输”作保证。消费者只在事件所属的课程内产生效果；课程内后续规则（Step 24.2）由课程包以数据声明，一次错误不等于确认弱点。
 
 SSE 从持久存储补发 after/Last-Event-ID 之后事件，再继续获取增量；所有实例都能恢复，不依赖接到同一进程。带心跳，在部署请求时限前主动结束并让客户端重连。浏览器以支持 Bearer header 的 fetch streaming 连接；不要把 token 放 URL。轮询使用相同序列与去重逻辑。过期 cursor 返回 410，客户端重新读取状态快照再订阅。
 
+M3 实现说明：`EventPublisher` 追加事件；若有已注册的消费者订阅该事件类型，就在**同一事务**中写一条 `kind=consumers` 的 outbox 唤醒（`wake.{eventId}`）。派发器像派发 Run 一样把唤醒投递到 worker 的 `/internal/consumers/process`。消费者按注册顺序运行，每个事务最多处理一个订阅事件：效果 + 收据 + 偏移量一起提交。唤醒派发后长时间未完成的，由恢复扫描（`/internal/runs/recover`）补发新的唤醒。2026-11-01 移除了 Calc→SAT 的三个跨课程消费者（prerequisite-mapper、diagnostic-scheduler、reinforcement-scheduler）；目前生产环境没有注册任何消费者，因此不会写唤醒。基础设施由测试专用消费者验证（崩溃、重复唤醒、全量重放、丢失唤醒、学生隔离），课程内后续规则在 Step 24.2 接入。
+
 ## 9. Planner、调度与提醒
 
-Planner v1 按期限、经证实的学习需求、证据不足的诊断需求、学生偏好和每周小时分配任务。每个候选有来源与可解释规则版本；保留进行中、已完成和学生锁定安排。
+Planner v1 按期限、证据不足的技能、学生偏好和每周小时分配所有已注册课程的任务。每个候选有来源与可解释规则版本；保留进行中、已完成和学生锁定安排。
+
+M3 实现说明：`POST /api/plans/replan` 建 PLANNING Run；worker 取得租约后在**一个提交事务**中读取状态、计算计划（planner-rules-v1，纯函数，不调用模型）、写回改期的任务（version+1）、计划文档、`plan.updated` 与 Run 终态。提交失败时租约过期后由恢复扫描重试。计划不新建任务；将来课程内消费者新建的任务用同一容量规则（`place_new_task`）放在本周最早有空的一天，否则顺延到下周。时区按学生 IANA timezone 计算"今天"。
 
 Cloud Scheduler 定期触发 dispatcher，查询 dueAt，按学生 IANA timezone 计算本地日期和下一次执行。`studentId + localDate + planningReason/sourceEvent` 做业务去重；覆盖夏令时、旅行改时区和并发结算。GET tasks 不隐式重新生成。
 
@@ -247,7 +252,7 @@ server/
   app/adapters/          # firestore/auth/queue/storage/llm/tools
   app/registries/        # validated manifests and versions
   app/schemas/           # Pydantic v2 models for API/domain contracts
-  content/               # reviewed packs/questions/rubrics/mappings
+  content/               # reviewed course packs (questions/rubrics/skills) + evaluation
   fixtures/              # synthetic data only
   tests/                 # unit/contract/emulator/e2e/evaluation
 web/                     # existing frontend boundary, adapted to API
@@ -255,7 +260,7 @@ web/                     # existing frontend boundary, adapted to API
 
 目标命令与步骤见 [STEP_BY_STEP_PLAN.md](STEP_BY_STEP_PLAN.md)。本地配置显式指定 emulator；生产配置检测到 mock provider/emulator host 应拒绝启动。环境示例只记录变量名与占位值，密钥使用 Secret Manager。
 
-最小验证：跨学生访问、越权字段、重复提交、outbox 两种崩溃窗口、worker 租约竞争、取消与提交竞态、评估提交故障回滚、跨域去重、SSE 漏事件恢复、没有证据时不增加 mastery。生产还需 Cloud Tasks OIDC、超时、SSE 重连与备份恢复的 staging 检查。
+最小验证：跨学生访问、越权字段、重复提交、outbox 两种崩溃窗口、worker 租约竞争、取消与提交竞态、评估提交故障回滚、消费者重放去重、SSE 漏事件恢复、没有证据时不增加 mastery。生产还需 Cloud Tasks OIDC、超时、SSE 重连与备份恢复的 staging 检查。
 
 日志记录 actor/run ID、模型档、耗时、tokens、重试和错误码，不记录原始作答/文书/token。备份包含数据库与文件引用恢复，定期实际演练；模拟环境通过不等于云环境配置已验证。
 

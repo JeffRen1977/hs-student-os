@@ -7,6 +7,7 @@ Construction is lazy so that importing `app.main` never touches cloud credential
 from __future__ import annotations
 
 import socket
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -32,7 +33,9 @@ from app.domain.budget import BudgetLedger, BudgetLimits
 from app.domain.command_service import CommandService
 from app.domain.course_service import CourseService
 from app.domain.event_feed import EventFeedService
+from app.domain.events import EventPublisher
 from app.domain.mastery_service import MasteryService
+from app.domain.planner_service import PlannerService
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.content import ModelTier, SubjectPackRegistry
 from app.domain.ports.execution import JobQueue, RunExecutor
@@ -55,6 +58,9 @@ from app.workers.auth import (
     LocalServiceTokenAuthenticator,
     ServiceAuthenticator,
 )
+from app.workers.consumers.base import Consumer
+from app.workers.consumers.runner import ConsumerRunner
+from app.workers.delivery_router import DeliveryRouter
 from app.workers.local_runner import LocalWorkerLoop
 from app.workers.outbox_dispatcher import OutboxDispatcher
 
@@ -85,6 +91,9 @@ class Services:
     mastery: MasteryService
     events: EventFeedService
     recovery: RecoveryService
+    planner: PlannerService
+    consumers: ConsumerRunner
+    deliveries: DeliveryRouter
     local_worker: LocalWorkerLoop | None
 
 
@@ -188,7 +197,12 @@ def _executor(
     test provider) → the skill runtime behind the budgeted gateway."""
     if provider is None:
         if settings.llm_provider is LlmProvider.MOCK:
-            return SyntheticExecutor()
+            # Key-scored SAT items still run for real; everything needing a model is the
+            # labeled synthetic fallback.
+            return SkillExecutor(
+                None, packs, ToolRegistry([MathVerifyTool()]), clock, ids,
+                fallback=SyntheticExecutor(),
+            )  # fmt: skip
         provider = real_llm_provider(settings)
     gateway = Gateway(
         provider,
@@ -216,7 +230,10 @@ def build_services(
     catalog: CourseCatalog | None = None,
     worker_id: str | None = None,
     llm_provider: LlmProviderAdapter | None = None,
+    consumers: Sequence[Consumer] = (),
 ) -> Services:
+    """`consumers`: the course-internal event consumers to run. None is registered in
+    production yet (course follow-up rules arrive with Step 24.2); tests pass their own."""
     store = store or _store(settings)
     clock = clock or SystemClock()
     ids = ids or RandomIdFactory()
@@ -234,7 +251,9 @@ def build_services(
             daily_tokens=settings.llm_daily_token_budget,
         ),
     )
-    assessments = AssessmentService(uow, packs, clock, ids)
+    publisher = EventPublisher(frozenset().union(*(c.subscribes for c in consumers)))
+    assessments = AssessmentService(uow, packs, clock, ids, publisher)
+    planner = PlannerService(uow, packs, clock, ids)
     operations = FirestoreOperationsStore(store)
     queue = queue or _queue(settings)
     dispatcher = OutboxDispatcher(uow, operations, queue, clock)
@@ -248,7 +267,10 @@ def build_services(
         lease_seconds=settings.run_lease_seconds,
         max_attempts=settings.run_max_attempts,
         assessments=assessments,
+        planner=planner,
     )
+    consumer_runner = ConsumerRunner(uow, consumers, clock)
+    deliveries = DeliveryRouter(run_execution, consumer_runner)
     recovery = RecoveryService(
         uow, operations, clock, requeue_after_seconds=settings.run_requeue_after_seconds
     )
@@ -257,7 +279,7 @@ def build_services(
             queue=queue,
             dispatcher=dispatcher,
             recovery=recovery,
-            execution=run_execution,
+            execution=deliveries,
             poll_seconds=settings.local_worker_poll_seconds,
         )
         if isinstance(queue, LocalQueue)
@@ -288,6 +310,9 @@ def build_services(
         mastery=MasteryService(uow, catalog, _course_skills(content)),
         events=EventFeedService(uow),
         recovery=recovery,
+        planner=planner,
+        consumers=consumer_runner,
+        deliveries=deliveries,
         local_worker=local_worker,
     )
 

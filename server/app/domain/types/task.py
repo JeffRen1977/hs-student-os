@@ -18,8 +18,6 @@ class TaskStatus(StrEnum):
 class TaskReasonCode(StrEnum):
     INITIAL_PRACTICE = "INITIAL_PRACTICE"
     STUDENT_SCHEDULED = "STUDENT_SCHEDULED"
-    PREREQUISITE_DIAGNOSTIC = "PREREQUISITE_DIAGNOSTIC"
-    PREREQUISITE_REINFORCEMENT = "PREREQUISITE_REINFORCEMENT"
     REVIEW_DUE = "REVIEW_DUE"
 
 
@@ -32,10 +30,19 @@ TASK_TRANSITIONS: Mapping[TaskStatus, frozenset[TaskStatus]] = {
 """IN_PROGRESS → PLANNED happens only when the open Session is abandoned (API.md §2.5)."""
 
 
+class SkipReason(StrEnum):
+    NO_TIME = "no_time"
+    ALREADY_KNOW = "already_know"
+    NOT_RELEVANT = "not_relevant"
+    OTHER = "other"
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class TaskReason:
     code: TaskReasonCode
     source_event_ids: Sequence[str] = ()
+    # Server-written, student-facing sentence: why this task exists (never model output).
+    explanation: str = ""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -55,6 +62,8 @@ class Task:
     student_locked: bool = False
     open_session_id: str | None = None  # internal guard: at most one OPEN Session per Task
     question_id: str | None = None  # content the task practices; pinned on its Session
+    due_date: date | None = None  # a real deadline (planner priority 1), if any
+    skip_reason: SkipReason | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -64,3 +73,4 @@ class TaskPatch:
     scheduled_date: date | None = None
     student_locked: bool | None = None
     skip: bool = False
+    skip_reason: SkipReason | None = None

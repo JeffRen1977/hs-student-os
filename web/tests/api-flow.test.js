@@ -56,7 +56,7 @@ test("every Run state has truthful copy; error codes map to safe text", () => {
   for (const status of ["QUEUED", "RUNNING", "WAITING_INPUT", "SUCCEEDED", "FAILED", "CANCELLED"]) {
     assert.ok(P.describeRun({ status }).label);
   }
-  assert.match(P.errorText("BUDGET_EXCEEDED"), /额度/);
+  assert.match(P.errorText("BUDGET_EXCEEDED"), /budget/);
   assert.match(P.errorText("SOMETHING_NEW"), /SOMETHING_NEW/);
 });
 

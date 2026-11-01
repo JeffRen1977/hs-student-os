@@ -1,0 +1,100 @@
+{
+  "questionId": "q_dsat_nonlin_001",
+  "version": "1",
+  "courseId": "dsat",
+  "topic": "Function composition: set 1",
+  "skillIds": [
+    "dsat.advanced-math.nonlinear-functions"
+  ],
+  "difficulty": "medium",
+  "prompt": "Three items on composing functions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+  "expectedAnswer": "1: A, 2: B, 3: A",
+  "rubricRef": {
+    "rubricId": "dsat-nonlin-001",
+    "version": "1"
+  },
+  "items": [
+    {
+      "itemId": "1",
+      "prompt": "f(x) = x² + 1 and g(x) = 2x − 3. What is f(g(2))?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "2"
+        },
+        {
+          "key": "B",
+          "text": "5"
+        },
+        {
+          "key": "C",
+          "text": "10"
+        },
+        {
+          "key": "D",
+          "text": "26"
+        }
+      ],
+      "answerKey": "A",
+      "criterionId": "item-1"
+    },
+    {
+      "itemId": "2",
+      "prompt": "h(x) = (x − 4)² and h(x) = f(g(x)) with f(u) = u². Which could be g(x)?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "x²"
+        },
+        {
+          "key": "B",
+          "text": "x − 4"
+        },
+        {
+          "key": "C",
+          "text": "(x − 4)²"
+        },
+        {
+          "key": "D",
+          "text": "x² − 16"
+        }
+      ],
+      "answerKey": "B",
+      "criterionId": "item-2"
+    },
+    {
+      "itemId": "3",
+      "prompt": "f(x) = 3x and g(x) = x + 2. Which expression equals g(f(x))?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "3x + 2"
+        },
+        {
+          "key": "B",
+          "text": "3x + 6"
+        },
+        {
+          "key": "C",
+          "text": "3(x + 2)"
+        },
+        {
+          "key": "D",
+          "text": "x + 6"
+        }
+      ],
+      "answerKey": "A",
+      "criterionId": "item-3"
+    }
+  ],
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

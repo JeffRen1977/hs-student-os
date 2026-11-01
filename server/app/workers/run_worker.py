@@ -20,7 +20,7 @@ from app.bootstrap import Services, get_services
 from app.config import APP_VERSION, Settings, get_settings
 from app.domain.errors import DomainError, ErrorCode
 from app.domain.run_execution import ProcessResult
-from app.domain.types.outbox import Delivery
+from app.domain.types.outbox import Delivery, OutboxKind
 from app.schemas.common import ApiModel, OpaqueId, RequestModel
 
 
@@ -60,6 +60,26 @@ async def execute_run(body: DeliveryRequest, request: Request) -> JSONResponse:
     return JSONResponse(status_code=status, content={"result": result.value})
 
 
+class ConsumerWakeRequest(RequestModel):
+    delivery_id: OpaqueId
+    student_id: OpaqueId
+
+
+@router.post("/consumers/process", response_model=DeliveryResponse)
+async def process_consumers(body: ConsumerWakeRequest, request: Request) -> JSONResponse:
+    services = get_services(request)
+    result = await services.deliveries.process(
+        Delivery(
+            delivery_id=body.delivery_id,
+            student_id=body.student_id,
+            run_id=None,
+            kind=OutboxKind.CONSUMERS,
+        )
+    )
+    status = 503 if result is ProcessResult.RETRY else 200
+    return JSONResponse(status_code=status, content={"result": result.value})
+
+
 @router.post("/outbox/dispatch", response_model=ScanResponse)
 async def dispatch_outbox(request: Request) -> ScanResponse:
     return ScanResponse(count=await get_services(request).dispatcher.dispatch_pending())
@@ -67,7 +87,11 @@ async def dispatch_outbox(request: Request) -> ScanResponse:
 
 @router.post("/runs/recover", response_model=ScanResponse)
 async def recover_runs(request: Request) -> ScanResponse:
-    return ScanResponse(count=await get_services(request).recovery.requeue_stalled())
+    """Re-queue stalled runs and re-issue consumer wakes that never completed."""
+    recovery = get_services(request).recovery
+    return ScanResponse(
+        count=await recovery.requeue_stalled() + await recovery.reissue_stalled_wakes()
+    )
 
 
 def create_worker_app(

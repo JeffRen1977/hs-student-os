@@ -110,6 +110,34 @@ class AnswerCheck(ApiModel):
     variables: list[Annotated[str, StringConstraints(pattern=r"^[a-z]$")]] = Field(min_length=1)
 
 
+ChoiceKey = Literal["A", "B", "C", "D"]
+
+
+class Choice(ApiModel):
+    key: ChoiceKey
+    text: NonEmpty
+
+
+class ChoiceItem(ApiModel):
+    """One multiple-choice item of a choice set. Scored by the server, not a model.
+
+    `answerKey` never leaves the server: the session activity projection drops it.
+    """
+
+    item_id: Annotated[str, StringConstraints(pattern=r"^[1-9][0-9]?$")]
+    prompt: NonEmpty
+    choices: list[Choice] = Field(min_length=2, max_length=4)
+    answer_key: ChoiceKey
+    criterion_id: Slug
+
+    @model_validator(mode="after")
+    def _key_is_a_choice(self) -> Self:
+        keys = [c.key for c in self.choices]
+        if len(keys) != len(set(keys)) or self.answer_key not in keys:
+            raise ValueError("choices need unique keys and must include the answerKey")
+        return self
+
+
 class Question(ApiModel):
     question_id: OpaqueId
     version: NonEmpty
@@ -121,8 +149,20 @@ class Question(ApiModel):
     expected_answer: NonEmpty
     rubric_ref: RubricRef
     answer_check: AnswerCheck | None = None
+    # Choice sets: multiple-choice items scored deterministically (choice-scoring).
+    items: list[ChoiceItem] | None = Field(default=None, min_length=1, max_length=10)
     source: ContentSource
     review: Review
+
+    @model_validator(mode="after")
+    def _choice_sets_are_consistent(self) -> Self:
+        if self.items is not None:
+            ids = [i.item_id for i in self.items]
+            if len(ids) != len(set(ids)):
+                raise ValueError("itemId values must be unique")
+            if self.answer_check is not None:
+                raise ValueError("choice sets are scored by key, not by math-verify")
+        return self
 
 
 class Material(ApiModel):
@@ -164,31 +204,3 @@ class Rubric(ApiModel):
     @property
     def max_points(self) -> int:
         return sum(c.max_points for c in self.criteria)
-
-
-class PrerequisiteMapping(ApiModel):
-    mapping_id: OpaqueId
-    source_skill_id: SkillId
-    target_skill_id: SkillId
-    conditions: list[NonEmpty] = Field(min_length=1)
-    counterexamples: list[NonEmpty] = Field(min_length=1)
-    rationale: NonEmpty
-    status: Literal["candidate", "approved", "retired"]
-
-
-class PrerequisiteMappingSet(ApiModel):
-    mapping_set_id: Slug
-    version: SemVer
-    source_course_id: CourseId
-    target_course_id: CourseId
-    review: Review
-    mappings: list[PrerequisiteMapping] = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def _consistency(self) -> Self:
-        ids = [m.mapping_id for m in self.mappings]
-        if len(ids) != len(set(ids)):
-            raise ValueError("mappingId values must be unique")
-        if self.review.status == "draft" and any(m.status == "approved" for m in self.mappings):
-            raise ValueError("a draft mapping set cannot contain approved mappings")
-        return self

@@ -10,6 +10,7 @@ from app.domain.types.course import AgentConfig, CourseCatalogEntry, CourseEnrol
 from app.domain.types.event import DomainEvent
 from app.domain.types.mastery import MasteryState
 from app.domain.types.message import Message
+from app.domain.types.plan import Plan
 from app.domain.types.run import Run
 from app.domain.types.session import Session
 from app.domain.types.student import Entitlements, NotificationPreferences, Student
@@ -19,6 +20,7 @@ from app.schemas import assessment as a
 from app.schemas import course as c
 from app.schemas import event as ev
 from app.schemas import message as m
+from app.schemas import plan as pl
 from app.schemas import run as r
 from app.schemas import session as s
 from app.schemas import student as st
@@ -141,9 +143,15 @@ def task(x: Task) -> t.Task:
         scheduled_date=x.scheduled_date,
         status=x.status,
         version=x.version,
-        reason=t.TaskReason(code=x.reason.code, source_event_ids=list(x.reason.source_event_ids)),
+        reason=t.TaskReason(
+            code=x.reason.code,
+            source_event_ids=list(x.reason.source_event_ids),
+            explanation=x.reason.explanation,
+        ),
         student_locked=x.student_locked,
         question_id=x.question_id,
+        due_date=x.due_date,
+        skip_reason=x.skip_reason,
     )
 
 
@@ -155,6 +163,17 @@ def session(x: Session, packs: SubjectPackRegistry | None = None) -> s.Session:
             activity = s.SessionActivity(
                 question_id=q.question_id, question_version=q.version,
                 topic=q.topic, prompt=q.prompt,
+                items=[
+                    s.ActivityItem(
+                        item_id=i.item_id,
+                        prompt=i.prompt,
+                        choices=[
+                            s.ActivityChoice(key=k, text=text)  # type: ignore[arg-type]
+                            for k, text in i.choices
+                        ],
+                    )
+                    for i in q.items
+                ] if q.items is not None else None,
             )  # fmt: skip
     return s.Session(
         activity=activity,
@@ -301,4 +320,32 @@ def event(e: DomainEvent) -> ev.Event:
         occurred_at=e.occurred_at,
         causation_id=e.causation_id,
         payload=model.model_validate(payload).model_dump(mode="json", by_alias=True),
+    )
+
+
+def plan(p: Plan) -> pl.Plan:
+    return pl.Plan(
+        plan_id=p.plan_id,
+        run_id=p.run_id,
+        rule_version=p.rule_version,
+        local_date=p.local_date,
+        horizon_end=p.horizon_end,
+        weekly_minutes=p.weekly_minutes,
+        daily_minutes=p.daily_minutes,
+        evidence_available=p.evidence_available,
+        entries=[
+            pl.PlanEntry(
+                task_id=e.task_id,
+                course_id=e.course_id,
+                duration_min=e.duration_min,
+                previous_date=e.previous_date,
+                scheduled_date=e.scheduled_date,
+                priority=e.priority,
+                placement=e.placement,
+                explanation=e.explanation,
+                source_event_ids=list(e.source_event_ids),
+            )
+            for e in p.entries
+        ],
+        created_at=p.created_at,
     )
