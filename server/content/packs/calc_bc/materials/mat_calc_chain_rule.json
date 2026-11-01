@@ -1,0 +1,21 @@
+{
+  "materialId": "mat_calc_chain_rule",
+  "version": "1",
+  "courseId": "calc_bc",
+  "skillIds": [
+    "calc_bc.function-composition",
+    "calc_bc.chain-rule"
+  ],
+  "title": "Chain rule",
+  "text": "For a composite h(x) = f(g(x)), identify the inner function g and the outer function f. The chain rule says h'(x) = f'(g(x)) · g'(x): differentiate the outer function, keep the inner function inside it unchanged, then multiply by the derivative of the inner function. A common error is forgetting the factor g'(x).",
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

@@ -80,6 +80,8 @@ identities/{uid}                                  # M1：已验证 uid → stude
 
 M1 实现说明：仓储写在 `DocTxn` 接缝上（读穿透事务、写缓冲至提交，同一事务内可读到自己的缓冲写），生产后端为 Firestore SDK，测试/无 Java 本地开发使用内存后端（部署环境拒绝）。唯一性约束依赖文档而非查询：Task 文档的 `openSessionId` 保证一 Task 一 OPEN Session，Session 文档的 `activeRunId` 保证一 Session 一非终态 Run，`eventState/current` 保证事件序号连续，注册文档被 Session/命令事务读取以与取消注册互斥。
 
+M2 实现说明：新增 `usage/{run-<id>|session-<id>|day-<UTC 日期>}`（预算计数与在途预留，预留超时失效）与 `toolResults/{id}`（工具账本，只存状态和输出，不存输入）。`mastery/{skillId}` 保存投影结果及其证据贡献列表（键为 evidence application id `{assessmentId}:{skillId}`，因此同一证据只应用一次，重评替换贡献，可由评估重建）。Assessment ID 由 Run 确定（`asm_{runId}`），重放提交返回已有结果。Submission 在接受时冻结服务端事实：此前提示次数 `serverHintCount` 与同题先前尝试次数 `priorAttemptCount`。
+
 按 studentId、状态、到期时间等实际查询建立索引。后台 outbox collection-group 查询仅服务身份可用；客户端不得用全局查询绕过学生边界。题目、rubric、课程包和技能映射为独立版本化内容目录。
 
 | 数据 | 规则 |
@@ -204,6 +206,8 @@ manifest.json 示例：
 `system_prompt.md` 用 Markdown 编写，支持变量插值（`{{studentName}}`、`{{currentMode}}`、`{{masteryContext}}`），ContextLoader 在运行时填充。system prompt 定义该课程 agent 的教学风格、回应规则和安全边界，不包含学生私有数据 —— 学生上下文由 ContextLoader 在组装时动态注入。
 
 不同课程的 system prompt 可差异显著：Calculus agent 强调推导过程和数学严谨性，APUSH agent 侧重文献分析和论证结构。agent 之间不共享 system prompt，但共享运行时引擎和安全规则。
+
+M2 实现说明：路由 = max(pack `modelTier`, skill 下限)；rubric-assessment 下限为 strong，socratic-guidance 为 fast。提供方由 `HSOS_LLM_PROVIDER` 选择（`anthropic` 或 `openai`，同一 `LlmProvider` 接口；一次部署只用一个提供方，不做跨提供方回退）。默认 fast/balanced/strong：Anthropic 为 `claude-haiku-5-5` / `claude-sonnet-5-5` / `claude-opus-5-5`，OpenAI 为 `gpt-5.4-mini` / `gpt-5.4` / `gpt-5.5`（`HSOS_LLM_MODEL_*` 可覆盖）。OpenAI 走 Responses API，strict JSON schema，`store=false`，拒答与 `content_filter` 都映射为 `MODEL_REFUSED`。两个 SDK 自身重试都关闭，由网关统一重试并计费；不启用服务端拒答回退（回退会用未评估的模型作答或评分），拒答直接 `MODEL_REFUSED`。结构化输出用 JSON schema；网关再用 skill 的解析函数校验，失败计入重试。生产环境要求 `HSOS_REQUIRE_REVIEWED_CONTENT=true`，未审阅的题目/rubric/材料不会被加载。math-verify 用 SymPy，输入先做字符/标识符白名单（`parse_expr` 会执行代码），超时或缺依赖返回 unavailable，模型与校验器不一致时评估降为 insufficient_evidence。
 
 `LLMGateway` 封装厂商 SDK，输入为受控 system/context/messages/schema，输出包含内容、usage 与模型版本。路由先用 manifest 的 fast/balanced/strong 和规则升级；不需要 decision 模型。
 

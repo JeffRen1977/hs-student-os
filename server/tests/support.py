@@ -21,6 +21,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.adapters.firestore.memory_store import MemoryDocumentStore
 from app.adapters.firestore.task_repository import task_to_doc
+from app.adapters.llm.provider import LlmProvider, ProviderResponse
 from app.adapters.queue.local_queue import LocalQueue
 from app.adapters.seed_documents import build_seed_documents
 from app.bootstrap import Services, build_services
@@ -137,6 +138,76 @@ class Harness:
         return await self.queue.drain(self.services.run_execution.process)
 
 
+Reply = dict[str, Any] | Exception | str
+
+
+class ScriptedProvider:
+    """A deterministic stand-in for the model provider (test double, never production).
+
+    Each call pops the next scripted reply: a dict (returned as JSON), a raw string (for
+    malformed output), or an exception to raise. Calls are recorded for assertions.
+    """
+
+    MODEL_VERSION = "scripted-test-model"
+
+    def __init__(self, *replies: Reply, input_tokens: int = 100, output_tokens: int = 50):
+        self.replies: list[Reply] = list(replies)
+        self.calls: list[dict[str, Any]] = []
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+
+    def queue(self, *replies: Reply) -> None:
+        self.replies.extend(replies)
+
+    async def complete(self, **kwargs: Any) -> ProviderResponse:
+        self.calls.append(kwargs)
+        if not self.replies:
+            raise AssertionError("ScriptedProvider ran out of replies")
+        reply = self.replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        text = reply if isinstance(reply, str) else json.dumps(reply)
+        return ProviderResponse(
+            text=text,
+            input_tokens=self.input_tokens,
+            output_tokens=self.output_tokens,
+            model_version=self.MODEL_VERSION,
+        )
+
+
+def grade(
+    answer: str,
+    scores: dict[str, tuple[int, list[str]]],
+    *,
+    status: str = "accepted",
+    final: str = "",
+    uncertainty: str = "low",
+    feedback: str = "Good structure; check your final step.",
+    unassessable: frozenset[str] = frozenset(),
+) -> dict[str, Any]:
+    """A rubric-assessment reply. `scores`: criterionId → (earned, quotes from `answer`)."""
+    for _, quotes in scores.values():
+        for q in quotes:
+            assert q in answer, f"test quote not in answer: {q!r}"
+    return {
+        "status": status,
+        "statusReasons": [],
+        "criteria": [
+            {
+                "criterionId": cid,
+                "earned": earned,
+                "assessable": cid not in unassessable,
+                "evidenceQuotes": quotes,
+            }
+            for cid, (earned, quotes) in scores.items()
+        ],
+        "finalExpression": final,
+        "uncertainty": uncertainty,
+        "uncertaintyReasons": [],
+        "feedback": feedback,
+    }
+
+
 def harness_settings(monkeypatch: pytest.MonkeyPatch, **overrides: Any) -> Settings:
     # Emulator mode makes the Firebase Admin SDK accept unsigned emulator tokens. Nothing
     # listens on these hosts: storage is in-memory and verification is offline.
@@ -155,6 +226,7 @@ def build_harness(
     monkeypatch: pytest.MonkeyPatch,
     *,
     executor: RunExecutor | None = None,
+    llm_provider: LlmProvider | None = None,
     **settings_overrides: Any,
 ) -> Harness:
     settings = harness_settings(monkeypatch, **settings_overrides)
@@ -169,6 +241,7 @@ def build_harness(
         queue=queue,
         executor=executor,
         worker_id="worker-test",
+        llm_provider=llm_provider,
     )
     app = create_app(settings, services)
     transport = ASGITransport(app=app, raise_app_exceptions=False)

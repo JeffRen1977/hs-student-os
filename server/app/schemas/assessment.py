@@ -10,7 +10,8 @@ from app.domain.types.assessment import (
     EvidenceObservation,
     UncertaintyLevel,
 )
-from app.schemas.common import ApiModel, OpaqueId, SkillId
+from app.domain.types.student import MasteryLevel
+from app.schemas.common import ApiModel, CourseId, OpaqueId, SkillId, UtcDatetime
 
 EvidenceRef = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_\-]+:[a-z]+:\d+-\d+$")]
 
@@ -20,11 +21,14 @@ class RubricResult(ApiModel):
     earned: int = Field(ge=0)
     possible: int = Field(ge=1)
     evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+    assessable: bool = True
 
     @model_validator(mode="after")
     def _earned_within_possible(self) -> Self:
         if self.earned > self.possible:
             raise ValueError("earned cannot exceed possible")
+        if not self.assessable and self.earned:
+            raise ValueError("a criterion that could not be assessed earns no points")
         return self
 
 
@@ -65,6 +69,11 @@ class Assessment(ApiModel):
     uncertainty: Uncertainty
     provenance: Provenance
     supersedes_assessment_id: OpaqueId | None = None
+    question_id: OpaqueId | None = None
+    rubric_id: str | None = None
+    # Student-facing feedback; limited when status is insufficient_evidence.
+    feedback: Annotated[str, StringConstraints(max_length=2000)] = ""
+    created_at: UtcDatetime | None = None
 
     @model_validator(mode="after")
     def _integrity(self) -> Self:
@@ -75,3 +84,27 @@ class Assessment(ApiModel):
         ):
             raise ValueError("hint-assisted work cannot be recorded as independent evidence")
         return self
+
+
+class AssessmentList(ApiModel):
+    assessments: list[Assessment]
+    next_cursor: str | None
+
+
+class MasteryState(ApiModel):
+    """A projection of accepted assessments. Not a grade and not an exam prediction."""
+
+    skill_id: SkillId
+    course_id: CourseId
+    level: MasteryLevel
+    independent_evidence_count: int = Field(ge=0)
+    evidence_count: int = Field(ge=0)
+    coverage: int = Field(ge=0)
+    uncertainty: UncertaintyLevel
+    updated_at: UtcDatetime | None
+    rule_version: str
+
+
+class MasteryList(ApiModel):
+    mastery: list[MasteryState]
+    next_cursor: str | None

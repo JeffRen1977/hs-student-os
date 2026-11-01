@@ -15,6 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.domain.types.common import Availability
 from app.schemas.content import (
+    Material,
     PackManifest,
     PrerequisiteMappingSet,
     Question,
@@ -48,6 +49,7 @@ class Pack:
     questions: dict[str, Question] = field(default_factory=dict)
     rubrics: dict[tuple[str, str], Rubric] = field(default_factory=dict)
     system_prompt: str | None = None
+    materials: dict[str, Material] = field(default_factory=dict)
 
     @property
     def is_active(self) -> bool:
@@ -118,6 +120,12 @@ def _load_pack(directory: Path) -> Pack:
             raise ContentError(f"{path}: duplicate questionId {question.question_id}")
         pack.questions[question.question_id] = question
 
+    for path in sorted((directory / "materials").glob("*.json")):
+        material = _parse(Material, path)
+        if material.material_id in pack.materials:
+            raise ContentError(f"{path}: duplicate materialId {material.material_id}")
+        pack.materials[material.material_id] = material
+
     _check_pack_references(pack)
     return pack
 
@@ -145,6 +153,21 @@ def _check_pack_references(pack: Pack) -> None:
             raise ContentError(
                 f"question {question.question_id}: missing rubric {ref.rubric_id}@{ref.version}"
             )
+        check = question.answer_check
+        if check is not None:
+            rubric = pack.rubrics[(ref.rubric_id, ref.version)]
+            if check.criterion_id not in {c.criterion_id for c in rubric.criteria}:
+                raise ContentError(
+                    f"question {question.question_id}: answerCheck criterion not in rubric"
+                )
+            if check.tool not in pack.manifest.tools:
+                raise ContentError(f"question {question.question_id}: tool not in pack")
+    for material in pack.materials.values():
+        if material.course_id != cid:
+            raise ContentError(f"material {material.material_id}: courseId mismatch")
+        unknown = set(material.skill_ids) - known_skills
+        if unknown:
+            raise ContentError(f"material {material.material_id}: unknown skills {unknown}")
 
 
 def load_content(root: Path = DEFAULT_CONTENT_ROOT) -> ContentRegistry:

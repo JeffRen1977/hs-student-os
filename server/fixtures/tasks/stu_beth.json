@@ -14,7 +14,11 @@
       "scheduledDate": "2026-11-02",
       "status": "PLANNED",
       "version": 1,
-      "reason": {"code": "INITIAL_PRACTICE", "sourceEventIds": []}
+      "reason": {
+        "code": "INITIAL_PRACTICE",
+        "sourceEventIds": []
+      },
+      "questionId": "q_calc_bc_001"
     }
   ]
 }

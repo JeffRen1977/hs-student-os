@@ -18,10 +18,12 @@ from datetime import date, datetime
 from typing import Protocol
 
 from app.domain.types.actor import ActorContext
+from app.domain.types.assessment import Assessment
 from app.domain.types.common import IdempotencyRecord, PageRequest, PaginatedResponse
 from app.domain.types.course import CourseEnrollment, EnrollmentStatus
 from app.domain.types.event import DomainEvent, EventType
 from app.domain.types.file import StoredFile
+from app.domain.types.mastery import MasteryState
 from app.domain.types.message import Message
 from app.domain.types.outbox import OutboxEntry, RunInput
 from app.domain.types.run import Run
@@ -29,6 +31,8 @@ from app.domain.types.session import Session, SessionStatus
 from app.domain.types.student import Entitlements, Student
 from app.domain.types.submission import Submission
 from app.domain.types.task import Task, TaskStatus
+from app.domain.types.tool import ToolResult
+from app.domain.types.usage import UsageCounter
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -149,6 +153,38 @@ class EventStore(Protocol):
         self, actor: ActorContext, after_sequence: int, limit: int
     ) -> Sequence[DomainEvent]: ...
 
+    async def oldest_retained_sequence(self, actor: ActorContext) -> int:
+        """Events below this sequence have been purged; older cursors are expired."""
+        ...
+
+
+class AssessmentStore(Protocol):
+    async def get(self, actor: ActorContext, assessment_id: str) -> Assessment | None: ...
+
+    async def list_for_session(
+        self, actor: ActorContext, session_id: str, page: PageRequest
+    ) -> PaginatedResponse[Assessment]: ...
+
+    def create(self, actor: ActorContext, assessment: Assessment) -> None:
+        """Assessments are immutable; a regrade is a new one that supersedes the old."""
+        ...
+
+
+class MasteryStore(Protocol):
+    async def get(self, actor: ActorContext, skill_id: str) -> MasteryState | None: ...
+
+    def save(self, actor: ActorContext, state: MasteryState) -> None: ...
+
+
+class UsageStore(Protocol):
+    async def get(self, actor: ActorContext, key: str) -> UsageCounter | None: ...
+
+    def save(self, actor: ActorContext, counter: UsageCounter) -> None: ...
+
+
+class ToolResultStore(Protocol):
+    def create(self, actor: ActorContext, result: ToolResult) -> None: ...
+
 
 class OutboxStore(Protocol):
     async def get(self, actor: ActorContext, delivery_id: str) -> OutboxEntry | None: ...
@@ -181,6 +217,14 @@ class Tx(Protocol):
     def events(self) -> EventStore: ...
     @property
     def outbox(self) -> OutboxStore: ...
+    @property
+    def assessments(self) -> AssessmentStore: ...
+    @property
+    def mastery(self) -> MasteryStore: ...
+    @property
+    def usage(self) -> UsageStore: ...
+    @property
+    def tool_results(self) -> ToolResultStore: ...
 
 
 class UnitOfWork(Protocol):

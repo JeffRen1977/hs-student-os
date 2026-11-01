@@ -26,7 +26,15 @@ class AppEnv(StrEnum):
 
 class LlmProvider(StrEnum):
     ANTHROPIC = "anthropic"
+    OPENAI = "openai"
     MOCK = "mock"
+
+
+# Default tier → model ids per real provider. Override with HSOS_LLM_MODEL_{FAST,BALANCED,STRONG}.
+DEFAULT_MODELS: dict[LlmProvider, tuple[str, str, str]] = {
+    LlmProvider.ANTHROPIC: ("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"),
+    LlmProvider.OPENAI: ("gpt-5.4-mini", "gpt-5.4", "gpt-5.5"),
+}
 
 
 class QueueProvider(StrEnum):
@@ -72,6 +80,27 @@ class Settings(BaseSettings):
     local_worker_enabled: bool = True
     local_worker_poll_seconds: float = Field(default=1.0, gt=0, le=60)
 
+    # Model gateway (Step 16). Tier → model id; unset tiers use DEFAULT_MODELS for the
+    # selected provider. Keys come from ANTHROPIC_API_KEY / OPENAI_API_KEY (Secret Manager
+    # when deployed); SecretStr keeps them out of reprs and logs.
+    llm_model_fast: str | None = None
+    llm_model_balanced: str | None = None
+    llm_model_strong: str | None = None
+    anthropic_api_key: SecretStr | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
+    openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
+    llm_timeout_seconds: float = Field(default=60.0, gt=0, le=600)
+    llm_max_attempts: int = Field(default=3, ge=1, le=5)
+    llm_run_token_budget: int = Field(default=40_000, ge=1_000)
+    llm_session_token_budget: int = Field(default=200_000, ge=1_000)
+    llm_daily_token_budget: int = Field(default=400_000, ge=1_000)
+    # Production refuses to serve content that has not passed human review.
+    require_reviewed_content: bool = False
+
+    # Event stream (Step 19). Close before Cloud Run's request timeout; clients reconnect.
+    sse_heartbeat_seconds: float = Field(default=15.0, gt=0, le=60)
+    sse_poll_seconds: float = Field(default=1.0, gt=0, le=30)
+    sse_max_stream_seconds: float = Field(default=300.0, gt=0, le=3000)
+
     # Worker authentication. Locally a shared service token; deployed, Google OIDC.
     worker_service_token: SecretStr | None = None
     worker_oidc_audience: str | None = None
@@ -91,6 +120,17 @@ class Settings(BaseSettings):
     @property
     def is_deployed(self) -> bool:
         return self.app_env in DEPLOYED_ENVS
+
+    def llm_models(self) -> tuple[str, str, str]:
+        """(fast, balanced, strong) model ids for the selected provider."""
+        fast, balanced, strong = DEFAULT_MODELS.get(
+            self.llm_provider, DEFAULT_MODELS[LlmProvider.ANTHROPIC]
+        )
+        return (
+            self.llm_model_fast or fast,
+            self.llm_model_balanced or balanced,
+            self.llm_model_strong or strong,
+        )
 
     @property
     def uses_emulators(self) -> bool:
@@ -117,6 +157,8 @@ class Settings(BaseSettings):
             problems.append(
                 "HSOS_WORKER_OIDC_AUDIENCE and HSOS_WORKER_SERVICE_ACCOUNT are required"
             )
+        if self.app_env is AppEnv.PRODUCTION and not self.require_reviewed_content:
+            problems.append("HSOS_REQUIRE_REVIEWED_CONTENT must be true in production")
         if self.gcp_project_id.startswith("demo-"):
             problems.append("HSOS_GCP_PROJECT_ID is an emulator-only demo project")
         if problems:

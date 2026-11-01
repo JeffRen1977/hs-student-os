@@ -12,6 +12,8 @@ FIREBASE_AUTH_EMULATOR_HOST ?= 127.0.0.1:9099
 EMULATOR_ENV := FIRESTORE_EMULATOR_HOST=$(FIRESTORE_EMULATOR_HOST) \
 	FIREBASE_AUTH_EMULATOR_HOST=$(FIREBASE_AUTH_EMULATOR_HOST) \
 	HSOS_GCP_PROJECT_ID=$(FIREBASE_PROJECT)
+# Let the local web server (make web) call the local API.
+WEB_ORIGIN_ENV := HSOS_CORS_ALLOWED_ORIGINS='["http://localhost:$(WEB_PORT)","http://127.0.0.1:$(WEB_PORT)"]'
 
 .PHONY: help install dev server server-memory web emulators seed typecheck lint format test \
 	test-unit test-contract test-emulator test-web check
@@ -29,10 +31,10 @@ dev: ## Run API (auto-reload) and static web server together
 	wait
 
 server: ## Run the API (+ local worker loop) against the emulators on :$(API_PORT)
-	cd $(SERVER_DIR) && $(EMULATOR_ENV) uv run uvicorn app.main:app --reload --port $(API_PORT)
+	cd $(SERVER_DIR) && $(EMULATOR_ENV) $(WEB_ORIGIN_ENV) uv run uvicorn app.main:app --reload --port $(API_PORT)
 
 server-memory: ## Run the API over an in-memory store seeded with fixtures (no Java needed)
-	cd $(SERVER_DIR) && $(EMULATOR_ENV) HSOS_STORAGE_PROVIDER=memory \
+	cd $(SERVER_DIR) && $(EMULATOR_ENV) $(WEB_ORIGIN_ENV) HSOS_STORAGE_PROVIDER=memory \
 		uv run uvicorn app.main:app --port $(API_PORT)
 
 web: ## Serve web/ on :$(WEB_PORT) (add ?demo=true for demo mode)

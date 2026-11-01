@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 
@@ -32,10 +33,15 @@ class RubricResult:
     earned: int
     possible: int
     evidence_refs: Sequence[str] = ()
+    # False when the criterion could not be judged on its own (it depends on an earlier
+    # error, or the student never reached it). Such criteria produce no skill evidence.
+    assessable: bool = True
 
     def __post_init__(self) -> None:
         if not 0 <= self.earned <= self.possible:
             raise ValueError("earned must be between 0 and possible")
+        if not self.assessable and self.earned:
+            raise ValueError("a criterion that could not be assessed earns no points")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -79,6 +85,11 @@ class Assessment:
     uncertainty: Uncertainty
     provenance: Provenance
     supersedes_assessment_id: str | None = None
+    # Student-facing feedback. For insufficient_evidence it is deliberately limited.
+    feedback: str = ""
+    question_id: str | None = None
+    rubric_id: str | None = None
+    created_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.status is AssessmentStatus.INSUFFICIENT_EVIDENCE and self.skill_evidence:

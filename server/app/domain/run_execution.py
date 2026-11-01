@@ -19,9 +19,11 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 
 from app.domain.access import is_enrolled, is_entitled
+from app.domain.assessment_service import AssessmentRejectedError, AssessmentService
 from app.domain.errors import ErrorCode
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.execution import (
+    ExecutionFailure,
     ExecutionOutput,
     ExecutionRequest,
     RetryableExecutionError,
@@ -36,12 +38,14 @@ from app.domain.types.event import EventType
 from app.domain.types.message import Message, MessageRole
 from app.domain.types.outbox import Delivery
 from app.domain.types.run import Run, RunError, RunKind, RunResult, RunStatus
-from app.domain.types.session import SessionStatus
+from app.domain.types.session import Session, SessionStatus
+from app.domain.types.student import Student
 
 logger = logging.getLogger(__name__)
 
 WORKER_SERVICE = "run-worker"
-HISTORY_LIMIT = 20
+HISTORY_PAGE = 100
+HISTORY_MAX_PAGES = 5  # the context loader truncates further to the pack's token budget
 
 
 class ProcessResult(StrEnum):
@@ -67,8 +71,10 @@ class RunExecutionService:
         worker_id: str,
         lease_seconds: int,
         max_attempts: int,
+        assessments: AssessmentService | None = None,
     ) -> None:
         self._uow = uow
+        self._assessments = assessments
         self._catalog = catalog
         self._executor = executor
         self._clock = clock
@@ -91,6 +97,11 @@ class RunExecutionService:
         except RetryableExecutionError:
             logger.warning("run_retryable_error", extra={"runId": delivery.run_id})
             return await self._after_retryable_error(actor, delivery.run_id, acquired.token)
+        except ExecutionFailure as exc:
+            logger.warning("run_execution_failed", extra={"runId": delivery.run_id,
+                                                          "error": exc.code})  # fmt: skip
+            await self.fail(actor, delivery.run_id, acquired.token, exc.code, False)
+            return ProcessResult.DONE
         except Exception as exc:
             logger.exception(
                 "run_execution_error",
@@ -98,7 +109,13 @@ class RunExecutionService:
             )
             await self.fail(actor, delivery.run_id, acquired.token, "EXECUTION_FAILED", False)
             return ProcessResult.DONE
-        await self.commit(actor, delivery.run_id, acquired.token, output)
+        try:
+            await self.commit(actor, delivery.run_id, acquired.token, output)
+        except AssessmentRejectedError as exc:
+            # The commit transaction aborted as a whole: no assessment, no mastery change.
+            logger.warning("assessment_rejected", extra={"runId": delivery.run_id,
+                                                         "reason": exc.reason})  # fmt: skip
+            await self.fail(actor, delivery.run_id, acquired.token, "ASSESSMENT_REJECTED", False)
         return ProcessResult.DONE
 
     # ---- Lease ------------------------------------------------------------------------
@@ -136,9 +153,12 @@ class RunExecutionService:
                 return ProcessResult.DONE
 
             student_text = await self._student_text(tx, actor, run)
-            history = await tx.messages.list_for_session(
-                actor, session.session_id, PageRequest(limit=HISTORY_LIMIT)
+            history = await self._history(tx, actor, session.session_id)
+            submission = (
+                await tx.submissions.get(actor, run.submission_id) if run.submission_id else None
             )
+            student = await tx.students.get(actor)
+            task = await tx.tasks.get(actor, session.task_id)
             token = run.lease_fencing_token + 1
             leased = dataclasses.replace(
                 run,
@@ -170,11 +190,39 @@ class RunExecutionService:
                     session=session,
                     course=course,
                     student_text=student_text,
-                    history=history.items,
+                    history=history,
+                    submission=submission,
+                    student_name=student.profile.display_name if student else "",
+                    mastery_context=self._mastery_context(student, session),
+                    mode=task.mode.value if task else "",
                 ),
             )
 
         return await self._uow.transaction(body)
+
+    async def _history(self, tx: Tx, actor: ActorContext, session_id: str) -> list[Message]:
+        messages: list[Message] = []
+        page = PageRequest(limit=HISTORY_PAGE)
+        for _ in range(HISTORY_MAX_PAGES):
+            batch = await tx.messages.list_for_session(actor, session_id, page)
+            messages.extend(batch.items)
+            if batch.next_cursor is None:
+                break
+            page = PageRequest(cursor=batch.next_cursor, limit=HISTORY_PAGE)
+        return messages
+
+    @staticmethod
+    def _mastery_context(student: Student | None, session: Session) -> str:
+        """Bounded summary of this course's mastery only (no other course's history)."""
+        if student is None:
+            return ""
+        prefix = session.course_id + "."
+        lines = [
+            f"- {skill}: {m.level.value} ({m.independent_evidence_count} independent)"
+            for skill, m in sorted(student.mastery_summary.items())
+            if skill.startswith(prefix)
+        ]
+        return "\n".join(lines[:20])
 
     async def _student_text(self, tx: Tx, actor: ActorContext, run: Run) -> str:
         if run.kind is RunKind.ASSESS_SUBMISSION and run.submission_id:
@@ -210,6 +258,29 @@ class RunExecutionService:
                 await finish_run(tx, actor, run, RunStatus.CANCELLED, now=now, ids=self._ids)
                 return True
             assert run.session_id is not None
+            assessment_id: str | None = None
+            if output.assessment is not None:
+                if self._assessments is None:
+                    raise AssessmentRejectedError("assessments_not_configured")
+                for result in output.tool_results:
+                    tx.tool_results.create(actor, result)
+                assessment = await self._assessments.commit_assessment(
+                    tx, actor, run, output.assessment,
+                    tool_result_ids={t.tool_result_id for t in output.tool_results}, now=now,
+                )  # fmt: skip
+                assessment_id = assessment.assessment_id
+            if output.issued_hint:
+                session = await tx.sessions.get(actor, run.session_id)
+                if session is not None:
+                    tx.sessions.save(
+                        actor,
+                        dataclasses.replace(
+                            session,
+                            server_hint_count=session.server_hint_count + 1,
+                            version=session.version + 1,
+                            updated_at=now,
+                        ),
+                    )
             message = Message(
                 message_id=self._ids.new("msg"),
                 student_id=actor.student_id,
@@ -222,8 +293,9 @@ class RunExecutionService:
             )
             tx.messages.save(actor, message)
             await finish_run(
-                tx, actor, run, RunStatus.SUCCEEDED, now=now, ids=self._ids,
-                result=RunResult(message_id=message.message_id),
+                tx, actor, dataclasses.replace(run, usage_tokens=output.usage_tokens),
+                RunStatus.SUCCEEDED, now=now, ids=self._ids,
+                result=RunResult(message_id=message.message_id, assessment_id=assessment_id),
             )  # fmt: skip
             return True
 

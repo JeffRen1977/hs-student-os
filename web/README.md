@@ -18,7 +18,7 @@ python3 -m http.server 8000 -d web
 
 | URL | 数据来源 | 说明 |
 |---|---|---|
-| `/` | 后端 API（`window.HS_API_BASE_URL`，默认 `http://localhost:8787`） | 登录（M1 Step 8）接入前停在“需要登录 / 未连接”页面。**API 失败不会改用演示数据。** |
+| `/` | 后端 API（`window.HS_API_BASE_URL`，默认 `http://localhost:8787`） | 先登录（`js/auth.js`）：配置 `window.HS_FIREBASE_CONFIG` 时用 Firebase Auth；本机（页面与 API 都在 localhost）未配置时提供“本地开发登录”，只能登录合成学生，令牌为 Auth 模拟器格式，部署环境的后端会拒绝。**API 失败不会改用演示数据。** |
 | `/?demo=true` | `fixtures/demo.json`（合成数据，API v0.3 形状） | 顶部有 DEMO 横幅；所有操作只在本机模拟，不保存、不评估。 |
 
 ## 模块地图
@@ -32,7 +32,9 @@ python3 -m http.server 8000 -d web
 | `js/data.js` | 仅展示元数据（图标、简称、模式标签）。`window.HSData.getPackMeta / getModeLabel`。不含任何学生数据或分数。 |
 | `js/store.js` | `useAppState(data)`：全部 React state。Task、Session、Run 分开保存；服务端事件日志（去重）与本地演示操作（`demoNotes`）分开。 |
 | `js/ui.js` | 共享 UI：`Card`、`Badge`、`Modal`、`PredictionBadge`（固定显示“暂无预测”）、`RunStatusBadge`、`DemoBanner`、`StatusScreen`、`ModeToggle`。 |
-| `js/agents/ap.js` | AP 课程面板：Task / Session / Run 状态卡、GPA 工作区、考试工作区、作答输入（本地草稿）。 |
+| `js/agents/ap.js` | AP 课程面板（演示模式）：Task / Session / Run 状态卡、GPA 工作区、考试工作区、作答输入（本地草稿）。 |
+| `js/agents/course_session.js` | API 模式的课程 agent 学习流程：开始练习、对话（提示）、提交解答、全部 Run 状态、评估结果（含“证据不足不计入掌握度”）、完成 / 放弃 / 取消、网络错误按同一 Idempotency-Key 重试、刷新后从服务端恢复。 |
+| `js/auth.js` | 普通脚本（`window.HSAuth`）：ID token 来源（Firebase / 本地模拟器开发登录 / 未配置）。 |
 | `js/agents/dsat.js`、`js/agents/admissions.js` | 规划中功能的预览面板，仅在演示模式出现。 |
 | `js/features.js` | `Header`、`TodayTasks`、`TwinSummary`（预测与掌握度）、`EventFeed`（服务端事件）、`CatalogModal`（课程目录）、`ManifestModal`、`MobileTabs`。 |
 | `js/app.js` | 选择 provider → `bootstrap()` → 根据请求状态渲染 `StatusScreen` 或 `Workspace`。`AGENT_MODULES` 注册表。 |
@@ -56,6 +58,11 @@ provider.fetchSessions({taskId})     // GET /api/sessions
 provider.fetchSession(sessionId)     // GET /api/sessions/{id}
 provider.fetchRun(runId)             // GET /api/runs/{id}
 provider.fetchEvents(afterSequence)  // GET /api/events?after=
+provider.fetchMessages / fetchSubmissions / fetchAssessments / fetchAssessment / fetchMastery
+provider.enrollCourse / unenrollCourse / createSession / sendMessage / submitAnswer
+provider.completeSession / abandonSession / cancelRun   // POST + Idempotency-Key
+HSProvider.createEventSubscription(provider, {after, onEvents, onExpired})
+                                     // SSE（fetch streaming + Bearer，Last-Event-ID 重连），失败后轮询
 HSProvider.bootstrap(provider)       // 启动顺序（API.md §5）
 ```
 
@@ -65,4 +72,4 @@ HSProvider.bootstrap(provider)       // 启动顺序（API.md §5）
 - 事件经 `mergeEvents()` 按 eventId 与 sequence 去重并排序，记录最后应用的 sequence。
 - 草稿只存本机（`createDraftStore`），界面明确显示“尚未发送”。
 
-写命令（注册课程、创建 Session、提交答案、取消 Run）在 M1/M2 接入；演示模式下这些按钮只写本地演示记录。
+API 模式下写命令已接入（M2 Step 20）；演示模式下这些按钮仍只写本地演示记录。本地联调：`make server-memory`（或 `make server` + 模拟器）与 `make web`，打开 `http://localhost:8000/`。`HSOS_LLM_PROVIDER=mock` 时 agent 回复是标注的合成回复，不会产生评估，因此无法完成练习；真实批改需要配置模型提供方（`HSOS_LLM_PROVIDER=anthropic` 或 `openai`）及对应 API key。首版只支持文本作答，没有上传入口。

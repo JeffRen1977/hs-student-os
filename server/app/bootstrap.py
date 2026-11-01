@@ -20,12 +20,21 @@ from app.adapters.firestore.identity_repository import FirestoreIdentityDirector
 from app.adapters.firestore.memory_store import MemoryDocumentStore
 from app.adapters.firestore.outbox_repository import FirestoreOperationsStore
 from app.adapters.firestore.unit_of_work import DocumentUnitOfWork
+from app.adapters.llm.gateway import Gateway
+from app.adapters.llm.provider import LlmProvider as LlmProviderAdapter
+from app.adapters.llm.router import ModelRouter
 from app.adapters.queue.local_queue import LocalQueue
 from app.adapters.runtime import RandomIdFactory, SystemClock
+from app.adapters.tools.math_verify import MathVerifyTool
 from app.config import AppEnv, ConfigError, LlmProvider, QueueProvider, Settings, StorageProvider
+from app.domain.assessment_service import AssessmentService
+from app.domain.budget import BudgetLedger, BudgetLimits
 from app.domain.command_service import CommandService
 from app.domain.course_service import CourseService
+from app.domain.event_feed import EventFeedService
+from app.domain.mastery_service import MasteryService
 from app.domain.ports.catalog import CourseCatalog
+from app.domain.ports.content import ModelTier, SubjectPackRegistry
 from app.domain.ports.execution import JobQueue, RunExecutor
 from app.domain.ports.identity import TokenVerifier
 from app.domain.ports.repositories import IdentityDirectory, OperationsStore, UnitOfWork
@@ -33,10 +42,13 @@ from app.domain.ports.runtime import Clock, IdFactory
 from app.domain.recovery import RecoveryService
 from app.domain.run_execution import RunExecutionService
 from app.domain.session_service import SessionService
+from app.domain.skill_executor import SkillExecutor
 from app.domain.task_service import TaskService
 from app.domain.twin_service import TwinService
-from app.registries.content import load_content
+from app.registries.content import ContentRegistry, load_content
 from app.registries.course_catalog import RegistryCourseCatalog
+from app.registries.subject_pack_registry import ContentSubjectPackRegistry
+from app.registries.tool_registry import ToolRegistry
 from app.workers.auth import (
     DenyAllAuthenticator,
     GoogleOidcAuthenticator,
@@ -55,6 +67,8 @@ class Services:
     operations: OperationsStore
     identities: IdentityDirectory
     catalog: CourseCatalog
+    packs: SubjectPackRegistry
+    budget: BudgetLedger
     clock: Clock
     ids: IdFactory
     token_verifier: TokenVerifier
@@ -67,6 +81,9 @@ class Services:
     sessions: SessionService
     commands: CommandService
     run_execution: RunExecutionService
+    assessments: AssessmentService
+    mastery: MasteryService
+    events: EventFeedService
     recovery: RecoveryService
     local_worker: LocalWorkerLoop | None
 
@@ -137,12 +154,54 @@ def _queue(settings: Settings) -> JobQueue:
     )
 
 
-def _executor(settings: Settings) -> RunExecutor:
-    if settings.llm_provider is LlmProvider.MOCK:
-        return SyntheticExecutor()
-    # The Anthropic-backed LLMGateway lands in Step 16. Until then a non-mock provider
-    # has no executor, and that must fail loudly rather than fall back to synthetic output.
-    raise ConfigError("HSOS_LLM_PROVIDER=anthropic has no executor until Step 16 (LLMGateway)")
+def model_router(settings: Settings) -> ModelRouter:
+    fast, balanced, strong = settings.llm_models()
+    return ModelRouter(
+        {ModelTier.FAST: fast, ModelTier.BALANCED: balanced, ModelTier.STRONG: strong}
+    )
+
+
+def real_llm_provider(settings: Settings) -> LlmProviderAdapter:
+    """The configured real provider. Refuses `mock`: synthetic output is never grading."""
+    if settings.llm_provider is LlmProvider.ANTHROPIC:
+        from app.adapters.llm.anthropic_provider import AnthropicProvider
+
+        key = settings.anthropic_api_key
+        return AnthropicProvider.from_api_key(key.get_secret_value() if key else None)
+    if settings.llm_provider is LlmProvider.OPENAI:
+        from app.adapters.llm.openai_provider import OpenAIProvider
+
+        key = settings.openai_api_key
+        return OpenAIProvider.from_api_key(key.get_secret_value() if key else None)
+    raise ConfigError(f"HSOS_LLM_PROVIDER={settings.llm_provider.value} is not a real provider")
+
+
+def _executor(
+    settings: Settings,
+    provider: LlmProviderAdapter | None,
+    packs: SubjectPackRegistry,
+    ledger: BudgetLedger,
+    clock: Clock,
+    ids: IdFactory,
+) -> RunExecutor:
+    """`mock` → labeled synthetic replies, never assessments. A real provider (or an injected
+    test provider) → the skill runtime behind the budgeted gateway."""
+    if provider is None:
+        if settings.llm_provider is LlmProvider.MOCK:
+            return SyntheticExecutor()
+        provider = real_llm_provider(settings)
+    gateway = Gateway(
+        provider,
+        model_router(settings),
+        ledger,
+        max_attempts=settings.llm_max_attempts,
+        timeout_seconds=settings.llm_timeout_seconds,
+    )
+    return SkillExecutor(gateway, packs, ToolRegistry([MathVerifyTool()]), clock, ids)
+
+
+def _course_skills(content: ContentRegistry) -> dict[str, list[str]]:
+    return {cid: sorted(pack.skill_ids) for cid, pack in content.packs.items()}
 
 
 def build_services(
@@ -156,24 +215,39 @@ def build_services(
     queue: JobQueue | None = None,
     catalog: CourseCatalog | None = None,
     worker_id: str | None = None,
+    llm_provider: LlmProviderAdapter | None = None,
 ) -> Services:
     store = store or _store(settings)
     clock = clock or SystemClock()
     ids = ids or RandomIdFactory()
-    catalog = catalog or RegistryCourseCatalog(load_content())
+    content = load_content()
+    catalog = catalog or RegistryCourseCatalog(content)
+    packs = ContentSubjectPackRegistry(content, require_reviewed=settings.require_reviewed_content)
     uow = DocumentUnitOfWork(store)
+    ledger = BudgetLedger(
+        uow,
+        clock,
+        ids,
+        BudgetLimits(
+            run_tokens=settings.llm_run_token_budget,
+            session_tokens=settings.llm_session_token_budget,
+            daily_tokens=settings.llm_daily_token_budget,
+        ),
+    )
+    assessments = AssessmentService(uow, packs, clock, ids)
     operations = FirestoreOperationsStore(store)
     queue = queue or _queue(settings)
     dispatcher = OutboxDispatcher(uow, operations, queue, clock)
     run_execution = RunExecutionService(
         uow,
         catalog,
-        executor or _executor(settings),
+        executor or _executor(settings, llm_provider, packs, ledger, clock, ids),
         clock,
         ids,
         worker_id=worker_id or f"worker-{socket.gethostname()}-{ids.new('w')}",
         lease_seconds=settings.run_lease_seconds,
         max_attempts=settings.run_max_attempts,
+        assessments=assessments,
     )
     recovery = RecoveryService(
         uow, operations, clock, requeue_after_seconds=settings.run_requeue_after_seconds
@@ -196,6 +270,8 @@ def build_services(
         operations=operations,
         identities=FirestoreIdentityDirectory(store),
         catalog=catalog,
+        packs=packs,
+        budget=ledger,
         clock=clock,
         ids=ids,
         token_verifier=token_verifier or FirebaseTokenVerifier(settings, clock),
@@ -205,9 +281,12 @@ def build_services(
         twin=TwinService(uow, catalog, clock),
         courses=CourseService(uow, catalog, clock, ids),
         tasks=TaskService(uow, catalog, clock),
-        sessions=SessionService(uow, catalog, clock, ids),
-        commands=CommandService(uow, catalog, clock, ids),
+        sessions=SessionService(uow, catalog, clock, ids, packs),
+        commands=CommandService(uow, catalog, clock, ids, ledger),
         run_execution=run_execution,
+        assessments=assessments,
+        mastery=MasteryService(uow, catalog, _course_skills(content)),
+        events=EventFeedService(uow),
         recovery=recovery,
         local_worker=local_worker,
     )

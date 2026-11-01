@@ -4,14 +4,20 @@ pinned skills, owner ids where the contract omits them) are dropped here."""
 from __future__ import annotations
 
 from app.domain.course_service import CourseAgent, EnrolledCourse
+from app.domain.ports.content import SubjectPackRegistry
+from app.domain.types.assessment import Assessment
 from app.domain.types.course import AgentConfig, CourseCatalogEntry, CourseEnrollment
+from app.domain.types.event import DomainEvent
+from app.domain.types.mastery import MasteryState
 from app.domain.types.message import Message
 from app.domain.types.run import Run
 from app.domain.types.session import Session
 from app.domain.types.student import Entitlements, NotificationPreferences, Student
 from app.domain.types.submission import Submission
 from app.domain.types.task import Task
+from app.schemas import assessment as a
 from app.schemas import course as c
+from app.schemas import event as ev
 from app.schemas import message as m
 from app.schemas import run as r
 from app.schemas import session as s
@@ -105,19 +111,19 @@ def enrolled_course(e: EnrolledCourse) -> c.EnrolledCourse:
     )
 
 
-def course_agent(a: CourseAgent) -> c.CourseAgentView:
+def course_agent(ag: CourseAgent, packs: SubjectPackRegistry | None = None) -> c.CourseAgentView:
     return c.CourseAgentView(
-        course_id=a.course.course_id,
-        agent_type=a.course.agent.agent_type,
-        name=a.course.name,
-        modes=list(a.course.agent.modes),
-        supported_task_types=list(a.course.agent.supported_task_types),
-        active_sessions=[session(x) for x in a.active_sessions],
+        course_id=ag.course.course_id,
+        agent_type=ag.course.agent.agent_type,
+        name=ag.course.name,
+        modes=list(ag.course.agent.modes),
+        supported_task_types=list(ag.course.agent.supported_task_types),
+        active_sessions=[session(x, packs) for x in ag.active_sessions],
         mastery_summary={
             k: st.MasteryEntry(
                 level=v.level, independent_evidence_count=v.independent_evidence_count
             )
-            for k, v in a.mastery_summary.items()
+            for k, v in ag.mastery_summary.items()
         },
     )
 
@@ -137,11 +143,22 @@ def task(x: Task) -> t.Task:
         version=x.version,
         reason=t.TaskReason(code=x.reason.code, source_event_ids=list(x.reason.source_event_ids)),
         student_locked=x.student_locked,
+        question_id=x.question_id,
     )
 
 
-def session(x: Session) -> s.Session:
+def session(x: Session, packs: SubjectPackRegistry | None = None) -> s.Session:
+    activity = None
+    if x.activity is not None and packs is not None:
+        q = packs.question(x.course_id, x.activity.question_id)
+        if q is not None and q.version == x.activity.question_version:
+            activity = s.SessionActivity(
+                question_id=q.question_id, question_version=q.version,
+                topic=q.topic, prompt=q.prompt,
+            )  # fmt: skip
     return s.Session(
+        activity=activity,
+        hint_count=x.server_hint_count,
         session_id=x.session_id,
         task_id=x.task_id,
         status=x.status,
@@ -209,4 +226,79 @@ def run(x: Run) -> r.Run:
             else None
         ),
         error=r.RunError(code=x.error.code, retryable=x.error.retryable) if x.error else None,
+    )
+
+
+def assessment(x: Assessment) -> a.Assessment:
+    return a.Assessment(
+        assessment_id=x.assessment_id,
+        submission_id=x.submission_id,
+        session_id=x.session_id,
+        run_id=x.run_id,
+        status=x.status,
+        question_version=x.question_version,
+        rubric_version=x.rubric_version,
+        rubric_results=[
+            a.RubricResult(
+                criterion_id=r.criterion_id,
+                earned=r.earned,
+                possible=r.possible,
+                evidence_refs=list(r.evidence_refs),
+                assessable=r.assessable,
+            )
+            for r in x.rubric_results
+        ],
+        hint_usage=a.HintUsage(
+            server_hint_count=x.hint_usage.server_hint_count,
+            self_reported_help=x.hint_usage.self_reported_help,
+        ),
+        skill_evidence=[
+            a.SkillEvidence(skill_id=e.skill_id, observation=e.observation)
+            for e in x.skill_evidence
+        ],
+        uncertainty=a.Uncertainty(level=x.uncertainty.level, reasons=list(x.uncertainty.reasons)),
+        provenance=a.Provenance(
+            model_version=x.provenance.model_version,
+            workflow_version=x.provenance.workflow_version,
+            tool_result_ids=list(x.provenance.tool_result_ids),
+        ),
+        supersedes_assessment_id=x.supersedes_assessment_id,
+        question_id=x.question_id,
+        rubric_id=x.rubric_id,
+        feedback=x.feedback,
+        created_at=x.created_at,
+    )
+
+
+def mastery(m: MasteryState) -> a.MasteryState:
+    return a.MasteryState(
+        skill_id=m.skill_id,
+        course_id=m.course_id,
+        level=m.level,
+        independent_evidence_count=m.independent_evidence_count,
+        evidence_count=m.evidence_count,
+        coverage=m.coverage,
+        uncertainty=m.uncertainty,
+        updated_at=m.updated_at,
+        rule_version=m.rule_version,
+    )
+
+
+def event(e: DomainEvent) -> ev.Event:
+    """Filtered projection: only the payload fields declared for the event type survive, so
+    internal keys (outbox ids, model output, tool arguments) can never reach a client."""
+    model = ev.PAYLOAD_TYPES[e.type]
+    allowed = {f.alias or name for name, f in model.model_fields.items()}
+    payload = {k: v for k, v in e.payload.items() if k in allowed}
+    return ev.Event(
+        event_id=e.event_id,
+        sequence=e.sequence,
+        schema_version=e.schema_version,
+        student_id=e.student_id,
+        session_id=e.session_id,
+        run_id=e.run_id,
+        type=e.type,
+        occurred_at=e.occurred_at,
+        causation_id=e.causation_id,
+        payload=model.model_validate(payload).model_dump(mode="json", by_alias=True),
     )

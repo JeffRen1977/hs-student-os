@@ -32,6 +32,16 @@ class ContextVersion:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class SessionActivity:
+    """The question a session works on, with versions pinned at session start."""
+
+    question_id: str
+    question_version: str
+    rubric_id: str
+    rubric_version: str
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class CompletionEligibility:
     eligible: bool
     reason: CompletionBlocker | None = None
@@ -55,6 +65,10 @@ class Session:
     # Internal: agent skills pinned when the session opened, and completion inputs.
     agent_skills: Sequence[str] = ()
     has_accepted_assessment: bool = False
+    # Content pinned when the session opened (Step 17.1): the activity the student works on.
+    activity: SessionActivity | None = None
+    # Hints the agent has issued in this session (server record, BACKEND.md §5.4).
+    server_hint_count: int = 0
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

@@ -1,0 +1,20 @@
+{
+  "materialId": "mat_calc_related_rates",
+  "version": "1",
+  "courseId": "calc_bc",
+  "skillIds": [
+    "calc_bc.related-rates"
+  ],
+  "title": "Related rates",
+  "text": "Write an equation that relates the quantities, differentiate it with respect to time t, and only then substitute the values given at the instant of interest. Substituting before differentiating turns a changing quantity into a constant. Report the rate with units per unit time.",
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

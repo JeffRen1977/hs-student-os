@@ -28,6 +28,7 @@ class Task(ApiModel):
     version: int = Field(ge=1)
     reason: TaskReason
     student_locked: bool = False
+    question_id: OpaqueId | None = None  # the pack question this task practices, if any
 
 
 class TaskList(ApiModel):

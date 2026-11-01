@@ -34,3 +34,12 @@ class Submission:
     supersedes_submission_id: str | None
     run_id: str
     created_at: datetime
+    # Server records captured when the submission was accepted (never client-provided):
+    # hints issued earlier in the session, and earlier attempts at the same question.
+    server_hint_count: int = 0
+    prior_attempt_count: int = 0
+
+    @property
+    def is_assisted(self) -> bool:
+        """Hint-assisted or a correction after feedback: never independent evidence."""
+        return self.server_hint_count > 0 or self.prior_attempt_count > 0

@@ -1,6 +1,6 @@
 # High School Student OS — API 契约 v0.3
 
-更新：2026-10-31。M1 实现补充：`COURSE_NOT_ENROLLED`、目录 `status`/`agent` 字段、消息资源、身份映射与 `date=today`（标注 “M1”）。2026-10-30 增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
+更新：2026-10-31。M2 实现补充：评估/掌握度/完成/事件流接口与字段（标注 “M2”，见 §1.4、§1.5、§2.6、§4、§8）。M1 实现补充：`COURSE_NOT_ENROLLED`、目录 `status`/`agent` 字段、消息资源、身份映射与 `date=today`（标注 “M1”）。2026-10-30 增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
 
 ## 0. 通用约定
 
@@ -127,6 +127,8 @@ Task 状态：PLANNED、IN_PROGRESS、COMPLETED、SKIPPED。学生不能直接 P
 }
 ```
 
+M2：Session 另含 `activity`（`{questionId, questionVersion, topic, prompt}`，开始时固定的题目版本）与 `hintCount`（服务端已发出的提示次数）。Task 可带 `questionId`。Session 打开后提交的 questionId 必须与 activity 一致（否则 400）；pack/题目版本在 Session 期间变化时 Run 以 `CONTENT_VERSION_CHANGED` 失败，不静默换版本。
+
 Session：OPEN、COMPLETED、ABANDONED。Run：QUEUED、RUNNING、WAITING_INPUT、SUCCEEDED、FAILED、CANCELLED。一个 Session 多次 Run；一个 Task 多次 Session 尝试。首版每个 Task 最多一个 OPEN Session、每个 Session 最多一个非终态 Run。学生范围的 PLANNING Run 可无 Session，此时 sessionId 为 null；它按计划版本与来源键去重，不占用学习 Session 的执行位置。
 
 ### 1.5 Submission / Assessment
@@ -161,6 +163,8 @@ Session：OPEN、COMPLETED、ABANDONED。Run：QUEUED、RUNNING、WAITING_INPUT�
   "supersedesAssessmentId": null
 }
 ```
+
+M2：Assessment 另含 `questionId`、`rubricId`、`feedback`（学生可见反馈；insufficient_evidence 时截短为有限反馈）、`createdAt`；`rubricResults[].assessable`（false 表示该项只因前面的错误而失分或未作答，不能单独评估，得分必为 0，且不产生技能证据）。`skillEvidence` 与 `hintUsage` 由服务端从 rubric 与服务端提示记录推导，模型和客户端都不能提供；有提示或在反馈后订正的作答一律不记为 `correct_independent`。
 
 Assessment status 为 accepted 或 insufficient_evidence。后者可显示有限反馈但不更新 mastery，也不满足要求 accepted assessment 的完成规则。Run SUCCEEDED 只代表执行成功，可包含 insufficient_evidence；前端不能把二者混同。
 
@@ -393,9 +397,13 @@ inputRequest 定义服务端允许的 schema；不能用该入口注入评估结
 - `GET /api/assessments?sessionId=...&cursor=...` → 评估历史与 supersedes 关系。
 - `GET /api/mastery?courseId=calc_bc&cursor=...` → 技能状态、证据数量、覆盖度、不确定性与更新时间；无证据返回 insufficient_evidence。
 
+M2：`GET /api/mastery?courseId=` 返回 `{"mastery": [{skillId, courseId, level, independentEvidenceCount, evidenceCount, coverage, uncertainty, updatedAt, ruleVersion}], "nextCursor"}`，按课程全部技能分页（无证据的技能为 insufficient_evidence）；`GET /api/assessments` 需要 `sessionId`。掌握度规则为未校准的产品规则 `mastery-rules-v1`，不是考试预测。
+
 模型内部重评为新 Assessment 版本，由受控后台流程执行。重评替换同一证据贡献，不向公开 API 暴露任意 mastery 写入。
 
 ## 3. 文件接口
+
+M2：首版试点为纯文本作答，以下文件接口尚未实现，前端没有上传入口（Step 21.4）。
 
 文件能力在文本闭环后交付，未启用时客户端不展示可用上传能力。
 
@@ -427,6 +435,8 @@ SSE id 使用学生范围的 sequence。重连优先采用有效 Last-Event-ID�
 
 浏览器使用带 Authorization header 的 fetch streaming；不把认证 token 放入 query。服务端心跳、请求时限前重连与权限过期处理都必须实现。无法 streaming 时轮询同一事件源。
 
+M2：流开始前先校验 cursor，所以 400/410 是真正的 HTTP 错误；之后的错误以 `event: error` 帧结束流。流在 `HSOS_SSE_MAX_STREAM_SECONDS`（默认 300 秒）或 token 过期时以注释帧关闭，客户端用 Last-Event-ID 重连。`after` 大于该学生最新 sequence 返回 400（不是该学生的 cursor）。
+
 事件被清理而 cursor 过旧时返回 410 `EVENT_CURSOR_EXPIRED`，重新获取 Twin/Task/Session 状态快照并从快照 sequence 续接。客户端先存储事件，再按最新资源状态渲染，避免倒退。没有公开事件 POST；消息、作答、取消均有自己的命令端点。
 
 ## 5. 前端接入与权限投影
@@ -446,6 +456,12 @@ SSE id 使用学生范围的 sequence。重连优先采用有效 Last-Event-ID�
 - `commitAssessment()`、`completeSession()` 的事务实现。
 
 内部路径也校验 OIDC/IAM、受众与请求 schema。队列不是认证替代。运维日志、queue delivery payload 与学生事件分别存储。
+
+## 6.1 M2 Run 错误码与预算
+
+Run FAILED 的 `error.code`（面向学生，不含供应商消息）：`BUDGET_EXCEEDED`、`MODEL_OUTPUT_INVALID`（有限次重试后输出仍不可用）、`MODEL_REFUSED`、`MODEL_UNAVAILABLE`、`EXECUTION_RETRIES_EXHAUSTED`、`ASSESSMENT_REJECTED`（服务端语义校验未通过，整个提交回滚）、`CONTENT_VERSION_CHANGED`、`COURSE_CONTENT_UNAVAILABLE`、`SKILL_NOT_ENABLED`。这些失败都不写评估、不改掌握度。
+
+会话或当天预算已用完时，新的消息/提交命令返回 429 `BUDGET_EXCEEDED`。预算按 Run、Session、学生每个 UTC 日计，重试也计入；不会为省预算降级评分模型。
 
 ## 7. v0.1 → v0.2 迁移与验收
 

@@ -41,7 +41,7 @@ class FirestoreEventStore:
         state_path = paths.sub(actor, "eventState", "current")
         state = await self._txn.get(state_path)
         sequence = int(state["nextSequence"]) if state else 1
-        self._txn.set(state_path, {"nextSequence": sequence + 1})
+        self._txn.set(state_path, {**(state or {}), "nextSequence": sequence + 1})
         event = DomainEvent(
             event_id=event_id,
             sequence=sequence,
@@ -74,6 +74,12 @@ class FirestoreEventStore:
     async def latest_sequence(self, actor: ActorContext) -> int:
         state = await self._txn.get(paths.sub(actor, "eventState", "current"))
         return int(state["nextSequence"]) - 1 if state else 0
+
+    async def oldest_retained_sequence(self, actor: ActorContext) -> int:
+        # A retention job (M4 Step 31) records the purge floor here; until then nothing
+        # is purged and every cursor stays valid.
+        state = await self._txn.get(paths.sub(actor, "eventState", "current"))
+        return int(state.get("oldestRetainedSequence", 1)) if state else 1
 
     async def list_after(
         self, actor: ActorContext, after_sequence: int, limit: int

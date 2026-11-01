@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from app.domain.access import require_course_access
+from app.domain.budget import BudgetLedger
 from app.domain.commands import CommandKey, Outcome, find_replay, remember
 from app.domain.errors import DomainError, ErrorCode
 from app.domain.ports.catalog import CourseCatalog
@@ -20,6 +21,7 @@ from app.domain.ports.runtime import Clock, IdFactory
 from app.domain.runs import enqueue_run, finish_run
 from app.domain.session_service import get_owned_session, with_active_run
 from app.domain.types.actor import ActorContext, Permission
+from app.domain.types.common import PageRequest
 from app.domain.types.file import FileStatus
 from app.domain.types.message import Message, MessageRole
 from app.domain.types.outbox import RunInput
@@ -46,12 +48,18 @@ class AcceptedMessage:
 
 class CommandService:
     def __init__(
-        self, uow: UnitOfWork, catalog: CourseCatalog, clock: Clock, ids: IdFactory
+        self,
+        uow: UnitOfWork,
+        catalog: CourseCatalog,
+        clock: Clock,
+        ids: IdFactory,
+        budget: BudgetLedger | None = None,
     ) -> None:
         self._uow = uow
         self._catalog = catalog
         self._clock = clock
         self._ids = ids
+        self._budget = budget
 
     # ---- Shared checks ----------------------------------------------------------------
 
@@ -70,7 +78,27 @@ class CommandService:
                 raise DomainError(
                     ErrorCode.RUN_IN_PROGRESS, "A run is already active in this session."
                 )
+        if self._budget is not None:
+            spent = await self._budget.exhausted_scope(
+                tx, actor, session.session_id, self._clock.now()
+            )
+            if spent is not None:
+                raise DomainError(
+                    ErrorCode.BUDGET_EXCEEDED,
+                    f"The {spent.value} tutoring budget is used up; try again later.",
+                )
         return session
+
+    async def _prior_attempts(
+        self, tx: Tx, actor: ActorContext, session_id: str, question_id: str
+    ) -> int:
+        count, page = 0, PageRequest(limit=100)
+        while True:
+            batch = await tx.submissions.list_for_session(actor, session_id, page)
+            count += sum(1 for s in batch.items if s.question_id == question_id)
+            if batch.next_cursor is None:
+                return count
+            page = PageRequest(cursor=batch.next_cursor, limit=100)
 
     async def _check_files(self, tx: Tx, actor: ActorContext, file_ids: Sequence[str]) -> None:
         for file_id in file_ids:
@@ -130,6 +158,13 @@ class CommandService:
             question = self._catalog.question(session.course_id, submission_input.question_id)
             if question is None:
                 raise DomainError(ErrorCode.NOT_FOUND, "Question not found in this course.")
+            if (
+                session.activity is not None
+                and submission_input.question_id != session.activity.question_id
+            ):
+                raise DomainError(
+                    ErrorCode.VALIDATION_FAILED, "This session works on a different question."
+                )
             if question.version != submission_input.question_version:
                 raise DomainError(
                     ErrorCode.VALIDATION_FAILED, "questionVersion does not match the question."
@@ -155,6 +190,11 @@ class CommandService:
                 supersedes_submission_id=submission_input.supersedes_submission_id,
                 run_id=run.run_id,
                 created_at=now,
+                # Server records, frozen at submission time (never client-provided).
+                server_hint_count=session.server_hint_count,
+                prior_attempt_count=await self._prior_attempts(
+                    tx, actor, session_id, submission_input.question_id
+                ),
             )
             tx.submissions.create(actor, submission)
             entry = await enqueue_run(

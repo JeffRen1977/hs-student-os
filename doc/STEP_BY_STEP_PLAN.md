@@ -12,14 +12,15 @@ The first product slice is **Calculus practice → supported assessment → save
 |---|---|---|
 | M0 Contracts and baseline | 1–7 | **Implemented; verification partial**: emulator tests not yet run, content not yet human-reviewed |
 | M1 Reliable foundation | 8–15 | **Implemented; verified over the in-memory backend**: Firestore-emulator run pending (no Java), Cloud Tasks/OIDC verified in staging (Step 30) |
-| M2 Calculus learning loop | 16–21 | Not started |
+| M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: real-model evaluation (Step 21) and real-provider smoke test pending an API key; emulator run pending (no Java) |
 | M3 Validated SAT transfer | 22–27 | Not started |
 | M4 Proactive planning and pilot | 28–33 | Not started |
 | M5 Optional expansion | 34–38 | Not started |
 
-Last local verification (`make check`, after M1): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **369 passed, 4 skipped** (all 4 are emulator tests, which skip without emulators), web `node --test` **19 passed**.
+Last local verification (`make check`, after M2): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **435 passed, 6 skipped** (5 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **29 passed**. Browser check in Chrome against `make server-memory` (synthetic execution).
 
-Open items before M0 and M1 can be called complete:
+Open items before M0–M2 can be called complete:
+- **Real-model evaluation (Steps 16, 21):** needs a model API key (Anthropic or OpenAI; OpenAI smoke test passed 2026-10-31). Run `tests/evaluation/test_real_provider_smoke.py` (`HSOS_RUN_REAL_LLM_SMOKE=1`) and `scripts/run_calc_evaluation.py`, which writes `content/evaluation/calc_bc/report-v1.md`. All M2 grading tests so far use a scripted model, so they say nothing about grading quality.
 - **Emulator verification (Steps 5, 9, 14, 15):** `make emulators` / `make test-emulator` have not been run on this machine (no Java runtime installed; Firebase emulators need Java 11+). `tests/emulator/test_seed_emulator.py` and `tests/emulator/test_firestore_flows.py` are written but currently skip. M1 transaction behaviour is proven only over the in-memory store until they run.
 - **Content review (Steps 4, 7):** questions, rubrics, and evaluation cases are `draft`; prerequisite mappings are `candidate`. None has a named reviewer yet. Evaluation thresholds in `dimensions.json` are unset until a content reviewer sets them.
 
@@ -30,7 +31,8 @@ Open items before M0 and M1 can be called complete:
 - `Makefile` — `install`, `dev`, `server`, `server-memory`, `web`, `emulators`, `seed`, `typecheck`, `lint`, `format`, `test*`, `check`
 - `web/` — vanilla JS frontend. The async `data-provider.js` (Bearer auth, Idempotency-Key, request states, event dedupe) is the new seam; `?demo=true` loads `web/fixtures/demo.json` (validated against backend schemas). Predictions show "unavailable", and Task/Session/Run are kept as separate state. `window.HSData` now holds display metadata only.
 - M1: Firebase token auth → `ActorContext`; Firestore repositories on a `DocTxn` seam with an in-memory test backend; twin, course catalog/enrollment/agent, task, session, message/submission, and run routes; transactional command acceptance with idempotency and outbox; outbox dispatcher, local queue, Cloud Tasks adapter, a lease/fencing-token run worker with its own HTTP service, a stalled-run recovery scan, and a labeled synthetic executor
-- Not built yet: LLM gateway, assessments/mastery, event feed/SSE, planner, frontend wired to the real API
+- M2: LLM gateway with budgets and tier routing, Socratic and rubric-assessment skills, math-verify tool, atomic AssessmentService commit with mastery projection, session complete, durable event feed with SSE, frontend wired to the real API (sign-in, sessions, submissions, assessments), evaluation runner
+- Not built yet: prerequisite mapping/consumers, planner, file upload/OCR, regrade trigger, event purge job
 
 Each step below is a reviewable change with verification criteria.
 
@@ -502,23 +504,23 @@ Each step below is a reviewable change with verification criteria.
 
 **Goal:** A controlled interface for model calls with usage tracking and budget enforcement.
 
-- [ ] 16.1 Create `app/adapters/llm/gateway.py` — `LLMGateway`:
+- [x] 16.1 Create `app/adapters/llm/gateway.py` — `LLMGateway`:
   - Provider abstraction with typed input (system, context, messages, schema) and output (content, usage, modelVersion)
-  - Start with one provider (Anthropic Claude)
+  - Start with one provider (Anthropic Claude); OpenAI added behind the same provider seam, selected per deployment
   - Capture model version and workflow version on every call
-- [ ] 16.2 Create `app/adapters/llm/router.py` — static `ModelRouter`:
+- [x] 16.2 Create `app/adapters/llm/router.py` — static `ModelRouter`:
   - Route by skill tier (fast/balanced/strong) from pack manifest
   - No decision model needed; rules-based routing
-- [ ] 16.3 Implement usage budgets:
+- [x] 16.3 Implement usage budgets:
   - Per-Run token budget
   - Per-Session cumulative budget
   - Per-student daily budget (including retries)
   - Budget exhaustion → pause/reject with explanation, not silent degradation
-- [ ] 16.4 Implement retry logic:
+- [x] 16.4 Implement retry logic:
   - Finite retries with backoff for transient failures
   - Schema validation on output; failed validation may retry within budget
   - Never silently downgrade grading to an unevaluated model to fit budget
-- [ ] 16.5 Write tests:
+- [x] 16.5 Write tests:
   - Provider timeout → graceful failure
   - Schema validation failure → retry then fail
   - Budget exhaustion → clear rejection
@@ -527,35 +529,37 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Model calls are tracked, budgeted, and retried safely. No secrets or raw student work in logs.
 
+**Status: ✅ implemented, verified with a scripted provider.** `app/adapters/llm/` (gateway, router, Anthropic and OpenAI providers), `app/domain/budget.py`. `tests/unit/test_llm_gateway.py` covers routing floors, timeout→backoff→graceful failure, invalid output→retry→`MODEL_OUTPUT_INVALID`, refusal/permanent errors not retried, run/session/day budget refusal before the provider is called, expiring reservations, and logs with model/tokens but no content. `tests/unit/test_llm_providers.py` drives both real SDKs over a fake HTTP transport (request shape, refusal/truncation/error mapping, no SDK retries). The real-provider smoke test (`tests/evaluation/test_real_provider_smoke.py`, opt-in `HSOS_RUN_REAL_LLM_SMOKE=1`) **passed against OpenAI** on 2026-10-31; not yet run against Anthropic (no key). Server-side refusal fallbacks are deliberately off (they would answer with an unevaluated model).
+
 ---
 
 ### Step 17 — Implement Calculus skills: Socratic guidance and rubric assessment
 
 **Goal:** The first real learning skills — Socratic prompting and FRQ rubric assessment for calc_bc.
 
-- [ ] 17.1 Create `app/registries/subject_pack_registry.py`:
+- [x] 17.1 Create `app/registries/subject_pack_registry.py`:
   - Load and validate pack manifests from `content/packs/`
   - Only activate packs with `availability: "active"` and verified content
   - Pin question/rubric/workflow versions per Run
-- [ ] 17.2 Create `app/domain/skills/socratic_guidance.py`:
+- [x] 17.2 Create `app/domain/skills/socratic_guidance.py`:
   - Load minimal relevant student context (current mastery, session history)
   - Generate Socratic hints that guide without giving answers
   - Record each server-issued hint for dependency tracking
-- [ ] 17.3 Create `app/domain/skills/rubric_assessment.py`:
+- [x] 17.3 Create `app/domain/skills/rubric_assessment.py`:
   - Load fixed rubric version for the question
   - Evaluate student answer against each rubric criterion
   - Generate evidence references (which part of student answer supports each criterion)
   - Distinguish assisted success (hints used) from independent evidence
   - Return `accepted` or `insufficient_evidence` status with reasons
-- [ ] 17.4 Create `app/registries/tool_registry.py`:
+- [x] 17.4 Create `app/registries/tool_registry.py`:
   - Internal tool interface: `execute(name, input, context)`
   - First tool: mathematical expression verification (optional SymPy adapter)
   - Whitelist per skill, parameter schema, scope constraints
-- [ ] 17.5 Create `app/domain/context_loader.py`:
+- [x] 17.5 Create `app/domain/context_loader.py`:
   - Load reviewed material sets with source references
   - Filter by studentId/courseId/ACL before retrieval
   - Return material-not-found when index is insufficient
-- [ ] 17.6 Write tests using evaluation cases from Step 7:
+- [x] 17.6 Write tests using evaluation cases from Step 7:
   - Correct answer → appropriate rubric scores and evidence
   - Incorrect answer → identifies specific rubric failures
   - Hint-assisted answer → tracked as assisted, not independent
@@ -564,35 +568,37 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Skills produce rubric-backed assessments with evidence references. Hint dependency tracked. No fabricated tool success.
 
+**Status: ✅ implemented; pipeline verified, model quality not yet measured.** `app/registries/subject_pack_registry.py`, `app/domain/skills/`, `app/domain/context_loader.py`, `app/domain/skill_executor.py`, `app/registries/tool_registry.py` + `app/adapters/tools/math_verify.py` (SymPy, sanitized input). Added: `answerCheck` on three questions, three draft reference materials, per-criterion `assessable` (found via the partial-parametric case: a downstream zero must not become `incorrect` evidence for another skill). `tests/unit/test_skills.py` replays all six Step 7 cases through the real pipeline with a scripted model and checks evidence refs, derived skill evidence and hint handling, plus verifier agreement/disagreement, tool unavailable, ACL-filtered retrieval and material-not-found, version pinning. Production withholds draft content (`HSOS_REQUIRE_REVIEWED_CONTENT`).
+
 ---
 
 ### Step 18 — Implement AssessmentService: atomic evidence commit
 
 **Goal:** Assessment results, mastery updates, events, and Run completion happen in one transaction.
 
-- [ ] 18.1 Create `app/domain/assessment_service.py` — `commit_assessment()`:
+- [x] 18.1 Create `app/domain/assessment_service.py` — `commit_assessment()`:
   - Validate evidence semantically (not just JSON shape): question ownership, rubric version, evidence references, student answer, tool results, hint records
   - In one transaction: save Assessment + mastery projection + Run terminal state + domain events + outbox entries
   - `insufficient_evidence` → can show limited feedback but does NOT update mastery
   - Use unique evidence application ID — same evidence cannot be applied twice
   - Regrade: `supersedesAssessmentId` replaces earlier evidence contribution
   - Consecutive corrections after hints are NOT counted as independent evidence
-- [ ] 18.2 Create `app/domain/mastery_service.py`:
+- [x] 18.2 Create `app/domain/mastery_service.py`:
   - Project mastery from accepted assessments
   - Track: skill level, independent evidence count, coverage, uncertainty
   - Mastery is derivable from assessments (can be rebuilt)
-- [ ] 18.3 Create `app/domain/assessment_service.py` — `complete_session()`:
+- [x] 18.3 Create `app/domain/assessment_service.py` — `complete_session()`:
   - Check: no active Run, accepted assessment exists, task completion rules met
   - In one transaction: Session → COMPLETED, Task → COMPLETED, events
   - Does NOT re-apply mastery (summary only, no double-counting)
   - `abandon()`: Session → ABANDONED, Task back to PLANNED; requires no active Run
-- [ ] 18.4 Create API routes:
+- [x] 18.4 Create API routes:
   - `GET /api/assessments/:assessmentId`
   - `GET /api/assessments?sessionId=...&cursor=...`
   - `GET /api/mastery?courseId=...&cursor=...`
   - `POST /api/sessions/:sessionId/complete` + Idempotency-Key
   - `POST /api/sessions/:sessionId/abandon` + Idempotency-Key
-- [ ] 18.5 Write tests:
+- [x] 18.5 Write tests:
   - Partial transaction failure → no orphan assessment, mastery unchanged
   - Replayed commit → returns existing result
   - Stale lease (old fencing token) → rejected
@@ -606,17 +612,19 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Atomic commit. No double-counting. Insufficient evidence handled correctly. State consistent after failures.
 
+**Status: ✅ implemented, verified over the in-memory backend.** `app/domain/assessment_service.py`, `app/domain/mastery_service.py`, `app/domain/types/mastery.py`, routes in `app/api/routes/assessments.py` + `POST /sessions/:id/complete`. `tests/contract/test_assessment_flow.py` covers the full loop, crash at commit (nothing written, recovery finishes once), stale fencing token, replayed commit, cancellation during grading, insufficient_evidence, complete idempotency / `RUN_IN_PROGRESS` / `COMPLETION_REQUIREMENTS_NOT_MET`, isolation, budget exhaustion, invalid output, rejected drafts, correction after feedback, prediction still `unavailable`. `tests/unit/test_mastery.py` covers idempotent apply, regrade replacement and rebuild = incremental. Regrade exists at the domain level only (no public trigger yet). `tests/emulator/test_assessment_commit.py` is written but skips (no Java).
+
 ---
 
 ### Step 19 — Implement durable event feed (SSE + polling)
 
 **Goal:** Frontend receives real-time updates from persistent events, with reconnection and replay.
 
-- [ ] 19.1 Create `app/adapters/firestore/event_repository.py`:
+- [x] 19.1 Create `app/adapters/firestore/event_repository.py`:
   - Per-student monotonic sequence assignment (in transaction)
   - `listEvents(actor, afterSequence, limit)` — paginated, ordered by sequence
   - Filtered projection: exclude internal outbox, raw model reasoning, credentials, private tool params
-- [ ] 19.2 Create `app/api/routes/events.py`:
+- [x] 19.2 Create `app/api/routes/events.py`:
   - `GET /api/events?after=...&limit=50` → paginated events
   - `GET /api/events/stream?after=...` → SSE stream:
     - Replay persisted events from `after` sequence
@@ -625,9 +633,9 @@ Each step below is a reviewable change with verification criteria.
     - Close before deployment timeout; client reconnects
     - `Last-Event-ID` supported; inconsistency with `after` → 400
     - Expired cursor → 410 `EVENT_CURSOR_EXPIRED`
-- [ ] 19.3 Use `Authorization: Bearer` header for SSE (not token in URL)
-- [ ] 19.4 Support polling fallback using same sequence/dedup logic
-- [ ] 19.5 Write tests:
+- [x] 19.3 Use `Authorization: Bearer` header for SSE (not token in URL)
+- [x] 19.4 Support polling fallback using same sequence/dedup logic
+- [x] 19.5 Write tests:
   - Events arrive in sequence order
   - Reconnect replays missed events
   - Expired cursor → 410, client re-fetches snapshot
@@ -637,13 +645,15 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Events are durable, ordered, and replayable. SSE reconnect works. Polling fallback works. Cross-student isolation enforced.
 
+**Status: ✅ implemented, verified over the in-memory backend.** `app/domain/event_feed.py`, `app/api/routes/events.py`. `tests/contract/test_event_routes.py`: ordering/pagination/replay, filtered payload projection, 410 expired cursor (purge floor `eventState.oldestRetainedSequence`; no purge job yet — M4 Step 31), foreign cursor 400, isolation, SSE replay + heartbeat + close, `Last-Event-ID` precedence/conflict, Bearer-only auth, close at token expiry. Client dedupe is the existing `mergeEvents` test. SSE was exercised through httpx's ASGI transport (buffered), not a real long-lived connection behind Cloud Run.
+
 ---
 
 ### Step 20 — Connect frontend to real API with course-driven workspace
 
 **Goal:** The web frontend uses the real API for the Calculus learning flow, end-to-end. The workspace is driven by enrolled courses.
 
-- [ ] 20.1 Implement the async data providers defined in Step 6:
+- [x] 20.1 Implement the async data providers defined in Step 6:
   - `fetchTwin()` → `GET /api/twin`
   - `fetchCatalog()` → `GET /api/courses/catalog`
   - `enrollCourse(courseId)` → `POST /api/courses/enroll`
@@ -655,21 +665,21 @@ Each step below is a reviewable change with verification criteria.
   - `sendMessage(sessionId, message)` → `POST /api/sessions/:id/messages`
   - `completeSession(sessionId)` → `POST /api/sessions/:id/complete`
   - `fetchEvents(afterSequence)` → `GET /api/events` or SSE stream
-- [ ] 20.2 Implement the course-driven workspace:
+- [x] 20.2 Implement the course-driven workspace:
   1. Login → fetch twin, entitlements, enrolled courses
   2. Show enrolled courses in sidebar; each course shows its agent
   3. Course catalog available for browsing/enrolling new courses
   4. Selecting a course opens the per-course agent chat view
-- [ ] 20.3 Implement the per-course agent learning flow:
+- [x] 20.3 Implement the per-course agent learning flow:
   1. Open course → see agent chat + course tasks
   2. Select task → create session (agent conversation begins)
   3. Chat with agent → ask questions, get Socratic guidance
   4. Type answer → submit → see "grading..." (Run QUEUED → RUNNING)
   5. Receive assessment feedback (Run SUCCEEDED, assessment displayed)
   6. Complete session when eligible
-- [ ] 20.4 Handle all Run states visually: QUEUED, RUNNING, WAITING_INPUT, SUCCEEDED, FAILED, CANCELLED
-- [ ] 20.5 Implement SSE event subscription with reconnect and polling fallback
-- [ ] 20.6 API errors show truthful state (not demo data substitution)
+- [x] 20.4 Handle all Run states visually: QUEUED, RUNNING, WAITING_INPUT, SUCCEEDED, FAILED, CANCELLED
+- [x] 20.5 Implement SSE event subscription with reconnect and polling fallback
+- [x] 20.6 API errors show truthful state (not demo data substitution)
 - [ ] 20.7 Test in browser:
   - Submit answer → see real feedback
   - Close/reopen browser during grading → state recovered
@@ -677,6 +687,8 @@ Each step below is a reviewable change with verification criteria.
   - SSE reconnect after disconnect
 
 **Verify:** End-to-end Calculus flow works in browser. Grading produces rubric-backed feedback. State survives browser refresh and network interruption.
+
+**Status: 🟡 implemented; browser-verified with synthetic execution only.** `web/js/auth.js` (Firebase Auth or labeled localhost emulator sign-in for synthetic students), provider commands with per-action Idempotency-Keys, `createEventSubscription` (SSE over fetch + Bearer, `Last-Event-ID`, polling fallback, 410 → reload), `web/js/agents/course_session.js`, real enroll/unenroll. `web/tests/api-flow.test.js` (10 tests) covers key reuse on retry, answers-only bodies, SSE parsing, reconnect cursor, polling fallback, expired cursor, auth modes. In Chrome against `make server-memory`: sign-in → start session → submit → Run QUEUED→RUNNING→SUCCEEDED with the labeled synthetic reply and live events → reload restores the session, Complete stays blocked (no accepted assessment). **Not yet seen in a browser:** real rubric feedback (a model key is now available for OpenAI), network-error retry and SSE reconnect (unit-tested only).
 
 ---
 
@@ -697,9 +709,11 @@ Each step below is a reviewable change with verification criteria.
   - `GET /api/files/:fileId` → status
   - `GET /api/files/:fileId/download` → scoped download URL
   - OCR: preserve original + recognized text; ambiguous text → student confirmation before assessment
-- [ ] 21.4 If file/OCR deferred: document that pilot is text-only; disable upload UI
+- [x] 21.4 If file/OCR deferred: document that pilot is text-only; disable upload UI
 
 **Verify M2:** Full Calculus loop works with evaluated skill. No unsupported progression, false official score, duplicate evidence, or unauthorized file access. Evaluation report records quality with sample sizes and identified limitations.
+
+**Status: 🟡 runner built; evaluation not run.** `scripts/run_calc_evaluation.py` runs every case through the production pipeline and writes the template-shaped report (thresholds only from `dimensions.json`; unset → "not gated"; reviewer-rated dimensions left for the reviewer). `tests/unit/test_evaluation_runner.py` checks the comparison logic with a scripted provider and that a mock provider is refused. `report-v1.md` is **not** written: it needs a real model run (API key) and should follow content review. File upload/OCR is deferred: the pilot is text-only and there is no upload UI.
 
 ---
 
@@ -1047,7 +1061,7 @@ Each extension is independently selected and verified. None are prerequisites fo
 |---|---|---|---|
 | M0 Contracts and baseline | 1–7 | Buildable skeleton, schemas, fixtures, evaluation cases, Firebase emulators, frontend contract | Implemented; emulator + content review pending |
 | M1 Reliable foundation | 8–15 | Independent auth, Firestore repos, course enrollment, Task/Session/Run lifecycle, queue/outbox/worker, two-student isolation | Implemented; emulator + staging verification pending |
-| M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Not started |
+| M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; real-model evaluation, emulator and staging verification pending |
 | M3 Validated SAT transfer | 22–27 | Prerequisite mappings, SAT diagnostic, event consumers, planner, cross-domain E2E, frontend display | Not started |
 | M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate | Not started |
 | M5 Optional expansion | 34–38 | Individually validated extensions (APUSH, admissions, parent, predictions, infrastructure) | Not started |

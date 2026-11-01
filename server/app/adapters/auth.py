@@ -86,4 +86,6 @@ class FirebaseTokenVerifier:
             project_id=self._settings.gcp_project_id,
             now=self._clock.now().astimezone(UTC),
         )
-        return VerifiedIdentity(uid=uid)
+        exp = claims.get("exp")
+        expires_at = datetime.fromtimestamp(exp, UTC) if isinstance(exp, int) else None
+        return VerifiedIdentity(uid=uid, expires_at=expires_at)

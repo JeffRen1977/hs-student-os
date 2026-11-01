@@ -14,6 +14,7 @@ SAFE_PROD = {
     "storage_provider": StorageProvider.FIRESTORE,
     "worker_oidc_audience": "https://worker.example.test",
     "worker_service_account": "tasks-invoker@hs-student-os-prod.iam.gserviceaccount.com",
+    "require_reviewed_content": True,
 }
 
 
@@ -78,3 +79,35 @@ def test_production_hides_api_docs(clean_env: pytest.MonkeyPatch) -> None:
     app = create_app(make(clean_env, **SAFE_PROD))
     assert app.openapi_url is None
     assert app.docs_url is None
+
+
+def test_production_requires_reviewed_content(clean_env: pytest.MonkeyPatch) -> None:
+    with pytest.raises(ValueError, match="REQUIRE_REVIEWED_CONTENT"):
+        make(clean_env, **{**SAFE_PROD, "require_reviewed_content": False})
+
+
+def test_model_defaults_follow_the_selected_provider(clean_env: pytest.MonkeyPatch) -> None:
+    assert make(clean_env, llm_provider=LlmProvider.ANTHROPIC).llm_models() == (
+        "claude-haiku-5-5",
+        "claude-sonnet-5-5",
+        "claude-opus-5-5",
+    )
+    assert make(clean_env, llm_provider=LlmProvider.OPENAI).llm_models() == (
+        "gpt-5.4-mini",
+        "gpt-5.4",
+        "gpt-5.5",
+    )
+    custom = make(clean_env, llm_provider=LlmProvider.OPENAI, llm_model_strong="gpt-5.5-pro")
+    assert custom.llm_models()[2] == "gpt-5.5-pro"
+
+
+def test_api_keys_are_secret_and_read_from_unprefixed_vars(clean_env: pytest.MonkeyPatch) -> None:
+    clean_env.setenv("OPENAI_API_KEY", "sk-test-not-a-real-key")
+    settings = make(clean_env, llm_provider=LlmProvider.OPENAI)
+    assert settings.openai_api_key is not None
+    assert settings.openai_api_key.get_secret_value() == "sk-test-not-a-real-key"
+    assert "sk-test" not in repr(settings)
+
+
+def test_openai_is_accepted_as_a_production_provider(clean_env: pytest.MonkeyPatch) -> None:
+    assert make(clean_env, **{**SAFE_PROD, "llm_provider": LlmProvider.OPENAI}).is_deployed

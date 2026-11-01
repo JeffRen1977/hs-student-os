@@ -1,0 +1,21 @@
+{
+  "materialId": "mat_calc_implicit",
+  "version": "1",
+  "courseId": "calc_bc",
+  "skillIds": [
+    "calc_bc.implicit-differentiation",
+    "calc_bc.algebraic-manipulation"
+  ],
+  "title": "Implicit differentiation",
+  "text": "When y is defined implicitly by an equation in x and y, differentiate both sides with respect to x and treat y as a function of x, so every term containing y picks up a factor dy/dx by the chain rule (and products need the product rule). Then collect the dy/dx terms on one side and factor dy/dx out before dividing.",
+  "source": {
+    "type": "original",
+    "author": "HS Student OS content team",
+    "license": "Original work; internal use (synthetic draft)"
+  },
+  "review": {
+    "status": "draft",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

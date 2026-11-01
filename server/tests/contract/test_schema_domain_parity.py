@@ -11,6 +11,7 @@ from pydantic.alias_generators import to_camel
 from app.domain.types import assessment as d_assessment
 from app.domain.types import course as d_course
 from app.domain.types import event as d_event
+from app.domain.types import mastery as d_mastery
 from app.domain.types import message as d_message
 from app.domain.types import run as d_run
 from app.domain.types import session as d_session
@@ -55,8 +56,10 @@ PAIRS: list[tuple[type[BaseModel], type, set[str], set[str]]] = [
             "has_accepted_assessment",
             "created_at",
             "updated_at",
+            "server_hint_count",
         },
-        set(),
+        # The API projects the pinned activity with its prompt and exposes the hint count.
+        {"hint_count"},
     ),
     (session.CompletionEligibility, d_session.CompletionEligibility, set(), set()),
     (session.ContextVersion, d_session.ContextVersion, set(), set()),
@@ -71,6 +74,7 @@ PAIRS: list[tuple[type[BaseModel], type, set[str], set[str]]] = [
             "lease_owner",
             "lease_expires_at",
             "dispatch_generation",
+            "usage_tokens",
             "created_at",
             "updated_at",
         },
@@ -79,9 +83,17 @@ PAIRS: list[tuple[type[BaseModel], type, set[str], set[str]]] = [
     (run.InputRequest, d_run.InputRequest, set(), set()),
     (run.RunResult, d_run.RunResult, set(), set()),
     (run.RunError, d_run.RunError, set(), set()),
-    (submission.Submission, d_submission.Submission, {"student_id"}, set()),
+    # Hint/attempt counts are server records used by assessment, not client contract.
+    (
+        submission.Submission,
+        d_submission.Submission,
+        {"student_id", "server_hint_count", "prior_attempt_count"},
+        set(),
+    ),
     (submission.CreateSubmissionRequest, d_submission.SubmissionInput, set(), set()),
     (assessment.Assessment, d_assessment.Assessment, {"student_id"}, set()),
+    # Mastery keeps its evidence contributions server-side (rebuild/regrade bookkeeping).
+    (assessment.MasteryState, d_mastery.MasteryState, {"contributions"}, set()),
     (assessment.RubricResult, d_assessment.RubricResult, set(), set()),
     (assessment.HintUsage, d_assessment.HintUsage, set(), set()),
     (assessment.SkillEvidence, d_assessment.SkillEvidence, set(), set()),

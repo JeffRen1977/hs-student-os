@@ -78,6 +78,7 @@ class Run:
     lease_owner: str | None = None
     lease_expires_at: datetime | None = None
     dispatch_generation: int = 1  # bumped whenever the run is re-queued for delivery
+    usage_tokens: int = 0  # model tokens charged to this run, retries included
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

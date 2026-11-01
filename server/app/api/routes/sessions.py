@@ -47,7 +47,7 @@ async def create_session(
     cmd = command_key(request, idempotency_key, body)
     outcome = await services.sessions.create_session(actor, body.task_id, cmd)
     return respond(
-        presenters.session(outcome.value),
+        presenters.session(outcome.value, services.packs),
         status=201 if outcome.created else 200,
         replayed=outcome.replayed,
     )
@@ -69,14 +69,17 @@ async def list_sessions(
     )
     return respond(
         s.SessionList(
-            sessions=[presenters.session(x) for x in result.items], next_cursor=result.next_cursor
+            sessions=[presenters.session(x, services.packs) for x in result.items],
+            next_cursor=result.next_cursor,
         )
     )
 
 
 @router.get("/sessions/{session_id}", response_model=s.Session)
 async def get_session(session_id: IdPath, actor: Actor, services: ServicesDep) -> JSONResponse:
-    return respond(presenters.session(await services.sessions.get_session(actor, session_id)))
+    return respond(
+        presenters.session(await services.sessions.get_session(actor, session_id), services.packs)
+    )
 
 
 @router.post("/sessions/{session_id}/abandon", response_model=s.Session)
@@ -90,7 +93,21 @@ async def abandon_session(
 ) -> JSONResponse:
     cmd = command_key(request, idempotency_key, body)
     outcome = await services.sessions.abandon_session(actor, session_id, cmd)
-    return respond(presenters.session(outcome.value), replayed=outcome.replayed)
+    return respond(presenters.session(outcome.value, services.packs), replayed=outcome.replayed)
+
+
+@router.post("/sessions/{session_id}/complete", response_model=s.Session)
+async def complete_session(
+    session_id: IdPath,
+    body: cm.EmptyCommand,
+    request: Request,
+    actor: Actor,
+    services: ServicesDep,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    cmd = command_key(request, idempotency_key, body)
+    outcome = await services.assessments.complete_session(actor, session_id, cmd)
+    return respond(presenters.session(outcome.value, services.packs), replayed=outcome.replayed)
 
 
 @router.get("/sessions/{session_id}/messages", response_model=m.MessageList)

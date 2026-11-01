@@ -269,12 +269,12 @@ function CatalogModal({ S }) {
   return (
     <Modal title="课程目录" onClose={() => S.setShowCatalog(false)}>
       <p className="text-[11px] text-slate-500 dark:text-slate-400">只有已开放、且你已获得权限的课程才能添加。权限由后台管理，选择课程不等于开通权限。</p>
-      {!S.demo && <p className="text-[11px] text-amber-700 dark:text-amber-300">注册接口将在 M1 接入。</p>}
+      {S.actionError && <p className="text-[11px] text-rose-600 dark:text-rose-300">{HSProvider.errorText(S.actionError.code)}</p>}
       <div className="grid grid-cols-2 gap-2">
         {S.catalog.map((c) => {
           const meta = HSData.getPackMeta(c.courseId, c.name);
           const state = catalogState(c);
-          const enabled = state.can && S.demo;
+          const enabled = state.can;
           return (
             <button key={c.courseId} disabled={!enabled} onClick={() => S.toggleEnrollment(c.courseId)}
               className={"min-h-[44px] p-3 rounded-2xl ring-1 text-left text-xs transition " + (c.enrolled ? "bg-indigo-50 dark:bg-indigo-950/50 ring-indigo-400 dark:ring-indigo-500" : "bg-slate-50 dark:bg-slate-950 ring-slate-200 dark:ring-slate-800") + (enabled ? " active:scale-[0.98]" : " opacity-60 cursor-not-allowed")}>

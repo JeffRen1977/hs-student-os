@@ -13,6 +13,14 @@
     "rubricId": "calc-005",
     "version": "1"
   },
+  "answerCheck": {
+    "tool": "math-verify",
+    "criterionId": "final-answer",
+    "expression": "(x - 1)*exp(x)",
+    "variables": [
+      "x"
+    ]
+  },
   "source": {
     "type": "original",
     "author": "HS Student OS content team",

@@ -12,6 +12,8 @@ dependencies = [
     "google-cloud-tasks>=2.17",
     "anthropic>=0.40",
     "pydantic>=2.9",
+    "sympy>=1.13",
+    "openai>=1.60",
 ]
 
 [dependency-groups]
@@ -32,6 +34,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
     "emulator: requires running Firebase Auth + Firestore emulators",
+    "real_provider: calls a real model provider; opt-in via HSOS_RUN_REAL_LLM_SMOKE=1",
 ]
 
 [tool.mypy]
@@ -42,6 +45,10 @@ files = ["app"]
 
 [[tool.mypy.overrides]]
 module = ["firebase_admin", "firebase_admin.*", "google.cloud.firestore", "google.cloud.firestore_v1.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sympy", "sympy.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

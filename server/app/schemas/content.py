@@ -101,6 +101,15 @@ class RubricRef(ApiModel):
     version: NonEmpty
 
 
+class AnswerCheck(ApiModel):
+    """A closed-form final answer the math-verify tool can check (SymPy syntax)."""
+
+    tool: Literal["math-verify"]
+    criterion_id: Slug
+    expression: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    variables: list[Annotated[str, StringConstraints(pattern=r"^[a-z]$")]] = Field(min_length=1)
+
+
 class Question(ApiModel):
     question_id: OpaqueId
     version: NonEmpty
@@ -111,6 +120,20 @@ class Question(ApiModel):
     prompt: NonEmpty
     expected_answer: NonEmpty
     rubric_ref: RubricRef
+    answer_check: AnswerCheck | None = None
+    source: ContentSource
+    review: Review
+
+
+class Material(ApiModel):
+    """A short reviewed passage the agent may cite (RAG v1, BACKEND.md §7)."""
+
+    material_id: OpaqueId
+    version: NonEmpty
+    course_id: CourseId
+    skill_ids: list[SkillId] = Field(min_length=1)
+    title: NonEmpty
+    text: Annotated[str, StringConstraints(min_length=1, max_length=4000)]
     source: ContentSource
     review: Review
 

@@ -14,6 +14,15 @@
     "rubricId": "calc-002",
     "version": "1"
   },
+  "answerCheck": {
+    "tool": "math-verify",
+    "criterionId": "final-answer",
+    "expression": "-2*x*y/(x**2 + 3*y**2)",
+    "variables": [
+      "x",
+      "y"
+    ]
+  },
   "source": {
     "type": "original",
     "author": "HS Student OS content team",

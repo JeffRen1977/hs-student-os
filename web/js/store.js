@@ -14,9 +14,12 @@ function indexBy(list, key) {
   return out;
 }
 
-function useAppState(data) {
+function useAppState(data, api) {
   const demo = data.mode === "demo";
-  const twin = data.twin;
+  const [twin, setTwin] = useState(data.twin);
+  const [tasks, setTasks] = useState(data.tasks);
+  const [sessions, setSessions] = useState(data.sessions);
+  const [actionError, setActionError] = useState(null);
 
   const [view, setView] = useState("student");
   const [catalog, setCatalog] = useState(data.catalog);
@@ -24,7 +27,7 @@ function useAppState(data) {
   const enrolledIds = catalog.filter((c) => c.enrolled && c.availability === "active").map((c) => c.courseId);
   const [activeCourse, setActiveCourse] = useState(enrolledIds[0] || null);
   const [apMode, setApMode] = useState("GPA_SYNC");
-  const firstTaskId = data.tasks[0] ? data.tasks[0].taskId : null;
+  const firstTaskId = tasks[0] ? tasks[0].taskId : null;
   const [activeItemId, setActiveItemId] = useState(firstTaskId);
   const [showCatalog, setShowCatalog] = useState(false);
   const [showManifest, setShowManifest] = useState(false);
@@ -43,9 +46,9 @@ function useAppState(data) {
 
   const sessionsByTask = useMemo(() => {
     const out = {};
-    data.sessions.forEach((s) => { if (s.status === "OPEN") out[s.taskId] = s; });
+    sessions.forEach((s) => { if (s.status === "OPEN") out[s.taskId] = s; });
     return out;
-  }, [data.sessions]);
+  }, [sessions]);
   const runsById = useMemo(() => indexBy(data.runs, "runId"), [data.runs]);
 
   const toggleDark = () => {
@@ -61,7 +64,7 @@ function useAppState(data) {
   };
   const pack = activeCourse ? HSData.getPackMeta(activeCourse, courseName(activeCourse)) : null;
 
-  const apTasks = data.tasks.filter((t) => t.agent === "AP_BASE" && enrolledIds.includes(t.courseId));
+  const apTasks = tasks.filter((t) => t.agent === "AP_BASE" && enrolledIds.includes(t.courseId));
   const satPreviews = demo ? data.previews.filter((p) => p.agent === "DSAT") : [];
   const admPreviews = demo ? data.previews.filter((p) => p.agent === "ADMISSIONS") : [];
   const currentTask = apTasks.find((t) => t.taskId === activeItemId) || null;
@@ -83,7 +86,7 @@ function useAppState(data) {
     setActiveAgent("AP_BASE");
     setActiveCourse(cid);
     setTier2(false);
-    const next = data.tasks.find((t) => t.courseId === cid);
+    const next = tasks.find((t) => t.courseId === cid);
     if (next) openTask(next);
   };
 
@@ -129,11 +132,28 @@ function useAppState(data) {
     setDraftSavedAt(null);
   };
 
-  // Demo only: enrollment is simulated locally. In API mode this becomes
-  // POST /api/courses/enroll|unenroll with an Idempotency-Key (M1 Step 11).
+  // Server state refreshes (API mode). Each replaces local state with the server's view.
+  const refreshTasks = () => api && api.fetchTasks().then((r) => setTasks(r.tasks || []));
+  const refreshTwin = () => api && api.fetchTwin().then(setTwin);
+  const refreshCatalog = () => api && api.fetchCatalog().then((r) => setCatalog(r.courses || []));
+  const refreshSessions = () => api && api.fetchSessions().then((r) => setSessions(r.sessions || []));
+  const upsertSession = (session) =>
+    setSessions((prev) => [session].concat(prev.filter((x) => x.sessionId !== session.sessionId)));
+
+  // Enrollment: demo simulates locally; API mode calls the server with an Idempotency-Key
+  // and then reloads the catalog and tasks (entitlement is checked server-side).
   const toggleEnrollment = (cid) => {
     const course = catalog.find((c) => c.courseId === cid);
-    if (!demo || !course || course.availability !== "active" || !course.entitled) return;
+    if (!course || course.availability !== "active" || !course.entitled) return;
+    if (!demo) {
+      const call = course.enrolled ? api.unenrollCourse(cid) : api.enrollCourse(cid);
+      setActionError(null);
+      call.then(
+        () => Promise.all([refreshCatalog(), refreshTasks()]).then(() => { if (!course.enrolled) selectCourse(cid); }),
+        (e) => setActionError(e)
+      );
+      return;
+    }
     const next = !course.enrolled;
     setCatalog((prev) => prev.map((c) => (c.courseId === cid ? Object.assign({}, c, { enrolled: next }) : c)));
     noteDemo(next ? "course.enrolled" : "course.unenrolled", (next ? "演示：已在本地注册 " : "演示：已在本地取消注册 ") + course.name + "（未调用服务器）");
@@ -147,6 +167,9 @@ function useAppState(data) {
   };
 
   return {
+    api, actionError, setActionError,
+    refreshTasks, refreshTwin, refreshCatalog, refreshSessions, upsertSession,
+    sessionForTask: (taskId) => sessionsByTask[taskId] || null,
     demo, twin, entitlements: data.entitlements,
     view, setView, catalog, enrolledIds,
     activeAgent, setActiveAgent, activeCourse, setActiveCourse,

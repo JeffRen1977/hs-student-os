@@ -62,4 +62,6 @@ async def course(course_id: CoursePath, actor: Actor, services: ServicesDep) -> 
 
 @router.get("/{course_id}/agent", response_model=c.CourseAgentView)
 async def course_agent(course_id: CoursePath, actor: Actor, services: ServicesDep) -> JSONResponse:
-    return respond(presenters.course_agent(await services.courses.agent(actor, course_id)))
+    return respond(
+        presenters.course_agent(await services.courses.agent(actor, course_id), services.packs)
+    )

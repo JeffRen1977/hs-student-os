@@ -31,6 +31,7 @@ def task_to_doc(task: Task) -> Doc:
         },
         "studentLocked": task.student_locked,
         "openSessionId": task.open_session_id,
+        "questionId": task.question_id,
     }
 
 
@@ -53,6 +54,7 @@ def task_from_doc(doc: Doc) -> Task:
         ),
         student_locked=bool(doc.get("studentLocked", False)),
         open_session_id=doc.get("openSessionId"),
+        question_id=doc.get("questionId"),
     )
 
 

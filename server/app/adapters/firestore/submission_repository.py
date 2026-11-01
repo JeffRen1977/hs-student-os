@@ -21,6 +21,8 @@ def submission_from_doc(doc: Doc) -> Submission:
         supersedes_submission_id=doc.get("supersedesSubmissionId"),
         run_id=doc["runId"],
         created_at=doc["createdAt"],
+        server_hint_count=int(doc.get("serverHintCount", 0)),
+        prior_attempt_count=int(doc.get("priorAttemptCount", 0)),
     )
 
 
@@ -58,6 +60,8 @@ class FirestoreSubmissionStore:
                 "answer": {"text": s.answer.text, "fileIds": list(s.answer.file_ids)},
                 "supersedesSubmissionId": s.supersedes_submission_id,
                 "runId": s.run_id,
+                "serverHintCount": s.server_hint_count,
+                "priorAttemptCount": s.prior_attempt_count,
                 "createdAt": s.created_at,
             },
         )

@@ -176,6 +176,29 @@
     };
   }
 
+  // Safe, student-facing text for server error codes (Run errors and command errors).
+  const ERROR_TEXT = Object.freeze({
+    BUDGET_EXCEEDED: "今天的辅导额度已用完，请稍后再试。",
+    MODEL_OUTPUT_INVALID: "这次批改没有得到可用的结果，没有记录任何评估。可以重新提交。",
+    MODEL_REFUSED: "这次请求未能处理，没有记录任何评估。",
+    MODEL_UNAVAILABLE: "批改服务暂时不可用。",
+    EXECUTION_RETRIES_EXHAUSTED: "批改服务暂时不可用，已多次重试。",
+    ASSESSMENT_REJECTED: "批改结果未通过服务器校验，没有记录任何评估。",
+    CONTENT_VERSION_CHANGED: "课程内容已更新，请开始新的练习。",
+    COURSE_CONTENT_UNAVAILABLE: "课程内容暂不可用。",
+    COURSE_NOT_ENROLLED: "你已不在这门课程中。",
+    COURSE_ACCESS_REQUIRED: "需要开通这门课程的权限。",
+    COURSE_NOT_AVAILABLE: "这门课程即将上线。",
+    RUN_IN_PROGRESS: "上一条还在处理中，请稍候。",
+    COMPLETION_REQUIREMENTS_NOT_MET: "需要先有一次被接受的评估才能完成本次练习。",
+    OPEN_SESSION_EXISTS: "请先完成或放弃这门课程中进行中的练习。",
+    NOT_CONNECTED: "无法连接服务器。重试会使用同一个请求编号，不会重复提交。",
+  });
+
+  function errorText(code) {
+    return ERROR_TEXT[code] || "出现错误（" + code + "）。";
+  }
+
   function predictionLabel(entry) {
     if (!entry || entry.status === "unavailable") return "暂无预测（未校准）";
     return "暂无预测";
@@ -242,9 +265,64 @@
       return payload;
     }
 
+    // Commands carry one Idempotency-Key per user action: a retry after a network error
+    // reuses it, so the server replays the original result instead of acting twice.
+    const actions = createActionKeys(o.generateKey);
+    async function command(actionId, path, body) {
+      const key = actions.keyFor(actionId);
+      try {
+        const result = await request(path, { method: "POST", body: body || {}, idempotencyKey: key });
+        actions.release(actionId);
+        return result;
+      } catch (e) {
+        // Keep the key only when the outcome is unknown (network failure / 5xx).
+        if (!(e instanceof ApiError) || !e.retryable) actions.release(actionId);
+        throw e;
+      }
+    }
+
     return {
       mode: "api",
       request: request,
+      actionKeys: actions,
+      baseUrl: baseUrl,
+      getIdToken: getIdToken,
+      fetchEnrolledCourses: function () { return request("/api/courses/enrolled"); },
+      fetchCourseAgent: function (courseId) {
+        return request("/api/courses/" + encodeURIComponent(courseId) + "/agent");
+      },
+      fetchTask: function (taskId) { return request("/api/tasks/" + encodeURIComponent(taskId)); },
+      fetchMessages: function (sessionId, cursor) {
+        return request("/api/sessions/" + encodeURIComponent(sessionId) + "/messages" + buildQuery({ cursor: cursor, limit: 100 }));
+      },
+      fetchSubmissions: function (sessionId) {
+        return request("/api/sessions/" + encodeURIComponent(sessionId) + "/submissions" + buildQuery({ limit: 100 }));
+      },
+      fetchAssessment: function (assessmentId) {
+        return request("/api/assessments/" + encodeURIComponent(assessmentId));
+      },
+      fetchAssessments: function (sessionId) {
+        return request("/api/assessments" + buildQuery({ sessionId: sessionId, limit: 100 }));
+      },
+      fetchMastery: function (courseId) { return request("/api/mastery" + buildQuery({ courseId: courseId, limit: 100 })); },
+      enrollCourse: function (courseId) { return command("enroll:" + courseId, "/api/courses/enroll", { courseId: courseId }); },
+      unenrollCourse: function (courseId) { return command("unenroll:" + courseId, "/api/courses/unenroll", { courseId: courseId }); },
+      createSession: function (taskId) { return command("session:" + taskId, "/api/sessions", { taskId: taskId }); },
+      // `actionId` identifies the student's send action (e.g. a draft id) so a retry of
+      // the same send reuses its key, while a new send gets a new one.
+      sendMessage: function (sessionId, text, actionId) {
+        return command("message:" + actionId, "/api/sessions/" + encodeURIComponent(sessionId) + "/messages", { text: text, fileIds: [] });
+      },
+      submitAnswer: function (sessionId, submission, actionId) {
+        return command("submit:" + actionId, "/api/sessions/" + encodeURIComponent(sessionId) + "/submissions", submission);
+      },
+      completeSession: function (sessionId) {
+        return command("complete:" + sessionId, "/api/sessions/" + encodeURIComponent(sessionId) + "/complete", {});
+      },
+      abandonSession: function (sessionId) {
+        return command("abandon:" + sessionId, "/api/sessions/" + encodeURIComponent(sessionId) + "/abandon", {});
+      },
+      cancelRun: function (runId) { return command("cancel:" + runId, "/api/runs/" + encodeURIComponent(runId) + "/cancel", {}); },
       fetchTwin: function () { return request("/api/twin"); },
       fetchEntitlements: function () { return request("/api/me/entitlements"); },
       fetchPacks: function () { return request("/api/packs"); },
@@ -258,6 +336,128 @@
       },
       // Product previews exist only in demo mode.
       fetchPreviews: function () { return Promise.resolve([]); },
+    };
+  }
+
+  // ---- Event subscription (SSE over fetch streaming, polling fallback) ---------------
+
+  // Incremental SSE parser. Feed text chunks; complete frames come back, the rest is kept.
+  function createSseParser() {
+    let buffer = "";
+    return function feed(chunk) {
+      buffer += chunk.replace(/\r\n/g, "\n");
+      const frames = [];
+      let idx;
+      while ((idx = buffer.indexOf("\n\n")) >= 0) {
+        const block = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        const frame = { id: null, event: "message", data: "", comment: null };
+        const data = [];
+        block.split("\n").forEach(function (line) {
+          if (line.charAt(0) === ":") { frame.comment = line.slice(1).trim(); return; }
+          const colon = line.indexOf(":");
+          const field = colon < 0 ? line : line.slice(0, colon);
+          let value = colon < 0 ? "" : line.slice(colon + 1);
+          if (value.charAt(0) === " ") value = value.slice(1);
+          if (field === "id") frame.id = value;
+          else if (field === "event") frame.event = value;
+          else if (field === "data") data.push(value);
+        });
+        frame.data = data.join("\n");
+        frames.push(frame);
+      }
+      return frames;
+    };
+  }
+
+  // Keeps a durable event cursor and delivers new server events to `onEvents`. Uses the
+  // SSE stream with `Authorization: Bearer` (token never in the URL), reconnects with
+  // `Last-Event-ID`, and falls back to polling `GET /api/events` when streaming fails.
+  // On 410 EVENT_CURSOR_EXPIRED it calls `onExpired` so the app reloads its snapshot.
+  function createEventSubscription(provider, options) {
+    const o = options || {};
+    const sleep = o.sleep || function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+    const fetchImpl = o.fetchImpl || (typeof fetch !== "undefined" ? fetch.bind(globalThis) : null);
+    const pollMs = o.pollMs || 3000;
+    const maxStreamFailures = o.maxStreamFailures == null ? 3 : o.maxStreamFailures;
+    let cursor = o.after || 0;
+    let stopped = false;
+    let streamFailures = 0;
+    let controller = null;
+    const state = { mode: "connecting" };
+
+    function deliver(events) {
+      const fresh = (events || []).filter(function (e) { return e && e.sequence > cursor; });
+      if (!fresh.length) return;
+      cursor = fresh[fresh.length - 1].sequence;
+      o.onEvents(fresh, cursor);
+    }
+
+    async function streamOnce() {
+      const token = await provider.getIdToken();
+      if (!token) throw new ApiError(ClientErrorCode.NOT_SIGNED_IN, "Sign-in is required");
+      controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const response = await fetchImpl(provider.baseUrl + "/api/events/stream", {
+        headers: { Accept: "text/event-stream", Authorization: "Bearer " + token, "Last-Event-ID": String(cursor) },
+        signal: controller ? controller.signal : undefined,
+      });
+      if (response.status === 410) throw new ApiError("EVENT_CURSOR_EXPIRED", "cursor expired", { status: 410 });
+      if (!response.ok || !response.body || !response.body.getReader) throw new Error("stream unavailable");
+      state.mode = "stream";
+      streamFailures = 0;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const feed = createSseParser();
+      for (;;) {
+        const part = await reader.read();
+        if (part.done || stopped) return;
+        feed(decoder.decode(part.value, { stream: true })).forEach(function (frame) {
+          if (frame.event === "error") throw new ApiError("STREAM_ERROR", frame.data);
+          if (!frame.data || frame.id == null) return;
+          try { deliver([JSON.parse(frame.data)]); } catch (_e) { /* ignore malformed frame */ }
+        });
+      }
+    }
+
+    async function pollOnce() {
+      const page = await provider.fetchEvents(cursor, 100);
+      deliver(page.events);
+      return page.hasMore;
+    }
+
+    async function loop() {
+      while (!stopped) {
+        try {
+          if (streamFailures < maxStreamFailures) {
+            await streamOnce(); // the server closes periodically; reconnect right away
+          } else {
+            state.mode = "polling";
+            const more = await pollOnce();
+            if (!more) await sleep(pollMs);
+          }
+        } catch (e) {
+          if (stopped) return;
+          if (e && e.code === "EVENT_CURSOR_EXPIRED") {
+            if (o.onExpired) o.onExpired();
+            return;
+          }
+          if (e && e.code === ClientErrorCode.NOT_SIGNED_IN) return;
+          if (streamFailures < maxStreamFailures) streamFailures += 1;
+          state.mode = streamFailures >= maxStreamFailures ? "polling" : "reconnecting";
+          await sleep(Math.min(pollMs, 1000 * streamFailures));
+        }
+      }
+    }
+
+    const done = loop();
+    return {
+      state: state,
+      cursor: function () { return cursor; },
+      done: done,
+      stop: function () {
+        stopped = true;
+        if (controller) controller.abort();
+      },
     };
   }
 
@@ -391,6 +591,9 @@
     createDraftStore: createDraftStore,
     memoryStorage: memoryStorage,
     describeRun: describeRun,
+    errorText: errorText,
+    createSseParser: createSseParser,
+    createEventSubscription: createEventSubscription,
     predictionLabel: predictionLabel,
     createApiProvider: createApiProvider,
     createDemoProvider: createDemoProvider,

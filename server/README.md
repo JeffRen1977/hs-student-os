@@ -36,8 +36,27 @@ emulator hosts, mock providers, a local queue, memory storage, a local worker to
 - **Local**: `HSOS_QUEUE_PROVIDER=local` runs recovery → outbox dispatch → worker in the API
   process every `HSOS_LOCAL_WORKER_POLL_SECONDS`.
 - **Synthetic execution** (`HSOS_LLM_PROVIDER=mock`): deterministic, labeled agent replies
-  (`synthetic: true`). It never produces an Assessment or mastery evidence. The real LLM
-  gateway lands in Step 16.
+  (`synthetic: true`). It never produces an Assessment or mastery evidence.
+
+## Learning loop (M2)
+
+- **LLM gateway** (`app/adapters/llm/`): static tier routing, per-run/session/day token
+  budgets (reserve → settle, retries charged), finite retries with backoff, output
+  validation, usage logs without content. `HSOS_LLM_PROVIDER=anthropic` uses Claude
+  (`ANTHROPIC_API_KEY`); `HSOS_LLM_PROVIDER=openai` uses the OpenAI Responses API
+  (`OPENAI_API_KEY`, strict JSON schema, `store=false`). Keys may live in the gitignored `.env`.
+- **Skills** (`app/domain/skills/`): Socratic guidance (every reply is a recorded hint) and
+  rubric assessment (evidence quoted from the stored answer, per-criterion `assessable`,
+  math-verify cross-check). One shared runtime, `SkillExecutor`, per-course packs.
+- **AssessmentService**: semantic validation + Assessment + mastery + Run terminal state +
+  events in the worker's commit transaction; `complete` closes Session/Task.
+- **Event feed**: `GET /api/events` and SSE `GET /api/events/stream` (Bearer auth,
+  `Last-Event-ID`, heartbeats, closes before the request timeout or token expiry).
+- **Evaluation** (Step 21): `HSOS_LLM_PROVIDER=anthropic|openai uv run python -m
+  scripts.run_calc_evaluation --out content/evaluation/calc_bc/report-v1.md` (real model,
+  costs money). `tests/evaluation/test_real_provider_smoke.py` is opt-in via
+  `HSOS_RUN_REAL_LLM_SMOKE=1`.
+- The pilot is **text-only**: no file upload endpoints or UI yet.
 
 | Path | Contents |
 |---|---|

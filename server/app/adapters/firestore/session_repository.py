@@ -6,7 +6,13 @@ from app.adapters.firestore.paging import paged_query
 from app.domain.ports.repositories import SessionQuery
 from app.domain.types.actor import ActorContext
 from app.domain.types.common import PageRequest, PaginatedResponse
-from app.domain.types.session import ContextVersion, Session, SessionStatus, completion_for
+from app.domain.types.session import (
+    ContextVersion,
+    Session,
+    SessionActivity,
+    SessionStatus,
+    completion_for,
+)
 
 
 def session_to_doc(s: Session) -> Doc:
@@ -20,6 +26,17 @@ def session_to_doc(s: Session) -> Doc:
         "contextVersion": {"pack": s.context_version.pack, "workflow": s.context_version.workflow},
         "agentSkills": list(s.agent_skills),
         "hasAcceptedAssessment": s.has_accepted_assessment,
+        "activity": (
+            {
+                "questionId": s.activity.question_id,
+                "questionVersion": s.activity.question_version,
+                "rubricId": s.activity.rubric_id,
+                "rubricVersion": s.activity.rubric_version,
+            }
+            if s.activity
+            else None
+        ),
+        "serverHintCount": s.server_hint_count,
         "version": s.version,
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
@@ -30,6 +47,7 @@ def session_from_doc(doc: Doc) -> Session:
     status = SessionStatus(doc["status"])
     active = doc.get("activeRunId")
     accepted = bool(doc.get("hasAcceptedAssessment", False))
+    act = doc.get("activity")
     return Session(
         session_id=doc["sessionId"],
         student_id=doc["studentId"],
@@ -45,6 +63,17 @@ def session_from_doc(doc: Doc) -> Session:
         version=int(doc["version"]),
         agent_skills=tuple(doc.get("agentSkills", [])),
         has_accepted_assessment=accepted,
+        activity=(
+            SessionActivity(
+                question_id=act["questionId"],
+                question_version=act["questionVersion"],
+                rubric_id=act["rubricId"],
+                rubric_version=act["rubricVersion"],
+            )
+            if act
+            else None
+        ),
+        server_hint_count=int(doc.get("serverHintCount", 0)),
         created_at=doc.get("createdAt"),
         updated_at=doc.get("updatedAt"),
     )

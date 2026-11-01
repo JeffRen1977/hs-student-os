@@ -104,6 +104,48 @@ function StatusScreen({ screen, error, onRetry }) {
   );
 }
 
+// Sign-in. Firebase Auth when configured; on localhost without Firebase config, a labeled
+// local emulator sign-in for the synthetic fixture students only (see js/auth.js).
+function SignInScreen({ auth, error, onSignedIn }) {
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [failure, setFailure] = React.useState(null);
+  const submit = (e) => {
+    e.preventDefault();
+    setFailure(null);
+    auth.signInWithPassword(email, password).then(onSignedIn, () => setFailure("登录失败，请检查邮箱和密码。"));
+  };
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-[#F7F8FA] dark:bg-slate-950">
+      <div className={CARD + " max-w-md w-full p-6 space-y-3"}>
+        <div className="text-sm font-bold">登录 Student OS</div>
+        {error && error.code === "UNAUTHENTICATED" && <p className="text-xs text-rose-600">登录已过期，请重新登录。</p>}
+        {auth.mode === "firebase" && (
+          <form onSubmit={submit} className="space-y-2">
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" placeholder="邮箱" className="w-full min-h-[40px] px-3 rounded-xl ring-1 ring-slate-300 dark:ring-slate-700 bg-white dark:bg-slate-900 text-sm" />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" placeholder="密码" className="w-full min-h-[40px] px-3 rounded-xl ring-1 ring-slate-300 dark:ring-slate-700 bg-white dark:bg-slate-900 text-sm" />
+            <button className={"w-full min-h-[40px] rounded-full bg-indigo-600 text-white text-xs font-semibold " + BTN}>登录</button>
+            {failure && <p className="text-xs text-rose-600">{failure}</p>}
+          </form>
+        )}
+        {auth.mode === "local_emulator" && (
+          <div className="space-y-2">
+            <p className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-500/10 p-2 rounded-lg">
+              本地开发登录：使用 Auth 模拟器格式的令牌登录合成学生。只在本机后端以模拟器模式运行时有效，部署环境会拒绝。
+            </p>
+            {auth.students.map((s) => (
+              <button key={s.uid} onClick={() => { auth.signInLocal(s.uid); onSignedIn(); }}
+                className={"w-full min-h-[40px] rounded-full ring-1 ring-indigo-300 text-xs font-semibold text-indigo-700 dark:text-indigo-200 " + BTN}>{s.label}</button>
+            ))}
+          </div>
+        )}
+        {auth.mode === "none" && <p className="text-xs text-slate-600 dark:text-slate-300">此页面未配置登录。登录前不会显示任何学生数据。</p>}
+        <a href="?demo=true" className="block text-center text-[11px] text-slate-500 underline">打开演示模式（合成数据）</a>
+      </div>
+    </div>
+  );
+}
+
 // GPA_SYNC / EXAM_CRUNCH two-option mode toggle.
 function ModeToggle({ apMode, setApMode }) {
   return (

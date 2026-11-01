@@ -27,6 +27,10 @@ from tests.support import FakeClock, emulator_token, idem
 
 @pytest.fixture
 async def env() -> Any:
+    return await make_env()
+
+
+async def make_env(llm_provider: Any = None) -> dict[str, Any]:
     settings = Settings(_env_file=None, local_worker_enabled=False)  # type: ignore[call-arg]
     client = create_async_firestore_client(settings)
     # Unique student ids per test run: no dependence on emulator state or test order.
@@ -49,7 +53,11 @@ async def env() -> Any:
     await batch.commit()
     queue = LocalQueue()
     services = build_services(
-        settings, store=FirestoreDocumentStore(client), clock=clock, queue=queue
+        settings,
+        store=FirestoreDocumentStore(client),
+        clock=clock,
+        queue=queue,
+        llm_provider=llm_provider,
     )
     app = create_app(settings, services)
     http = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")

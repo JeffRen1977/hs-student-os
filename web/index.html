@@ -25,11 +25,13 @@
   <div id="root"></div>
   <!-- Plain script (no JSX): async data-provider seam, also unit-tested under Node. -->
   <script src="js/data-provider.js"></script>
+  <script src="js/auth.js"></script>
   <!-- Modules load in dependency order: data -> store -> ui -> agents -> features -> app -->
   <script type="text/babel" src="js/data.js"></script>
   <script type="text/babel" src="js/store.js"></script>
   <script type="text/babel" src="js/ui.js"></script>
   <script type="text/babel" src="js/agents/ap.js"></script>
+  <script type="text/babel" src="js/agents/course_session.js"></script>
   <script type="text/babel" src="js/agents/dsat.js"></script>
   <script type="text/babel" src="js/agents/admissions.js"></script>
   <script type="text/babel" src="js/features.js"></script>

@@ -8,6 +8,7 @@ from app.domain.access import require_course_access
 from app.domain.commands import CommandKey, Outcome, find_replay, remember
 from app.domain.errors import DomainError, ErrorCode
 from app.domain.ports.catalog import CourseCatalog
+from app.domain.ports.content import SubjectPackRegistry
 from app.domain.ports.repositories import EventDraft, SessionQuery, Tx, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
 from app.domain.types.actor import ActorContext, Permission
@@ -18,6 +19,7 @@ from app.domain.types.session import (
     SESSION_TRANSITIONS,
     ContextVersion,
     Session,
+    SessionActivity,
     SessionStatus,
     completion_for,
 )
@@ -47,12 +49,35 @@ def with_active_run(session: Session, run_id: str | None) -> Session:
 
 class SessionService:
     def __init__(
-        self, uow: UnitOfWork, catalog: CourseCatalog, clock: Clock, ids: IdFactory
+        self,
+        uow: UnitOfWork,
+        catalog: CourseCatalog,
+        clock: Clock,
+        ids: IdFactory,
+        packs: SubjectPackRegistry | None = None,
     ) -> None:
         self._uow = uow
         self._catalog = catalog
         self._clock = clock
         self._ids = ids
+        self._packs = packs
+
+    def _activity(self, course_id: str, question_id: str | None) -> SessionActivity | None:
+        """Pin the task's question and rubric versions for the whole session (Step 17.1)."""
+        if question_id is None:
+            return None
+        question = self._packs.question(course_id, question_id) if self._packs else None
+        if question is None:
+            # Missing, or withheld because it has not been content-reviewed.
+            raise DomainError(
+                ErrorCode.COURSE_NOT_AVAILABLE, "This task's practice content is not available."
+            )
+        return SessionActivity(
+            question_id=question.question_id,
+            question_version=question.version,
+            rubric_id=question.rubric_id,
+            rubric_version=question.rubric_version,
+        )
 
     async def create_session(
         self, actor: ActorContext, task_id: str, cmd: CommandKey
@@ -92,6 +117,7 @@ class SessionService:
                     )  # fmt: skip
                     return Outcome(value=existing, created=False)
 
+            activity = self._activity(task.course_id, task.question_id)
             session = Session(
                 session_id=self._ids.new("sess"),
                 student_id=actor.student_id,
@@ -106,6 +132,7 @@ class SessionService:
                 completion=completion_for(SessionStatus.OPEN, None, False),
                 version=1,
                 agent_skills=tuple(course.skills),
+                activity=activity,
                 created_at=now,
                 updated_at=now,
             )

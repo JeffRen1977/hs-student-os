@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
+from app.adapters.firestore.assessment_repository import (
+    FirestoreAssessmentStore,
+    FirestoreMasteryStore,
+)
 from app.adapters.firestore.course_repository import FirestoreEnrollmentStore
 from app.adapters.firestore.documents import DocTxn, DocumentStore
 from app.adapters.firestore.event_repository import FirestoreEventStore
@@ -13,6 +17,7 @@ from app.adapters.firestore.session_repository import FirestoreSessionStore
 from app.adapters.firestore.student_repository import FirestoreStudentStore
 from app.adapters.firestore.submission_repository import FirestoreSubmissionStore
 from app.adapters.firestore.task_repository import FirestoreTaskStore
+from app.adapters.firestore.usage_repository import FirestoreToolResultStore, FirestoreUsageStore
 from app.domain.ports.repositories import Tx
 
 
@@ -32,6 +37,10 @@ class FirestoreTx:
         self.idempotency = FirestoreIdempotencyStore(txn)
         self.events = FirestoreEventStore(txn)
         self.outbox = FirestoreOutboxStore(txn)
+        self.assessments = FirestoreAssessmentStore(txn)
+        self.mastery = FirestoreMasteryStore(txn)
+        self.usage = FirestoreUsageStore(txn)
+        self.tool_results = FirestoreToolResultStore(txn)
 
 
 class DocumentUnitOfWork:

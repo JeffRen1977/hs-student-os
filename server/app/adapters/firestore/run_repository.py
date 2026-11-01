@@ -49,6 +49,7 @@ def run_to_doc(r: Run) -> Doc:
         "leaseOwner": r.lease_owner,
         "leaseExpiresAt": r.lease_expires_at,
         "dispatchGeneration": r.dispatch_generation,
+        "usageTokens": r.usage_tokens,
         "createdAt": r.created_at,
         "updatedAt": r.updated_at,
     }
@@ -89,6 +90,7 @@ def run_from_doc(d: Doc) -> Run:
         lease_owner=d.get("leaseOwner"),
         lease_expires_at=d.get("leaseExpiresAt"),
         dispatch_generation=int(d.get("dispatchGeneration", 1)),
+        usage_tokens=int(d.get("usageTokens", 0)),
         created_at=d.get("createdAt"),
         updated_at=d.get("updatedAt"),
     )

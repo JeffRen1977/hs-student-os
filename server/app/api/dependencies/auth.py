@@ -51,6 +51,7 @@ async def get_actor(
     student_id = await services.identities.resolve(identity.uid)
     if student_id is None:
         raise DomainError(ErrorCode.FORBIDDEN, "This account has no student record.")
+    request.state.token_expires_at = identity.expires_at  # long-lived streams stop here
     return ActorContext.for_student(student_id, request_id=get_request_id(request))
 
 

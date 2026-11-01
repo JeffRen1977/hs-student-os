@@ -54,6 +54,7 @@ class Task:
     reason: TaskReason
     student_locked: bool = False
     open_session_id: str | None = None  # internal guard: at most one OPEN Session per Task
+    question_id: str | None = None  # content the task practices; pinned on its Session
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
