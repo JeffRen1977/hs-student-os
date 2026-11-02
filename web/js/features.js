@@ -185,7 +185,7 @@ function PlanCard({ S }) {
       {!plan && <div className="text-[11px] text-slate-400">No plan yet. Click “Replan” to order your tasks by deadlines, evidence gaps and your weekly time.</div>}
       {plan && (
         <React.Fragment>
-          <div className="text-[10px] text-slate-500">7 days from {plan.localDate} · about {plan.dailyMinutes} min a day ({plan.weeklyMinutes} a week){plan.evidenceAvailable ? "" : " · no assessed evidence yet, so ordered conservatively"}</div>
+          <div className="text-[10px] text-slate-500">{plan.trigger === "scheduled" ? "Planned automatically · " : ""}7 days from {plan.localDate} · about {plan.dailyMinutes} min a day ({plan.weeklyMinutes} a week){plan.evidenceAvailable ? "" : " · no assessed evidence yet, so ordered conservatively"}</div>
           {plan.entries.map((e) => {
             const t = S.taskById(e.taskId);
             const meta = t ? HSData.getPackMeta(t.courseId, S.courseName(t.courseId)) : null;
@@ -203,6 +203,47 @@ function PlanCard({ S }) {
           {S.architect && <div className="font-mono text-[10px] text-slate-400">{plan.planId} · {plan.ruleVersion}</div>}
         </React.Fragment>
       )}
+    </section>
+  );
+}
+
+// Opt-in study reminders (Step 29): off by default, one channel, quiet hours respected.
+function ReminderSettings({ S }) {
+  const current = (S.twin.preferences && S.twin.preferences.notifications) || { enabled: false, channels: [] };
+  const quiet = current.quietHours || { start: "21:00", end: "08:00" };
+  const [channel, setChannel] = React.useState((current.channels && current.channels[0]) || "email");
+  const [start, setStart] = React.useState(quiet.start);
+  const [end, setEnd] = React.useState(quiet.end);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  if (S.demo) return null;
+  const save = (enabled) => {
+    setBusy(true);
+    setError(null);
+    const body = enabled
+      ? { enabled: true, channels: [channel], quietHours: { start: start, end: end } }
+      : { enabled: false, channels: [], quietHours: current.quietHours || null };
+    S.saveNotifications(body).then(() => setBusy(false), (e) => { setError(e); setBusy(false); });
+  };
+  return (
+    <section className={CARD + " p-4 space-y-2 text-[11px]"}>
+      <div className="text-xs font-bold text-indigo-600 dark:text-indigo-300">Study reminders</div>
+      <div className="text-slate-500 dark:text-slate-400">
+        {current.enabled ? "On: one reminder on days with planned tasks, by " + (current.channels[0] || "email") + ", never during quiet hours." : "Off. Reminders are only sent if you turn them on. Nobody else is notified."}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={channel} onChange={(e) => setChannel(e.target.value)} aria-label="Reminder channel" className="bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-lg px-2 py-1">
+          <option value="email">Email</option>
+          <option value="push">Push</option>
+        </select>
+        <label className="flex items-center gap-1">Quiet <input type="time" value={start} onChange={(e) => setStart(e.target.value)} aria-label="Quiet hours start" className="bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-lg px-1 py-0.5" /></label>
+        <label className="flex items-center gap-1">to <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} aria-label="Quiet hours end" className="bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-lg px-1 py-0.5" /></label>
+      </div>
+      <div className="flex gap-2">
+        <button disabled={busy} onClick={() => save(true)} className={"px-3 min-h-[30px] rounded-full ring-1 ring-indigo-300 dark:ring-indigo-500/50 disabled:opacity-50 " + BTN}>{current.enabled ? "Save" : "Turn on"}</button>
+        {current.enabled && <button disabled={busy} onClick={() => save(false)} className={"px-3 min-h-[30px] rounded-full ring-1 ring-slate-300 dark:ring-slate-700 disabled:opacity-50 " + BTN}>Turn off</button>}
+      </div>
+      {error && <div role="alert" className="text-rose-600 dark:text-rose-300">{HSProvider.errorText(error.code)}</div>}
     </section>
   );
 }
@@ -278,6 +319,7 @@ function TwinAside({ S }) {
     <aside className={(S.mobileTab === "events" ? "block" : "hidden") + " md:block md:col-span-2 lg:col-span-1 overflow-y-auto p-3 space-y-3 lg:border-l border-slate-200/70 dark:border-slate-800"}>
       <TwinSummary S={S} />
       <PlanCard S={S} />
+      <ReminderSettings S={S} />
       <EventFeed S={S} />
     </aside>
   );

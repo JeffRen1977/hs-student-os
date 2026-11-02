@@ -8,6 +8,8 @@
 
 const SESSION_REFRESH_EVENTS = ["run.", "assessment.", "mastery.", "session."];
 
+const SKIP_REASON_LABEL = { no_time: "No time", already_know: "I already know this", not_relevant: "Not relevant", other: "Other" };
+
 function newActionId() {
   return "a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -25,6 +27,7 @@ function CourseSessionPanel({ S }) {
   const [retry, setRetry] = React.useState(null); // the failed action, retried with its key
   const [choices, setChoices] = React.useState({}); // itemId → key, for choice-set questions
   const [newDate, setNewDate] = React.useState("");
+  const [skipReason, setSkipReason] = React.useState("");
   const actionIdRef = React.useRef(newActionId());
 
   const reload = React.useCallback(async (sessionId) => {
@@ -59,6 +62,7 @@ function CourseSessionPanel({ S }) {
     setRun(null);
     setChoices({});
     setNewDate("");
+    setSkipReason("");
     if (open) reload(open.sessionId).catch(setError);
   }, [task && task.taskId]);
 
@@ -151,6 +155,12 @@ function CourseSessionPanel({ S }) {
     setNewDate("");
   });
 
+  const toggleLock = () => perform(() => S.updateTaskControls(task, { studentLocked: !task.studentLocked }));
+  const skip = () => perform(async () => {
+    await S.updateTaskControls(task, { status: "SKIPPED", skipReason: skipReason });
+    setSkipReason("");
+  });
+
   const open = session && session.status === "OPEN";
   const canSend = open && !active && !busy;
   const answerReady = kind === "answer" && items ? !!choiceText : !!S.draft.trim();
@@ -187,8 +197,16 @@ function CourseSessionPanel({ S }) {
             <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} aria-label="New date"
               className="bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-lg px-2 py-1" />
             <button disabled={busy || !newDate} onClick={reschedule} className={"px-3 min-h-[30px] rounded-full ring-1 ring-slate-300 dark:ring-slate-700 disabled:opacity-40 " + BTN}>Reschedule (kept on replan)</button>
+            <button disabled={busy} onClick={toggleLock} className={"px-3 min-h-[30px] rounded-full ring-1 ring-slate-300 dark:ring-slate-700 disabled:opacity-40 " + BTN}>{task.studentLocked ? "Unlock date (planner may move it)" : "Lock this date"}</button>
+            <select value={skipReason} onChange={(e) => setSkipReason(e.target.value)} aria-label="Skip reason"
+              className="bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-lg px-2 py-1">
+              <option value="">Skip because…</option>
+              {Object.entries(SKIP_REASON_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <button disabled={busy || !skipReason} onClick={skip} className={"px-3 min-h-[30px] rounded-full ring-1 ring-slate-300 dark:ring-slate-700 disabled:opacity-40 " + BTN}>Skip task</button>
           </div>
         )}
+        {task.status === "SKIPPED" && <div className="text-xs text-slate-500">You skipped this task{task.skipReason ? " (" + (SKIP_REASON_LABEL[task.skipReason] || task.skipReason).toLowerCase() + ")" : ""}. It is no longer planned.</div>}
         {!session && (task.status === "PLANNED" || task.status === "IN_PROGRESS") && (
           <button disabled={busy} onClick={start} className={"px-4 min-h-[40px] rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold " + BTN}>Start practice</button>
         )}

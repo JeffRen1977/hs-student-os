@@ -41,7 +41,8 @@ class QuietHours(ApiModel):
 
 class NotificationPreferences(ApiModel):
     enabled: bool = False
-    channels: list[NotificationChannel] = Field(default_factory=list, max_length=2)
+    # Pilot: one reminder channel (Step 29). Opt-in only; never a parent channel.
+    channels: list[NotificationChannel] = Field(default_factory=list, max_length=1)
     quiet_hours: QuietHours | None = None
 
     _unique_channels = field_validator("channels")(_unique)

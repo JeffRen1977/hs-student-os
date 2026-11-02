@@ -183,6 +183,20 @@ function useAppState(data, api) {
       .then(() => Promise.all([refreshTasks(), refreshPlan()]));
   };
 
+  // Lock/unlock the date, or skip with a reason (only a not-started task). Server-enforced.
+  const updateTaskControls = (task, patch) => {
+    if (!api) return Promise.resolve();
+    return api.patchTask(task.taskId, task.version, patch)
+      .then(() => Promise.all([refreshTasks(), refreshPlan()]));
+  };
+
+  // Reminder opt-in (one channel) and quiet hours. The server records consent and checks
+  // it again right before every send.
+  const saveNotifications = (notifications) => {
+    if (!api || !twin) return Promise.resolve();
+    return api.patchTwin(twin.version, { preferences: { notifications: notifications } }).then(setTwin);
+  };
+
   const upsertSession = (session) =>
     setSessions((prev) => [session].concat(prev.filter((x) => x.sessionId !== session.sessionId)));
 
@@ -216,7 +230,7 @@ function useAppState(data, api) {
     api, actionError, setActionError,
     refreshTasks, refreshTwin, refreshCatalog, refreshSessions, upsertSession,
     plan, refreshPlan, planBusy, replan, planSettled,
-    rescheduleTask, taskById,
+    rescheduleTask, updateTaskControls, saveNotifications, taskById,
     sessionForTask: (taskId) => sessionsByTask[taskId] || null,
     demo, twin, entitlements: data.entitlements,
     view, setView, catalog, enrolledIds,

@@ -7,9 +7,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from app.domain.errors import DomainError, ErrorCode
+from app.domain.planning_schedule import PlanningSchedulePolicy, ensure_schedule
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.repositories import Tx, UnitOfWork
 from app.domain.ports.runtime import Clock
+from app.domain.reminder_service import record_notification_consent
 from app.domain.types.actor import ActorContext, Permission
 from app.domain.types.student import Entitlements, Student
 
@@ -72,10 +74,17 @@ def validate_changes(changes: TwinChanges, catalog: CourseCatalog) -> None:
 
 
 class TwinService:
-    def __init__(self, uow: UnitOfWork, catalog: CourseCatalog, clock: Clock) -> None:
+    def __init__(
+        self,
+        uow: UnitOfWork,
+        catalog: CourseCatalog,
+        clock: Clock,
+        schedule: PlanningSchedulePolicy | None = None,
+    ) -> None:
         self._uow = uow
         self._catalog = catalog
         self._clock = clock
+        self._schedule = schedule or PlanningSchedulePolicy()
 
     async def get_twin(self, actor: ActorContext) -> Student:
         actor.require(Permission.TWIN_READ)
@@ -119,7 +128,16 @@ class TwinService:
                 goals=dataclasses.replace(current.goals, **changes.goals),  # type: ignore[arg-type]
                 preferences=dataclasses.replace(current.preferences, **changes.preferences),  # type: ignore[arg-type]
             )
-            tx.students.save_twin(actor, updated, now=self._clock.now())
+            now = self._clock.now()
+            tx.students.save_twin(actor, updated, now=now)
+            new_tz = updated.preferences.timezone
+            if new_tz != current.preferences.timezone:
+                # Recompute the next planning slot in the new zone (Step 28). Dedupe by
+                # local date still holds, so travelling never plans the same day twice.
+                await ensure_schedule(tx, actor, self._schedule, new_tz, now, reset=True)
+            if "notifications" in changes.preferences:
+                # The consent record is what reminder delivery re-checks before sending.
+                await record_notification_consent(tx, actor, updated.preferences.notifications, now)
             return updated
 
         return await self._uow.transaction(write)

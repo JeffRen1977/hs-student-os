@@ -28,6 +28,7 @@ from app.domain.types.mastery import MasteryState
 from app.domain.types.message import Message
 from app.domain.types.outbox import OutboxEntry, RunInput
 from app.domain.types.plan import Plan, PlanState
+from app.domain.types.reminder import NotificationConsent, Reminder
 from app.domain.types.run import Run
 from app.domain.types.session import Session, SessionStatus
 from app.domain.types.student import Entitlements, Student
@@ -159,6 +160,11 @@ class EventStore(Protocol):
         """Events below this sequence have been purged; older cursors are expired."""
         ...
 
+    async def purge_before(self, actor: ActorContext, cutoff: datetime, limit: int) -> int:
+        """Delete the oldest events that occurred before `cutoff` (at most `limit`, in
+        sequence order, stopping at the first newer one) and raise the purge floor."""
+        ...
+
 
 class AssessmentStore(Protocol):
     async def get(self, actor: ActorContext, assessment_id: str) -> Assessment | None: ...
@@ -216,6 +222,22 @@ class PlanStore(Protocol):
     def save_state(self, actor: ActorContext, state: PlanState) -> None: ...
 
 
+class ReminderStore(Protocol):
+    async def get(self, actor: ActorContext, reminder_id: str) -> Reminder | None: ...
+
+    async def list_since(self, actor: ActorContext, since: date) -> Sequence[Reminder]:
+        """Reminders with `local_date >= since` (frequency caps)."""
+        ...
+
+    def save(self, actor: ActorContext, reminder: Reminder) -> None: ...
+
+
+class ConsentStore(Protocol):
+    async def get_notifications(self, actor: ActorContext) -> NotificationConsent | None: ...
+
+    def save_notifications(self, actor: ActorContext, consent: NotificationConsent) -> None: ...
+
+
 class Tx(Protocol):
     @property
     def students(self) -> StudentStore: ...
@@ -255,6 +277,10 @@ class Tx(Protocol):
     def consumer_offsets(self) -> ConsumerOffsetStore: ...
     @property
     def plans(self) -> PlanStore: ...
+    @property
+    def reminders(self) -> ReminderStore: ...
+    @property
+    def consents(self) -> ConsentStore: ...
 
 
 class UnitOfWork(Protocol):
@@ -283,4 +309,23 @@ class OperationsStore(Protocol):
         self, *, dispatched_before: datetime, limit: int
     ) -> Sequence[OutboxEntry]:
         """Consumer wakes dispatched long ago whose consumers never reported completion."""
+        ...
+
+    async def due_plan_schedules(self, *, due_before: datetime, limit: int) -> Sequence[str]:
+        """Student ids whose scheduled planning pass is due (`planState.nextDueAt`)."""
+        ...
+
+    async def student_ids(self, *, after: str | None, limit: int) -> Sequence[str]:
+        """All student ids in id order (retention jobs page through them)."""
+        ...
+
+    async def failed_runs_since(self, *, since: datetime, limit: int) -> Sequence[Run]:
+        """FAILED runs whose terminal update is at or after `since` (alerting)."""
+        ...
+
+    async def due_reminders(
+        self, *, due_before: datetime, claim_expired_before: datetime, limit: int
+    ) -> Sequence[tuple[str, str]]:
+        """(studentId, reminderId): pending reminders whose sendAt has come, and sending
+        ones whose delivery attempt died (claimedAt older than the claim lease)."""
         ...

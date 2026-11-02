@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any
 
 from google.cloud import firestore
@@ -52,7 +52,9 @@ class FirestoreDocumentStore:
             # All reads are done; flush buffered writes (Firestore: reads before writes).
             for path, write in txn.writes():
                 ref = client.document(path)
-                if write.kind == "set":
+                if write.kind == "delete":
+                    transaction.delete(ref)
+                elif write.kind == "set":
                     transaction.set(ref, write.data)
                 else:
                     transaction.update(ref, write.data)
@@ -64,3 +66,35 @@ class FirestoreDocumentStore:
     async def query_group(self, collection_id: str, spec: QuerySpec) -> list[Doc]:
         query = _build_query(self._client.collection_group(collection_id), spec)
         return [snap.to_dict() async for snap in query.stream()]
+
+    # Backup / restore / deletion (Step 31.4–31.5). Not transactional: these run as
+    # operator jobs on a quiesced student (see doc/OPERATIONS.md).
+
+    async def read_subtree(self, root: str) -> dict[str, Doc]:
+        out: dict[str, Doc] = {}
+
+        async def walk(doc_ref: Any) -> None:
+            snap = await doc_ref.get()
+            if snap.exists:
+                out[doc_ref.path] = snap.to_dict()
+            async for coll in doc_ref.collections():
+                async for child in coll.list_documents():
+                    await walk(child)
+
+        await walk(self._client.document(root))
+        return out
+
+    async def write_documents(self, docs: Mapping[str, Doc]) -> None:
+        items = list(docs.items())
+        for i in range(0, len(items), 400):
+            batch = self._client.batch()
+            for path, doc in items[i : i + 400]:
+                batch.set(self._client.document(path), doc)
+            await batch.commit()
+
+    async def delete_documents(self, doc_paths: Sequence[str]) -> None:
+        for i in range(0, len(doc_paths), 400):
+            batch = self._client.batch()
+            for path in doc_paths[i : i + 400]:
+                batch.delete(self._client.document(path))
+            await batch.commit()

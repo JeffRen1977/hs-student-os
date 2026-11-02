@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 from pydantic import Field
 
+from app.adapters.observability import configure_logging
 from app.api.errors import install_error_handlers
 from app.api.request_id import install_request_id
 from app.bootstrap import Services, get_services
@@ -96,10 +97,56 @@ async def recover_runs(request: Request) -> ScanResponse:
     )
 
 
+@router.post("/planning/schedule", response_model=ScanResponse)
+async def schedule_planning(request: Request) -> ScanResponse:
+    """Cloud Scheduler, every 15 minutes: queue the daily planning pass for students
+    whose local planning time has come (Step 28)."""
+    outcomes = await get_services(request).planning_scheduler.run_due()
+    return ScanResponse(count=sum(outcomes.values()))
+
+
+@router.post("/reminders/deliver", response_model=ScanResponse)
+async def deliver_reminders(request: Request) -> ScanResponse:
+    """Cloud Scheduler, every 5 minutes: deliver due opt-in reminders (Step 29)."""
+    results = await get_services(request).reminders.deliver_due()
+    return ScanResponse(count=sum(results.values()))
+
+
+class AlertView(ApiModel):
+    alert: str
+    firing: bool
+    observed: int
+    threshold: int
+
+
+class OpsCheckResponse(ApiModel):
+    alerts: list[AlertView]
+
+
+@router.post("/ops/check", response_model=OpsCheckResponse)
+async def ops_check(request: Request) -> OpsCheckResponse:
+    """Cloud Scheduler, every 5 minutes: evaluate alert conditions (Step 31.3)."""
+    states = await get_services(request).ops_monitor.check()
+    return OpsCheckResponse(
+        alerts=[
+            AlertView(alert=s.alert, firing=s.firing, observed=s.observed, threshold=s.threshold)
+            for s in states
+        ]
+    )
+
+
+@router.post("/retention/events", response_model=ScanResponse)
+async def purge_events(request: Request) -> ScanResponse:
+    """Cloud Scheduler, daily: purge events past the retention period (Step 31.5)."""
+    return ScanResponse(count=await get_services(request).event_retention.purge())
+
+
 def create_worker_app(
     settings: Settings | None = None, services: Services | None = None
 ) -> FastAPI:
     settings = settings or get_settings()
+    if settings.log_format == "json":
+        configure_logging(settings.log_level)
     app = FastAPI(
         title="High School Student OS Worker",
         version=APP_VERSION,

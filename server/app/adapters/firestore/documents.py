@@ -55,7 +55,7 @@ class GroupReader(Protocol):
 
 @dataclass(slots=True)
 class _Write:
-    kind: Literal["set", "update"]
+    kind: Literal["set", "update", "delete"]
     data: Doc
 
 
@@ -67,13 +67,15 @@ class DocTxn:
     async def get(self, path: str) -> Doc | None:
         pending = self._writes.get(path)
         base: Doc | None
-        if pending and pending[0].kind == "set":
+        if pending and pending[0].kind in ("set", "delete"):
             base = None
         else:
             base = await self._reader.get(path)
         for write in pending or ():
             if write.kind == "set":
                 base = copy.deepcopy(write.data)
+            elif write.kind == "delete":
+                base = None
             elif base is not None:
                 base.update(copy.deepcopy(write.data))
         return base
@@ -89,6 +91,10 @@ class DocTxn:
         """Replace the given top-level fields of an existing document."""
         self._writes.setdefault(path, []).append(_Write("update", copy.deepcopy(fields)))
 
+    def delete(self, path: str) -> None:
+        """Delete the document (retention purges and student deletion only)."""
+        self._writes[path] = [_Write("delete", {})]
+
     def writes(self) -> list[tuple[str, _Write]]:
         """One collapsed write per document (a commit writes each document at most once)."""
         collapsed: list[tuple[str, _Write]] = []
@@ -96,7 +102,12 @@ class DocTxn:
             kind = ws[0].kind
             data: Doc = {}
             for w in ws:
-                data = copy.deepcopy(w.data) if w.kind == "set" else {**data, **w.data}
+                if w.kind == "delete":
+                    kind, data = "delete", {}
+                elif w.kind == "set":
+                    kind, data = "set", copy.deepcopy(w.data)
+                else:
+                    data = {**data, **w.data}
             collapsed.append((path, _Write(kind, data)))
         return collapsed
 

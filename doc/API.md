@@ -503,6 +503,15 @@ Run FAILED 的 `error.code`（面向学生，不含供应商消息）：`BUDGET_
 
 学生侧变化：`Availability` 增加 `retired`（退役课程不在目录列表中，`GET /api/courses/{id}` 仍可读，新工作返回 409 `COURSE_NOT_AVAILABLE`）；`GET /api/courses/{courseId}/agent` 增加 `skills[{skillId, name}]`（来自课程包，前端据此显示技能名）；首次注册时按课程包 `starterTasks` 创建任务。
 
+## 6.4 M4 定时计划、学生控制与提醒（Steps 28–29）
+
+- **定时计划**：每个已注册课程的学生每个**本地日**一次计划，默认本地 04:00（`HSOS_PLANNING_LOCAL_TIME`），与学生重排使用同一个 Planner。`Plan` 增加只读字段 `trigger`：`student`（`POST /api/plans/replan`）或 `scheduled`；`plan.updated` 的 `payload.reason` 相应为 `replan` 或 `scheduled`。定时计划运行期间学生重排返回 409 `RUN_IN_PROGRESS`；学生重排尚未执行时到点的定时计划并入它，不再建第二个 Run。`GET /api/tasks` 与 `GET /api/plans/*` 永不触发计划。
+- **学生控制**（契约不变，前端已接入）：`PATCH /api/tasks/{taskId}` 改 `scheduledDate`（默认锁定）、`studentLocked` 解锁/锁定、`status=SKIPPED` + `skipReason`。
+- **提醒同意**：`preferences.notifications.channels` 上限改为 **1**（试点只允许一个渠道），`channels` 非空需要 `enabled=true`，否则 400 `VALIDATION_FAILED`。修改 `notifications` 的 twin PATCH 同时写入同意记录（`students/{id}/consents/notifications`：granted、channels、policyVersion `reminders-v1`、grantedAt、revokedAt）。同意记录不通过 API 暴露，仅供发送前复查。
+- **提醒**：每个学生、渠道、本地日最多一条摘要提醒（id = 去重键 `{localDate}.{channel}`），默认本地 16:00，避开安静时段；内容在发送时按当时的任务计算（已完成、跳过或改到别天的任务不计入；一个都不剩就不发）。接收者只有学生本人，没有家长通知。试点没有真实渠道：只有 `fake` 发送器，部署环境只发给指定的合成测试学生（`HSOS_REMINDER_TEST_RECIPIENTS`），生产环境拒绝 `fake`。
+- **内部路由**（worker，仅服务身份；Cloud Scheduler 调用）：`POST /internal/planning/schedule`、`/internal/reminders/deliver`、`/internal/ops/check`（返回 `{alerts[{alert, firing, observed, threshold}]}`）、`/internal/retention/events`。学生 token 一律 401。
+- **事件保留**：超过 `HSOS_EVENT_RETENTION_DAYS`（默认 180 天）的事件被清理并提高 `oldestRetainedSequence`；更早的游标返回 410（已有契约）。评估、掌握度、计划不受影响。
+
 ## 7. v0.1 → v0.2 迁移与验收
 
 | 旧设计 | 新契约 |

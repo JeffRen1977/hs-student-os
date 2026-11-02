@@ -249,6 +249,12 @@ Cloud Scheduler 定期触发 dispatcher，查询 dueAt，按学生 IANA timezone
 
 提醒使用 outbox，按渠道/任务/时段去重，发送前再检查同意、撤销、安静时段与频控。首版无外部写工具，提醒是受控后台服务；不由模型任意发送消息。家长摘要为后续角色化能力。
 
+M4 实现说明（Step 28）：`planState/current` 增加 `studentId`、`nextDueAt`（UTC）、`timezone`、`lastScheduledLocalDate`、`activeTrigger`。Cloud Scheduler 每 15 分钟调用 `/internal/planning/schedule`；扫描 `planState.nextDueAt <= now`（集合组查询），每个学生一个事务（`app/domain/planning_schedule.py`）重新检查：本地日已有定时计划 → 只推进 `nextDueAt`；有未结束的 PLANNING Run → 合并；否则建 PLANNING Run，id `run_sched_{YYYYMMDD}_{studentId}`（Cloud Tasks 任务名在队列内唯一，所以含 studentId）。停机后只为"今天"补一次。时间换算见 `app/domain/local_time.py`：不存在的本地时刻（春季跳时）取跳过后的时刻，重复的本地时刻（秋季回拨）取第一次，按本地日期去重保证只算一次。首次注册时开始计划，改时区时按新时区重算 `nextDueAt`。
+
+M4 实现说明（Step 29）：采用"消息内容在发送时计算"的每日摘要提醒，而不是每个任务一条。计划提交事务中创建当天提醒（`reminders/{localDate}.{channel}`，PENDING，`sendAt` 避开安静时段，若安静时段持续到当天结束则不建）。`/internal/reminders/deliver`（每 5 分钟）扫描到期的 PENDING 与租约过期的 SENDING：认领事务复查同意记录与偏好、是否仍是当天、安静时段（推迟到结束时刻）、当天是否仍有未完成任务、每 7 天上限；然后在事务外用去重键发送，再用事务标记 SENT。发送后崩溃 → 认领租约（5 分钟）过期后重发同一去重键，渠道报告已送达 → 学生只收到一条。失败最多重试 3 次后 `delivery_failed`。
+
+M4 实现说明（Step 31）：运维说明与恢复步骤见 [OPERATIONS.md](OPERATIONS.md)。
+
 ## 10. 目录、验证与部署
 
 ```text

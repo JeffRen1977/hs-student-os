@@ -14,6 +14,7 @@ from app.domain.access import (
 from app.domain.commands import CommandKey, Outcome, find_replay, remember
 from app.domain.errors import DomainError, ErrorCode
 from app.domain.planner_service import all_tasks, local_today, place_new_task
+from app.domain.planning_schedule import PlanningSchedulePolicy, ensure_schedule
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.repositories import EventDraft, SessionQuery, Tx, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
@@ -48,12 +49,18 @@ class CourseAgent:
 
 class CourseService:
     def __init__(
-        self, uow: UnitOfWork, catalog: CourseCatalog, clock: Clock, ids: IdFactory
+        self,
+        uow: UnitOfWork,
+        catalog: CourseCatalog,
+        clock: Clock,
+        ids: IdFactory,
+        schedule: PlanningSchedulePolicy | None = None,
     ) -> None:
         self._uow = uow
         self._catalog = catalog
         self._clock = clock
         self._ids = ids
+        self._schedule = schedule or PlanningSchedulePolicy()
 
     # ---- Catalog ----------------------------------------------------------------------
 
@@ -133,6 +140,10 @@ class CourseService:
             )
             tx.enrollments.save(actor, enrollment)
             await self._create_starter_tasks(tx, actor, course)
+            # The daily planning pass starts with the first enrollment (Step 28).
+            student = await tx.students.get(actor)
+            if student is not None:
+                await ensure_schedule(tx, actor, self._schedule, student.preferences.timezone, now)
             await tx.events.append(
                 actor,
                 EventDraft(

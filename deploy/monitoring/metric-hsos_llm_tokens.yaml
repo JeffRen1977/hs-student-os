@@ -1,0 +1,13 @@
+description: Model tokens per gateway call (cost; Step 31.2). From the gateway's own log entries.
+filter: >-
+  resource.type="cloud_run_revision" AND jsonPayload.logger="app.llm" AND jsonPayload.tokens>0
+valueExtractor: EXTRACT(jsonPayload.tokens)
+labelExtractors:
+  tier: EXTRACT(jsonPayload.tier)
+metricDescriptor:
+  metricKind: DELTA
+  valueType: DISTRIBUTION
+  labels:
+    - key: tier
+bucketOptions:
+  exponentialBuckets: {numFiniteBuckets: 20, growthFactor: 2, scale: 100}

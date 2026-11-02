@@ -14,6 +14,7 @@ import dataclasses
 import logging
 
 from app.domain.ports.execution import JobQueue
+from app.domain.ports.metrics import Metrics, NullMetrics
 from app.domain.ports.repositories import OperationsStore, Tx, UnitOfWork
 from app.domain.ports.runtime import Clock
 from app.domain.types.actor import ActorContext
@@ -26,8 +27,14 @@ DISPATCHER_SERVICE = "outbox-dispatcher"
 
 class OutboxDispatcher:
     def __init__(
-        self, uow: UnitOfWork, operations: OperationsStore, queue: JobQueue, clock: Clock
+        self,
+        uow: UnitOfWork,
+        operations: OperationsStore,
+        queue: JobQueue,
+        clock: Clock,
+        metrics: Metrics | None = None,
     ) -> None:
+        self._metrics: Metrics = metrics or NullMetrics()
         self._uow = uow
         self._ops = operations
         self._queue = queue
@@ -67,11 +74,14 @@ class OutboxDispatcher:
 
     async def dispatch_pending(self, limit: int = 100) -> int:
         dispatched = 0
-        for entry in await self._ops.pending_outbox(limit):
+        pending = await self._ops.pending_outbox(limit)
+        self._metrics.observe("outbox.pending_scanned", len(pending))
+        for entry in pending:
             try:
                 if await self.dispatch_one(entry.student_id, entry.delivery_id):
                     dispatched += 1
             except Exception as exc:  # keep scanning; the entry stays pending
+                self._metrics.count("outbox.dispatch_failed")
                 logger.warning(
                     "outbox_dispatch_failed",
                     extra={"deliveryId": entry.delivery_id, "error": type(exc).__name__},

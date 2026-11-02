@@ -60,3 +60,18 @@ test("plans are read-only GETs, and there is no cross-course findings call", asy
   ]);
   assert.equal(calls[0].init.body, undefined);
 });
+
+test("task controls and reminder opt-in are If-Match PATCHes of allowlisted fields", async () => {
+  const { api, calls } = provider(() => jsonResponse(200, {}));
+  await api.patchTask("t1", 2, { studentLocked: false });
+  await api.patchTask("t1", 3, { status: "SKIPPED", skipReason: "no_time" });
+  const notifications = { enabled: true, channels: ["email"], quietHours: { start: "21:00", end: "08:00" } };
+  await api.patchTwin(5, { preferences: { notifications: notifications } });
+  assert.deepEqual(calls.map((c) => [c.init.method, c.url.replace("http://localhost:8787", ""), c.init.headers["If-Match"]]), [
+    ["PATCH", "/api/tasks/t1", '"2"'],
+    ["PATCH", "/api/tasks/t1", '"3"'],
+    ["PATCH", "/api/twin", '"5"'],
+  ]);
+  assert.deepEqual(JSON.parse(calls[2].init.body), { preferences: { notifications: notifications } });
+  assert.equal(calls[2].init.headers["Idempotency-Key"], undefined);
+});

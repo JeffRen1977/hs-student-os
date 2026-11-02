@@ -1,0 +1,11 @@
+description: Duplicate commands/deliveries/reminders suppressed (Step 31.2)
+filter: >-
+  resource.type="cloud_run_revision" AND jsonPayload.message="metric"
+  AND jsonPayload.metric="duplicate.suppressed"
+labelExtractors:
+  source: EXTRACT(jsonPayload.labels.source)
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  labels:
+    - key: source

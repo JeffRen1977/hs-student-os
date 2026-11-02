@@ -1,44 +1,238 @@
 {
   "indexes": [
-    {"collectionGroup": "tasks", "queryScope": "COLLECTION", "fields": [
-      {"fieldPath": "courseId", "order": "ASCENDING"},
-      {"fieldPath": "scheduledDate", "order": "ASCENDING"},
-      {"fieldPath": "taskId", "order": "ASCENDING"}]},
-    {"collectionGroup": "tasks", "queryScope": "COLLECTION", "fields": [
-      {"fieldPath": "courseId", "order": "ASCENDING"},
-      {"fieldPath": "status", "order": "ASCENDING"},
-      {"fieldPath": "scheduledDate", "order": "ASCENDING"},
-      {"fieldPath": "taskId", "order": "ASCENDING"}]},
-    {"collectionGroup": "sessions", "queryScope": "COLLECTION", "fields": [
-      {"fieldPath": "taskId", "order": "ASCENDING"},
-      {"fieldPath": "createdAt", "order": "ASCENDING"},
-      {"fieldPath": "sessionId", "order": "ASCENDING"}]},
-    {"collectionGroup": "sessions", "queryScope": "COLLECTION", "fields": [
-      {"fieldPath": "courseId", "order": "ASCENDING"},
-      {"fieldPath": "status", "order": "ASCENDING"},
-      {"fieldPath": "createdAt", "order": "ASCENDING"},
-      {"fieldPath": "sessionId", "order": "ASCENDING"}]},
-    {"collectionGroup": "messages", "queryScope": "COLLECTION", "fields": [
-      {"fieldPath": "sessionId", "order": "ASCENDING"},
-      {"fieldPath": "createdAt", "order": "ASCENDING"},
-      {"fieldPath": "messageId", "order": "ASCENDING"}]},
-    {"collectionGroup": "submissions", "queryScope": "COLLECTION", "fields": [
-      {"fieldPath": "sessionId", "order": "ASCENDING"},
-      {"fieldPath": "createdAt", "order": "ASCENDING"},
-      {"fieldPath": "submissionId", "order": "ASCENDING"}]},
-    {"collectionGroup": "outbox", "queryScope": "COLLECTION_GROUP", "fields": [
-      {"fieldPath": "status", "order": "ASCENDING"},
-      {"fieldPath": "createdAt", "order": "ASCENDING"}]},
-    {"collectionGroup": "outbox", "queryScope": "COLLECTION_GROUP", "fields": [
-      {"fieldPath": "kind", "order": "ASCENDING"},
-      {"fieldPath": "status", "order": "ASCENDING"},
-      {"fieldPath": "dispatchedAt", "order": "ASCENDING"}]},
-    {"collectionGroup": "runs", "queryScope": "COLLECTION_GROUP", "fields": [
-      {"fieldPath": "status", "order": "ASCENDING"},
-      {"fieldPath": "updatedAt", "order": "ASCENDING"}]},
-    {"collectionGroup": "runs", "queryScope": "COLLECTION_GROUP", "fields": [
-      {"fieldPath": "status", "order": "ASCENDING"},
-      {"fieldPath": "leaseExpiresAt", "order": "ASCENDING"}]}
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "courseId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scheduledDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "taskId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "courseId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scheduledDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "taskId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "taskId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sessionId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "courseId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sessionId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sessionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "messageId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sessionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "submissionId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "outbox",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "outbox",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "kind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dispatchedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "runs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "runs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "leaseExpiresAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reminders",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sendAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reminders",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "claimedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "planState",
+      "fieldPath": "nextDueAt",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "students",
+      "fieldPath": "studentId",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    }
+  ]
 }

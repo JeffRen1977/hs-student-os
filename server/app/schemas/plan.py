@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from app.domain.types.plan import Placement, PlanPriority
+from app.domain.types.plan import Placement, PlanPriority, PlanTrigger
 from app.schemas.common import ApiModel, CourseId, LocalDate, OpaqueId, UtcDatetime
 
 
@@ -31,3 +31,4 @@ class Plan(ApiModel):
     evidence_available: bool
     entries: list[PlanEntry]
     created_at: UtcDatetime
+    trigger: PlanTrigger = PlanTrigger.STUDENT  # "scheduled": the daily planning pass

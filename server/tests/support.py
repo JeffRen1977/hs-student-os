@@ -28,6 +28,8 @@ from app.adapters.seed_documents import build_platform_documents, build_seed_doc
 from app.bootstrap import Services, build_services
 from app.config import Settings, StorageProvider
 from app.domain.ports.execution import RunExecutor
+from app.domain.ports.metrics import Metrics
+from app.domain.ports.notifications import ReminderSender
 from app.domain.types.common import AgentType, StudyMode, TaskType
 from app.domain.types.task import Task, TaskReason, TaskReasonCode, TaskStatus
 from app.main import create_app
@@ -238,6 +240,9 @@ def build_harness(
     llm_provider: LlmProvider | None = None,
     consumers: Sequence[Consumer] = (),
     seed_packages: bool = True,
+    reminder_sender: ReminderSender | None = None,
+    store: MemoryDocumentStore | None = None,
+    metrics: Metrics | None = None,
     **settings_overrides: Any,
 ) -> Harness:
     """`seed_packages=False`: platform members only, no authored package installed, so a
@@ -247,7 +252,7 @@ def build_harness(
     platform = load_platform_fixture()
     if not seed_packages:
         platform = platform.model_copy(update={"seed_packages": []})
-    store = MemoryDocumentStore(
+    store = store or MemoryDocumentStore(
         {
             **build_seed_documents(load_seed_students(), now=clock.now()),
             **build_platform_documents(platform, now=clock.now()),
@@ -264,6 +269,8 @@ def build_harness(
         worker_id="worker-test",
         llm_provider=llm_provider,
         consumers=consumers,
+        reminder_sender_override=reminder_sender,
+        metrics=metrics,
     )
     app = create_app(settings, services)
     transport = ASGITransport(app=app, raise_app_exceptions=False)

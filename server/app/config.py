@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,6 +41,11 @@ DEFAULT_MODELS: dict[LlmProvider, tuple[str, str, str]] = {
 class QueueProvider(StrEnum):
     CLOUD_TASKS = "cloud_tasks"
     LOCAL = "local"
+
+
+class ReminderProvider(StrEnum):
+    DISABLED = "disabled"  # no reminders are created or sent
+    FAKE = "fake"  # in-memory sender (tests, local dev, staging test recipients only)
 
 
 class StorageProvider(StrEnum):
@@ -98,6 +104,24 @@ class Settings(BaseSettings):
     llm_daily_token_budget: int = Field(default=400_000, ge=1_000)
     # Production refuses to serve content that has not passed human review.
     require_reviewed_content: bool = False
+
+    # Scheduled planning (Step 28): local wall time of the daily planning pass.
+    planning_local_time: str = Field(default="04:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    # Opt-in reminders (Step 29). Real delivery only reaches designated test recipients.
+    reminder_provider: ReminderProvider = ReminderProvider.DISABLED
+    reminder_local_time: str = Field(default="16:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    reminder_weekly_cap: int = Field(default=5, ge=1, le=14)
+    reminder_test_recipients: list[str] = Field(default_factory=list)
+
+    # Operations (Step 31). Deployed services log JSON (Cloud Logging) and emit metrics as
+    # log entries; locally logs stay plain text unless HSOS_LOG_FORMAT=json.
+    log_format: Literal["text", "json"] = "text"
+    log_level: str = "INFO"
+    event_retention_days: int = Field(default=180, ge=7, le=3650)
+    alert_outbox_backlog: int = Field(default=50, ge=1)
+    alert_outbox_age_seconds: int = Field(default=300, ge=30)
+    alert_failed_runs_per_hour: int = Field(default=10, ge=1)
+    alert_budget_overruns_per_hour: int = Field(default=5, ge=1)
 
     # Event stream (Step 19). Close before Cloud Run's request timeout; clients reconnect.
     sse_heartbeat_seconds: float = Field(default=15.0, gt=0, le=60)
@@ -160,8 +184,19 @@ class Settings(BaseSettings):
             problems.append(
                 "HSOS_WORKER_OIDC_AUDIENCE and HSOS_WORKER_SERVICE_ACCOUNT are required"
             )
+        if self.app_env is AppEnv.PRODUCTION and self.reminder_provider is ReminderProvider.FAKE:
+            problems.append("HSOS_REMINDER_PROVIDER=fake")
         if self.app_env is AppEnv.PRODUCTION and not self.require_reviewed_content:
             problems.append("HSOS_REQUIRE_REVIEWED_CONTENT must be true in production")
+        worst_call = self.llm_timeout_seconds * self.llm_max_attempts
+        if self.run_lease_seconds <= worst_call:
+            # Otherwise recovery re-queues a run whose model call is still in progress: the
+            # fencing token keeps it correct, but the model is paid for twice.
+            problems.append(
+                f"HSOS_RUN_LEASE_SECONDS must exceed LLM timeout x attempts ({worst_call:.0f}s)"
+            )
+        if self.log_format != "json":
+            problems.append("HSOS_LOG_FORMAT must be json (structured Cloud Logging)")
         if self.gcp_project_id.startswith("demo-"):
             problems.append("HSOS_GCP_PROJECT_ID is an emulator-only demo project")
         if problems:

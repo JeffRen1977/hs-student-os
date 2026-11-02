@@ -1,0 +1,14 @@
+description: Run execution latency in ms (assessment latency; Step 31.2)
+filter: >-
+  resource.type="cloud_run_revision" AND jsonPayload.message="metric"
+  AND jsonPayload.metric="run.execute_ms"
+valueExtractor: EXTRACT(jsonPayload.value)
+labelExtractors:
+  kind: EXTRACT(jsonPayload.labels.kind)
+metricDescriptor:
+  metricKind: DELTA
+  valueType: DISTRIBUTION
+  labels:
+    - key: kind
+bucketOptions:
+  exponentialBuckets: {numFiniteBuckets: 20, growthFactor: 1.6, scale: 50}

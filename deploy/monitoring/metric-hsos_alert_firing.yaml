@@ -1,0 +1,10 @@
+description: Alert conditions reported by /internal/ops/check (Step 31.3)
+filter: >-
+  resource.type="cloud_run_revision" AND jsonPayload.message="alert_firing"
+labelExtractors:
+  alert: EXTRACT(jsonPayload.alert)
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  labels:
+    - key: alert

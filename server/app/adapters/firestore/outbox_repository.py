@@ -126,3 +126,66 @@ class FirestoreOperationsStore:
             ),
         )
         return [outbox_from_doc(d) for d in docs]
+
+    async def due_plan_schedules(self, *, due_before: datetime, limit: int) -> Sequence[str]:
+        docs = await self._reader.query_group(
+            "planState",
+            QuerySpec(
+                filters=[Filter("nextDueAt", "<=", due_before)],
+                order_by=("nextDueAt",),
+                limit=limit,
+            ),
+        )
+        return [str(d["studentId"]) for d in docs if d.get("studentId")]
+
+    async def due_reminders(
+        self, *, due_before: datetime, claim_expired_before: datetime, limit: int
+    ) -> Sequence[tuple[str, str]]:
+        pending = await self._reader.query_group(
+            "reminders",
+            QuerySpec(
+                filters=[
+                    Filter("status", "==", "pending"),
+                    Filter("sendAt", "<=", due_before),
+                ],
+                order_by=("sendAt",),
+                limit=limit,
+            ),
+        )
+        stuck = await self._reader.query_group(
+            "reminders",
+            QuerySpec(
+                filters=[
+                    Filter("status", "==", "sending"),
+                    Filter("claimedAt", "<=", claim_expired_before),
+                ],
+                order_by=("claimedAt",),
+                limit=limit,
+            ),
+        )
+        return [(str(d["studentId"]), str(d["reminderId"])) for d in pending + stuck]
+
+    async def failed_runs_since(self, *, since: datetime, limit: int) -> Sequence[Run]:
+        docs = await self._reader.query_group(
+            "runs",
+            QuerySpec(
+                filters=[
+                    Filter("status", "==", RunStatus.FAILED.value),
+                    Filter("updatedAt", ">=", since),
+                ],
+                order_by=("updatedAt",),
+                limit=limit,
+            ),
+        )
+        return [run_from_doc(d) for d in docs]
+
+    async def student_ids(self, *, after: str | None, limit: int) -> Sequence[str]:
+        docs = await self._reader.query_group(
+            "students",
+            QuerySpec(
+                order_by=("studentId",),
+                start_after=(after,) if after is not None else None,
+                limit=limit,
+            ),
+        )
+        return [str(d["studentId"]) for d in docs]

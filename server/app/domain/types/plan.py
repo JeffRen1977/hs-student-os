@@ -11,6 +11,13 @@ PLANNER_RULE_VERSION = "planner-rules-v1"
 HORIZON_DAYS = 7
 
 
+class PlanTrigger(StrEnum):
+    """Why a plan was made. The same planner serves both (Step 28.3)."""
+
+    STUDENT = "student"  # POST /api/plans/replan
+    SCHEDULED = "scheduled"  # the daily scheduled planning pass
+
+
 class PlanPriority(StrEnum):
     """Ranked high → low: deadlines > evidence gaps > practice."""
 
@@ -56,6 +63,7 @@ class Plan:
     evidence_available: bool  # False → conservative plan (no evidence-gap ranking)
     entries: Sequence[PlanEntry]
     created_at: datetime
+    trigger: PlanTrigger = PlanTrigger.STUDENT
 
     @property
     def changed_task_ids(self) -> list[str]:
@@ -64,8 +72,18 @@ class Plan:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PlanState:
-    """`students/{id}/planState/current`: guards one non-terminal PLANNING run."""
+    """`students/{id}/planState/current`: guards one non-terminal PLANNING run and holds
+    the daily planning schedule (Step 28).
+
+    `next_due_at` is the UTC instant of the next scheduled planning pass (04:00 local by
+    default); `timezone` is the zone it was computed in. `last_scheduled_local_date` is the
+    business dedupe key: at most one scheduled pass per student per local date.
+    """
 
     active_run_id: str | None = None
+    active_trigger: PlanTrigger | None = None
     latest_plan_id: str | None = None
+    next_due_at: datetime | None = None
+    timezone: str | None = None
+    last_scheduled_local_date: date | None = None
     version: int = 0

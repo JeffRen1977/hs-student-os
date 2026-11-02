@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -30,6 +31,7 @@ from app.domain.ports.execution import (
     RetryableExecutionError,
     RunExecutor,
 )
+from app.domain.ports.metrics import Metrics, NullMetrics
 from app.domain.ports.repositories import EventDraft, Tx, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
 from app.domain.runs import finish_run
@@ -74,8 +76,10 @@ class RunExecutionService:
         max_attempts: int,
         assessments: AssessmentService | None = None,
         planner: PlannerService | None = None,
+        metrics: Metrics | None = None,
     ) -> None:
         self._uow = uow
+        self._metrics: Metrics = metrics or NullMetrics()
         self._assessments = assessments
         self._planner = planner
         self._catalog = catalog
@@ -100,6 +104,8 @@ class RunExecutionService:
             return acquired
         if acquired.request is None:
             return await self._process_planning(actor, run_id, acquired.token)
+        started = time.monotonic()
+        kind = acquired.request.run.kind.value
         try:
             output = await self._executor.execute(acquired.request)
         except RetryableExecutionError:
@@ -117,8 +123,12 @@ class RunExecutionService:
             )
             await self.fail(actor, run_id, acquired.token, "EXECUTION_FAILED", False)
             return ProcessResult.DONE
+        self._metrics.observe(
+            "run.execute_ms", round((time.monotonic() - started) * 1000, 1), kind=kind
+        )
         try:
             await self.commit(actor, run_id, acquired.token, output)
+            self._metrics.count("run.committed", kind=kind)
         except AssessmentRejectedError as exc:
             # The commit transaction aborted as a whole: no assessment, no mastery change.
             logger.warning("assessment_rejected", extra={"runId": run_id,
@@ -133,6 +143,8 @@ class RunExecutionService:
             now = self._clock.now()
             run = await tx.runs.get(actor, run_id)
             if run is None or run.is_terminal or run.status is RunStatus.WAITING_INPUT:
+                if run is not None and run.is_terminal:
+                    self._metrics.count("duplicate.suppressed", source="delivery")
                 return ProcessResult.DONE  # duplicate/obsolete delivery: no effect
             if run.lease_active(now):
                 return ProcessResult.RETRY  # another worker holds a live lease

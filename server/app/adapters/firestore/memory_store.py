@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any
 
 from app.adapters.firestore.documents import Doc, DocTxn, Filter, QuerySpec
@@ -82,7 +82,9 @@ class MemoryDocumentStore:
                 raise SimulatedCommitFailure("injected commit failure")
             staged = dict(self._data)
             for path, write in txn.writes():
-                if write.kind == "set":
+                if write.kind == "delete":
+                    staged.pop(path, None)
+                elif write.kind == "set":
                     staged[path] = copy.deepcopy(write.data)
                 elif path in staged:
                     staged[path] = {**staged[path], **copy.deepcopy(write.data)}
@@ -95,6 +97,25 @@ class MemoryDocumentStore:
     async def query_group(self, collection_id: str, spec: QuerySpec) -> list[Doc]:
         docs = [d for p, d in self._data.items() if _parent(p).rsplit("/", 1)[-1] == collection_id]
         return apply_spec(docs, spec)
+
+    # Backup / restore / deletion (Step 31.4–31.5) ---------------------------------------
+
+    async def read_subtree(self, root: str) -> dict[str, Doc]:
+        return {
+            p: copy.deepcopy(d)
+            for p, d in self._data.items()
+            if p == root or p.startswith(root + "/")
+        }
+
+    async def write_documents(self, docs: Mapping[str, Doc]) -> None:
+        async with self._lock:
+            for path, doc in docs.items():
+                self._data[path] = copy.deepcopy(doc)
+
+    async def delete_documents(self, doc_paths: Sequence[str]) -> None:
+        async with self._lock:
+            for path in doc_paths:
+                self._data.pop(path, None)
 
     # Test/diagnostic helpers -----------------------------------------------------------
 

@@ -34,6 +34,7 @@ from app.domain.errors import DomainError, ErrorCode
 from app.domain.ports.content import SubjectPackRegistry
 from app.domain.ports.repositories import EventDraft, TaskQuery, Tx, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
+from app.domain.reminder_service import ReminderService
 from app.domain.runs import enqueue_run
 from app.domain.types.actor import ActorContext, Permission
 from app.domain.types.common import PageRequest
@@ -47,6 +48,7 @@ from app.domain.types.plan import (
     Plan,
     PlanEntry,
     PlanPriority,
+    PlanTrigger,
 )
 from app.domain.types.run import Run, RunKind, RunStatus
 from app.domain.types.student import MasteryLevel, Student
@@ -238,12 +240,18 @@ async def all_tasks(
 
 class PlannerService:
     def __init__(
-        self, uow: UnitOfWork, packs: SubjectPackRegistry, clock: Clock, ids: IdFactory
+        self,
+        uow: UnitOfWork,
+        packs: SubjectPackRegistry,
+        clock: Clock,
+        ids: IdFactory,
+        reminders: ReminderService | None = None,
     ) -> None:
         self._uow = uow
         self._packs = packs
         self._clock = clock
         self._ids = ids
+        self._reminders = reminders
 
     # ---- Command ----------------------------------------------------------------------
 
@@ -280,7 +288,12 @@ class PlannerService:
             )
             tx.plans.save_state(
                 actor,
-                dataclasses.replace(state, active_run_id=run.run_id, version=state.version + 1),
+                dataclasses.replace(
+                    state,
+                    active_run_id=run.run_id,
+                    active_trigger=PlanTrigger.STUDENT,
+                    version=state.version + 1,
+                ),
             )
             remember(
                 tx, actor, cmd, resource_type=RUN_RESOURCE,
@@ -325,17 +338,26 @@ class PlannerService:
             raise DomainError(ErrorCode.NOT_FOUND, "Student not found.")
         inp = await self.planning_input(tx, actor, student)
         entries = build_plan(inp)
+        state = await tx.plans.get_state(actor)
+        trigger = (
+            state.active_trigger
+            if state.active_run_id == run.run_id and state.active_trigger is not None
+            else PlanTrigger.STUDENT
+        )
         by_id = {t.task_id: t for t in inp.tasks}
+        placed: list[Task] = []
         for e in entries:
+            task = by_id[e.task_id]
             if e.previous_date != e.scheduled_date:
-                task = by_id[e.task_id]
-                tx.tasks.save(
-                    actor,
-                    dataclasses.replace(
-                        task, scheduled_date=e.scheduled_date, version=task.version + 1
-                    ),
-                    now=now,
+                task = dataclasses.replace(
+                    task, scheduled_date=e.scheduled_date, version=task.version + 1
                 )
+                tx.tasks.save(actor, task, now=now)
+            placed.append(task)
+        if self._reminders is not None:
+            # Today's opt-in reminder, if any (Step 29). Created once per local day.
+            today_tasks = [t for t in placed if t.scheduled_date == inp.today]
+            await self._reminders.sync_in_tx(tx, actor, student, inp.today, today_tasks, now)
         plan = Plan(
             plan_id=self._ids.new("plan"),
             student_id=actor.student_id,
@@ -348,9 +370,9 @@ class PlannerService:
             evidence_available=inp.evidence_available,
             entries=tuple(entries),
             created_at=now,
+            trigger=trigger,
         )
         tx.plans.save(actor, plan)
-        state = await tx.plans.get_state(actor)
         tx.plans.save_state(
             actor,
             dataclasses.replace(state, latest_plan_id=plan.plan_id, version=state.version + 1),
@@ -364,7 +386,7 @@ class PlannerService:
                 payload={
                     "planId": plan.plan_id,
                     "changedTaskIds": plan.changed_task_ids,
-                    "reason": "replan",
+                    "reason": "scheduled" if trigger is PlanTrigger.SCHEDULED else "replan",
                 },
             ),
             event_id=self._ids.new("evt"),

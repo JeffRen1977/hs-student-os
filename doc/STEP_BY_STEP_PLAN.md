@@ -14,10 +14,10 @@ The product is a **course platform with one shared runtime**: third parties add 
 | M1 Reliable foundation | 8–15 | **Implemented; verified over the in-memory backend**: Firestore-emulator run pending (no Java), Cloud Tasks/OIDC verified in staging (Step 30) |
 | M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator run pending (no Java) |
 | M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. **Steps 26–27 implemented 2026-11-01** (package contract v1 + validator, author/reviewer roles, review gate, version pinning, retire; Digital SAT rebuilt as an authored package; course-driven frontend). Not started: ability catalog contract (23), course-internal follow-up rules (24.2), package-sourced deadlines (25.4), re-expressing Calc BC as a package (22.3). |
-| M4 Proactive planning and pilot | 28–33 | Not started (pilot: Calc BC + Digital SAT, authored) |
+| M4 Proactive planning and pilot | 28–33 | **Steps 28, 29, 31 implemented 2026-11-01; verified over the in-memory backend** (scheduled planning, student controls + opt-in reminders, structured logs/metrics/alerts, backup/restore/delete, event retention). **Step 30** deployment config written and checked locally (image build, config tests, dry run), **not deployed** (no staging project). **Step 32 blocked** on staging. **Step 33 gate recorded as not passed** ([PILOT_GATE.md](PILOT_GATE.md)). |
 | M5 Optional expansion | 34–38 | Not started |
 
-Last local verification (`make check`, 2026-11-01, after Steps 26–27): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **514 passed, 8 skipped** (7 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **33 passed**. Browser check over `make server-memory` + `make web`: Alex answered a Digital SAT set (served from the package store), the assessment showed package skill names, and the replanned week listed Calc BC and Digital SAT entries.
+Last local verification (`make check`, 2026-11-01, after M4 Steps 28–31): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **561 passed, 9 skipped** (8 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **34 passed**. Docker image built and smoke-checked locally. Browser check over `make server-memory` + `make web`: Beth locked a task date, turned reminders off, and skipped a task with a reason; no console errors.
 
 Open items before M0–M2 can be called complete:
 - **Real-model evaluation (Steps 16, 21):** first run done 2026-11-01 with OpenAI `gpt-5.5` (`content/evaluation/calc_bc/report-v1.md`): 17/18 criteria, 6/6 statuses. One false credit (parametric `second-derivative-method`) awaits the reviewer's decision. Not yet run against Anthropic. These are draft-content results only, so they don't measure quality until content review is done and thresholds are set.
@@ -33,7 +33,8 @@ Open items before M0–M2 can be called complete:
 - M1: Firebase token auth → `ActorContext`; Firestore repositories on a `DocTxn` seam with an in-memory test backend; twin, course catalog/enrollment/agent, task, session, message/submission, and run routes; transactional command acceptance with idempotency and outbox; outbox dispatcher, local queue, Cloud Tasks adapter, a lease/fencing-token run worker with its own HTTP service, a stalled-run recovery scan, and a labeled synthetic executor
 - M2: LLM gateway with budgets and tier routing, Socratic and rubric-assessment skills, math-verify tool, atomic AssessmentService commit with mastery projection, session complete, durable event feed with SSE, frontend wired to the real API (sign-in, sessions, submissions, assessments), evaluation runner
 - M3 so far: outbox-woken replay-safe consumer infrastructure (receipts + offsets + wake recovery; no production consumer yet), PLANNING runs with planner-rules-v1 and plan API, task skip reasons and reschedule-locks, `choice-scoring` in the shared runtime, Digital SAT as an independent course, plan view. The Calc→SAT mappings, findings API/card and `prerequisite.*` events were removed (Step 22.4)
-- Not built yet: file upload/OCR, regrade trigger, event purge job, scheduled (timezone-aware) planning
+- M4 so far: timezone-aware scheduled planning, task controls in the UI, opt-in reminders (fake sender only), structured JSON logs with redaction, log-based metrics, alert checks, per-student backup/restore/verify/delete, event retention, Dockerfile and staging provisioning script (not run)
+- Not built yet: file upload/OCR, regrade trigger, a real reminder channel
 
 Each step below is a reviewable change with verification criteria.
 
@@ -852,15 +853,15 @@ Decisions behind this milestone:
 
 **Goal:** Daily planning runs automatically for each student at the right local time.
 
-- [ ] 28.1 Create `app/workers/scheduler/planning_scheduler.py`:
+- [x] 28.1 Create `app/workers/scheduler/planning_scheduler.py`:
   - Cloud Scheduler trigger → scan students with `dueAt` ≤ now
   - Calculate local date using student's IANA timezone
   - Deduplicate: `studentId + localDate + planningReason`
   - Handle DST transitions correctly
-- [ ] 28.2 Persist `nextDueAt` per student
-- [ ] 28.3 Use the same Planner for scheduled and event-driven updates
-- [ ] 28.4 `GET /api/tasks` has no hidden mutation (read-only)
-- [ ] 28.5 Write tests:
+- [x] 28.2 Persist `nextDueAt` per student
+- [x] 28.3 Use the same Planner for scheduled and event-driven updates
+- [x] 28.4 `GET /api/tasks` has no hidden mutation (read-only)
+- [x] 28.5 Write tests:
   - DST boundary (spring forward / fall back)
   - Timezone change by student
   - Duplicate scheduler invocations → no duplicate planning
@@ -869,23 +870,25 @@ Decisions behind this milestone:
 
 **Verify:** Scheduled planning respects timezones and DST. No duplicate plans from duplicate triggers.
 
+**Status:** ✅ Implemented 2026-11-01, verified over the in-memory backend. `app/domain/planning_schedule.py`, `app/domain/local_time.py`, `app/workers/scheduler/planning_scheduler.py`, worker route `POST /internal/planning/schedule`. The schedule lives on `planState/current` (`nextDueAt`, `timezone`, `lastScheduledLocalDate`); it starts at first enrollment (and in the seed), and a timezone change recomputes it. Dedupe is per local date and the scheduled run id is per student and date. `tests/contract/test_scheduled_planning.py` (14 tests) covers one pass per local day in two timezones, concurrent and duplicate invocations, catch-up after three missed days, crash after queueing, spring-forward and fall-back days, travel across timezones without planning a day twice, coalescing with a pending student replan, 409 for a student replan during a scheduled run, GETs never planning, and service-only auth. Writing these tests caught a real bug: the first deterministic run id did not include the student, so two students' scheduled runs would have collided on the Cloud Tasks task name. `Plan.trigger` and `plan.updated.reason=scheduled` were added to the contract. Firestore collection-group index on `planState.nextDueAt` is declared but untested until staging.
+
 ---
 
 ### Step 29 — Implement student controls and opt-in reminders
 
 **Goal:** Students can defer/skip/lock tasks and opt into one reminder channel.
 
-- [ ] 29.1 Implement task controls in UI:
+- [x] 29.1 Implement task controls in UI:
   - Defer: change scheduledDate via PATCH
   - Skip: set status to SKIPPED (only from PLANNED)
   - Lock: set studentLocked = true (preserved during replanning)
-- [ ] 29.2 Create `app/domain/reminder_service.py`:
+- [x] 29.2 Create `app/domain/reminder_service.py`:
   - Record consent, quiet hours, frequency caps
   - Delivery dedupe keys per channel/task/time-window
   - Check consent again immediately before sending (queued reminder can become ineligible)
   - Default: no parent notification
-- [ ] 29.3 Create fake delivery adapter for tests; real delivery only to designated test recipients
-- [ ] 29.4 Write tests:
+- [x] 29.3 Create fake delivery adapter for tests; real delivery only to designated test recipients
+- [x] 29.4 Write tests:
   - Opt-out after enqueue → reminder not sent
   - Quiet hours → reminder deferred
   - Repeated delivery → deduplicated
@@ -895,13 +898,15 @@ Decisions behind this milestone:
 
 **Verify:** Student controls work correctly. Reminders respect consent, quiet hours, and frequency caps.
 
+**Status:** ✅ Implemented 2026-11-01, verified over the in-memory backend. UI: lock/unlock and skip-with-reason next to the existing reschedule control; a reminder opt-in card (one channel, quiet hours). Design choice: one daily digest reminder per student, channel and local date, worded at send time, rather than one per task. `app/domain/reminder_service.py`, consent record `consents/notifications` written by the twin patch, `app/adapters/notifications/senders.py` (fake sender + test-recipient guard), worker route `POST /internal/reminders/deliver`. The contract now allows at most one channel. `tests/contract/test_reminders.py` (15 tests) covers delivered once, opt-out after creation, consent re-check, quiet hours (deferred, skipped if they last until the day ends, never created inside them), crash after send with no second message, retries then give up, a task moved to another day and a completed task (no reminder), expiry after downtime, weekly cap, test-recipient guard, off without a sender, consent recording, and controls surviving a restart. Gap: there is no real delivery channel. Staging uses the fake sender behind the test-recipient guard, and production refuses the fake.
+
 ---
 
 ### Step 30 — Deploy to staging (Cloud Run, Firestore, Cloud Tasks)
 
 **Goal:** The application runs in a real cloud environment, not just emulators.
 
-- [ ] 30.1 Create deployment configuration:
+- [~] 30.1 Create deployment configuration:
   - Cloud Run service for API
   - Cloud Run service for worker
   - Firestore database (separate from other projects)
@@ -909,15 +914,17 @@ Decisions behind this milestone:
   - Cloud Scheduler jobs
   - Cloud Storage bucket
   - Secret Manager for credentials
-- [ ] 30.2 Configure service identities and IAM:
+- [~] 30.2 Configure service identities and IAM:
   - API and worker have separate service accounts
   - Worker invocation requires OIDC with correct audience
   - Students cannot call worker endpoints
-- [ ] 30.3 Remove emulator hosts and synthetic providers from production config
-- [ ] 30.4 Configure timeouts, retries, and SSE reconnect for cloud environment
-- [ ] 30.5 Record which infrastructure checks ran and which resources were unavailable
+- [x] 30.3 Remove emulator hosts and synthetic providers from production config
+- [~] 30.4 Configure timeouts, retries, and SSE reconnect for cloud environment
+- [x] 30.5 Record which infrastructure checks ran and which resources were unavailable
 
 **Verify:** Real Cloud Tasks OIDC works. Cross-instance recovery works. Request timeout handling correct. Finite cost limits configured.
+
+**Status:** 🟡 Configuration written, **not deployed**. `server/Dockerfile` (one image, API or worker by `HSOS_ASGI_APP`, non-root, no fixtures) was built and smoke-checked locally. `deploy/staging/provision.sh` covers APIs, Firestore and daily managed backups, separate service accounts and IAM, secrets, buckets, the queue, both Cloud Run services, six OIDC Scheduler jobs, log-based metrics, alert policies and a billing budget. It is a dry run unless `APPLY=1` and refuses `demo-*` projects. `tests/unit/test_deploy_config.py` checks that the staging env files pass the deployed-config checks and that every Scheduler job targets an existing worker route. Finding: the default run lease (120 s) was shorter than the worst model call (60 s × 3), so deployed configs now must have lease > timeout × attempts (staging uses 300 s). The Verify criteria need a real staging project; the record of what ran is in [OPERATIONS.md](OPERATIONS.md) §5.
 
 ---
 
@@ -925,22 +932,24 @@ Decisions behind this milestone:
 
 **Goal:** The system is observable and recoverable.
 
-- [ ] 31.1 Implement structured logging:
+- [x] 31.1 Implement structured logging:
   - Actor/run ID, model tier, latency, tokens, retries, error codes
   - Exclude: raw student answers, drafts, tokens, private tool payloads
-- [ ] 31.2 Implement metrics:
+- [x] 31.2 Implement metrics:
   - Assessment latency and cost
   - Worker failures and outbox backlog
   - Duplicate suppression count
   - Learning quality regressions
-- [ ] 31.3 Set up alerts for: worker failure rate, outbox backlog growth, budget overruns
-- [ ] 31.4 Create and test backup/restore procedure:
+- [x] 31.3 Set up alerts for: worker failure rate, outbox backlog growth, budget overruns
+- [x] 31.4 Create and test backup/restore procedure:
   - Backup synthetic student with linked files, assessments, and event state
   - Restore into separate test environment
   - Verify all linked data is consistent after restore
-- [ ] 31.5 Verify delete/retention effects on indexes, artifacts, and future backup expiry
+- [x] 31.5 Verify delete/retention effects on indexes, artifacts, and future backup expiry
 
 **Verify:** Simulated alerts fire correctly. Restore produces consistent state. Data deletion is clean.
+
+**Status:** ✅ Implemented 2026-11-01, verified over the in-memory backend. `app/adapters/observability.py`: JSON logs whose strings pass only under allowlisted keys and whose exceptions log type and frames only; log-based `LogMetrics`; request metrics. `app/domain/ops_monitor.py` covers outbox backlog, worker failures and budget overruns (route `/internal/ops/check`). `app/domain/retention.py` purges events and raises the purge floor (route `/internal/retention/events`). `app/adapters/firestore/backup.py` + `scripts/student_data.py` do export, restore (refuses deleted students and foreign documents), link-consistency verify, and delete with a tombstone. Delete support was added to the `DocTxn` seam. Tests: `tests/unit/test_observability.py`, `tests/contract/test_operations.py`: alerts fire and clear; a full learning flow is exported, restored into a separate store, verified, and read back identically through the API; deletion leaves nothing for any service scan; retention expires old cursors with 410 and keeps the record. Not verified: the Firestore SDK path (`tests/emulator/test_backup_emulator.py` skips without Java), managed backup restore, and real alert delivery. There is no online learning-quality metric; quality is measured offline by the evaluation set.
 
 ---
 
@@ -957,6 +966,8 @@ Decisions behind this milestone:
 - [ ] 32.6 Verify: no duplicated progress, restart recovery, truthful failed/waiting states
 
 **Verify:** All chains pass in staging with real infrastructure. Cloud-specific issues (OIDC, timeouts, instance rotation) handled.
+
+**Status:** ⛔ Blocked: no staging environment (Step 30 not applied). The checklist is in [OPERATIONS.md](OPERATIONS.md) §5. 32.2's follow-up chains also depend on Step 24.2, which is not built.
 
 ---
 
@@ -988,6 +999,8 @@ Decisions behind this milestone:
   - Backup/restore tested
 - [ ] 33.5 Record: sample sizes, thresholds, reviewer sign-off, unresolved limitations
 - [ ] 33.6 If scope is text-only (no file/OCR), document explicitly
+
+**Status:** ❌ Gate recorded as **not passed** in [PILOT_GATE.md](PILOT_GATE.md), with evidence and gaps for every item; the pilot is text-only (33.6). No real students.
 
 **Verify M4:** All gates pass or have documented exceptions. Real students enter only after gates pass. Documentation updates alone never mark these steps complete.
 
@@ -1042,7 +1055,7 @@ Each extension is independently selected and verified. None are prerequisites fo
 | M1 Reliable foundation | 8–15 | Independent auth, Firestore repos, course enrollment, Task/Session/Run lifecycle, queue/outbox/worker, two-student isolation | Implemented; emulator + staging verification pending |
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; real-model evaluation, emulator and staging verification pending |
 | M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
-| M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | Not started |
+| M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 config only; 32 blocked; 33 not passed |
 | M5 Optional expansion | 34–38 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure) | Not started |
 
 ## Superseded patterns

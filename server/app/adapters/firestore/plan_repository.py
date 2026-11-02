@@ -7,7 +7,14 @@ from datetime import date
 from app.adapters.firestore import paths
 from app.adapters.firestore.documents import Doc, DocTxn
 from app.domain.types.actor import ActorContext
-from app.domain.types.plan import Placement, Plan, PlanEntry, PlanPriority, PlanState
+from app.domain.types.plan import (
+    Placement,
+    Plan,
+    PlanEntry,
+    PlanPriority,
+    PlanState,
+    PlanTrigger,
+)
 
 
 def _entry_to_doc(e: PlanEntry) -> Doc:
@@ -58,6 +65,7 @@ class FirestorePlanStore:
             evidence_available=bool(d["evidenceAvailable"]),
             entries=tuple(_entry_from_doc(e) for e in d.get("entries", [])),
             created_at=d["createdAt"],
+            trigger=PlanTrigger(d.get("trigger", PlanTrigger.STUDENT.value)),
         )
 
     def save(self, actor: ActorContext, p: Plan) -> None:
@@ -77,6 +85,7 @@ class FirestorePlanStore:
                 "evidenceAvailable": p.evidence_available,
                 "entries": [_entry_to_doc(e) for e in p.entries],
                 "createdAt": p.created_at,
+                "trigger": p.trigger.value,
             },
         )
 
@@ -84,9 +93,15 @@ class FirestorePlanStore:
         d = await self._txn.get(paths.sub(actor, "planState", "current"))
         if d is None:
             return PlanState()
+        last = d.get("lastScheduledLocalDate")
+        trigger = d.get("activeTrigger")
         return PlanState(
             active_run_id=d.get("activeRunId"),
+            active_trigger=PlanTrigger(trigger) if trigger else None,
             latest_plan_id=d.get("latestPlanId"),
+            next_due_at=d.get("nextDueAt"),
+            timezone=d.get("timezone"),
+            last_scheduled_local_date=date.fromisoformat(last) if last else None,
             version=int(d.get("version", 0)),
         )
 
@@ -94,8 +109,17 @@ class FirestorePlanStore:
         self._txn.set(
             paths.sub(actor, "planState", "current"),
             {
+                # studentId + nextDueAt make the collection-group scan for due schedules
+                # possible (FirestoreOperationsStore.due_plan_schedules).
+                "studentId": actor.student_id,
                 "activeRunId": s.active_run_id,
+                "activeTrigger": s.active_trigger.value if s.active_trigger else None,
                 "latestPlanId": s.latest_plan_id,
+                "nextDueAt": s.next_due_at,
+                "timezone": s.timezone,
+                "lastScheduledLocalDate": (
+                    s.last_scheduled_local_date.isoformat() if s.last_scheduled_local_date else None
+                ),
                 "version": s.version,
             },
         )

@@ -18,6 +18,7 @@ from app.adapters.firestore.package_repository import (
     version_path,
     version_to_doc,
 )
+from app.domain.planning_schedule import PlanningSchedulePolicy
 from app.domain.types.package import (
     CourseState,
     PackageCourse,
@@ -26,6 +27,7 @@ from app.domain.types.package import (
     ReviewDecision,
     StatusChange,
 )
+from app.domain.types.reminder import CONSENT_POLICY_VERSION
 from app.registries.content import DEFAULT_CONTENT_ROOT
 from app.registries.fixtures import SeedStudent
 from app.registries.package_validator import validate_package
@@ -81,6 +83,30 @@ def build_seed_documents(
             "updatedBy": "seed-script",
         }
         docs[paths["eventState"]] = {"nextSequence": 1}
+        if any(e.status.value == "active" for e in fx.enrollments):
+            # Enrolled students are on the daily planning schedule (Step 28).
+            tz = fx.preferences.timezone
+            docs[f"{paths['student']}/planState/current"] = {
+                "studentId": sid,
+                "activeRunId": None,
+                "activeTrigger": None,
+                "latestPlanId": None,
+                "nextDueAt": PlanningSchedulePolicy().first_due(now, tz),
+                "timezone": tz,
+                "lastScheduledLocalDate": None,
+                "version": 1,
+            }
+        notifications = fx.preferences.notifications
+        if notifications.enabled and notifications.channels:
+            # Synthetic opt-in: the fixture says this student opted in (Step 29).
+            docs[f"{paths['student']}/consents/notifications"] = {
+                "granted": True,
+                "channels": [c.value for c in notifications.channels],
+                "policyVersion": CONSENT_POLICY_VERSION,
+                "grantedAt": now,
+                "revokedAt": None,
+                "updatedAt": now,
+            }
         for enrollment in fx.enrollments:
             docs[f"{paths['enrollments']}/{enrollment.course_id}"] = {
                 "courseId": enrollment.course_id,

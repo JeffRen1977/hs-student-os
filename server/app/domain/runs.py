@@ -86,7 +86,10 @@ async def finish_run(
         state = await tx.plans.get_state(actor)
         if state.active_run_id == run.run_id:
             tx.plans.save_state(
-                actor, dataclasses.replace(state, active_run_id=None, version=state.version + 1)
+                actor,
+                dataclasses.replace(
+                    state, active_run_id=None, active_trigger=None, version=state.version + 1
+                ),
             )
     payload: dict[str, object] = {"kind": run.kind.value}
     if error is not None:

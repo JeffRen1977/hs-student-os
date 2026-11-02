@@ -76,8 +76,7 @@ class FirestoreEventStore:
         return int(state["nextSequence"]) - 1 if state else 0
 
     async def oldest_retained_sequence(self, actor: ActorContext) -> int:
-        # A retention job (M4 Step 31) records the purge floor here; until then nothing
-        # is purged and every cursor stays valid.
+        # The retention job (Step 31.5, `EventRetention`) records the purge floor here.
         state = await self._txn.get(paths.sub(actor, "eventState", "current"))
         return int(state.get("oldestRetainedSequence", 1)) if state else 1
 
@@ -93,3 +92,27 @@ class FirestoreEventStore:
             ),
         )
         return [event_from_doc(d) for d in docs]
+
+    async def purge_before(self, actor: ActorContext, cutoff: datetime, limit: int) -> int:
+        state_path = paths.sub(actor, "eventState", "current")
+        state = await self._txn.get(state_path)
+        if state is None:
+            return 0
+        oldest = int(state.get("oldestRetainedSequence", 1))
+        docs = await self._txn.query(
+            paths.sub(actor, "events"),
+            QuerySpec(
+                filters=[Filter("sequence", ">=", oldest)], order_by=("sequence",), limit=limit
+            ),
+        )
+        purged = 0
+        floor = oldest
+        for d in docs:
+            if d["occurredAt"] >= cutoff:
+                break
+            self._txn.delete(paths.sub(actor, "events", d["eventId"]))
+            floor = int(d["sequence"]) + 1
+            purged += 1
+        if purged:
+            self._txn.set(state_path, {**state, "oldestRetainedSequence": floor})
+        return purged

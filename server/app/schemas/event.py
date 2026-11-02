@@ -46,7 +46,7 @@ class MasteryUpdatedPayload(EventPayload):
 class PlanUpdatedPayload(EventPayload):
     plan_id: OpaqueId
     changed_task_ids: list[OpaqueId] = Field(default_factory=list)
-    reason: Literal["replan"] = "replan"
+    reason: Literal["replan", "scheduled"] = "replan"
 
 
 class CoursePayload(EventPayload):

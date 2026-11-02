@@ -17,6 +17,10 @@ from app.adapters.firestore.idempotency_repository import FirestoreIdempotencySt
 from app.adapters.firestore.message_repository import FirestoreMessageStore
 from app.adapters.firestore.outbox_repository import FirestoreFileStore, FirestoreOutboxStore
 from app.adapters.firestore.plan_repository import FirestorePlanStore
+from app.adapters.firestore.reminder_repository import (
+    FirestoreConsentStore,
+    FirestoreReminderStore,
+)
 from app.adapters.firestore.run_repository import FirestoreRunInputStore, FirestoreRunStore
 from app.adapters.firestore.session_repository import FirestoreSessionStore
 from app.adapters.firestore.student_repository import FirestoreStudentStore
@@ -49,6 +53,8 @@ class FirestoreTx:
         self.receipts = FirestoreReceiptStore(txn)
         self.consumer_offsets = FirestoreConsumerOffsetStore(txn)
         self.plans = FirestorePlanStore(txn)
+        self.reminders = FirestoreReminderStore(txn)
+        self.consents = FirestoreConsentStore(txn)
 
 
 class DocumentUnitOfWork:

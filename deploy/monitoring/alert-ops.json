@@ -1,0 +1,16 @@
+{
+  "displayName": "HSOS: operational alert firing (outbox backlog, worker failures, budget overruns)",
+  "combiner": "OR",
+  "conditions": [{
+    "displayName": "alert_firing logged by /internal/ops/check",
+    "conditionThreshold": {
+      "filter": "metric.type=\"logging.googleapis.com/user/hsos_alert_firing\" AND resource.type=\"cloud_run_revision\"",
+      "comparison": "COMPARISON_GT",
+      "thresholdValue": 0,
+      "duration": "0s",
+      "aggregations": [{"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_SUM", "groupByFields": ["metric.label.alert"]}]
+    }
+  }],
+  "alertStrategy": {"autoClose": "3600s"},
+  "documentation": {"content": "See doc/OPERATIONS.md §3 for the runbook per alert.", "mimeType": "text/markdown"}
+}

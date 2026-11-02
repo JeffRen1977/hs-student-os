@@ -31,24 +31,39 @@ from app.adapters.llm.router import ModelRouter
 from app.adapters.queue.local_queue import LocalQueue
 from app.adapters.runtime import RandomIdFactory, SystemClock
 from app.adapters.tools.math_verify import MathVerifyTool
-from app.config import AppEnv, ConfigError, LlmProvider, QueueProvider, Settings, StorageProvider
+from app.config import (
+    AppEnv,
+    ConfigError,
+    LlmProvider,
+    QueueProvider,
+    ReminderProvider,
+    Settings,
+    StorageProvider,
+)
 from app.domain.assessment_service import AssessmentService
 from app.domain.budget import BudgetLedger, BudgetLimits
 from app.domain.command_service import CommandService
 from app.domain.course_service import CourseService
 from app.domain.event_feed import EventFeedService
 from app.domain.events import EventPublisher
+from app.domain.local_time import parse_hhmm
 from app.domain.mastery_service import MasteryService
+from app.domain.ops_monitor import AlertThresholds, OpsMonitor
 from app.domain.package_service import PackageService
 from app.domain.planner_service import PlannerService
+from app.domain.planning_schedule import PlanningSchedulePolicy
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.content import ModelTier, SubjectPackRegistry
 from app.domain.ports.execution import JobQueue, RunExecutor
 from app.domain.ports.identity import TokenVerifier
+from app.domain.ports.metrics import Metrics
+from app.domain.ports.notifications import ReminderSender
 from app.domain.ports.packages import PlatformDirectory
 from app.domain.ports.repositories import IdentityDirectory, OperationsStore, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
 from app.domain.recovery import RecoveryService
+from app.domain.reminder_service import ReminderPolicy, ReminderService
+from app.domain.retention import EventRetention
 from app.domain.run_execution import RunExecutionService
 from app.domain.session_service import SessionService
 from app.domain.skill_executor import SkillExecutor
@@ -71,6 +86,7 @@ from app.workers.consumers.runner import ConsumerRunner
 from app.workers.delivery_router import DeliveryRouter
 from app.workers.local_runner import LocalWorkerLoop
 from app.workers.outbox_dispatcher import OutboxDispatcher
+from app.workers.scheduler.planning_scheduler import PlanningScheduler
 
 
 @dataclass(slots=True, kw_only=True)
@@ -104,6 +120,11 @@ class Services:
     events: EventFeedService
     recovery: RecoveryService
     planner: PlannerService
+    planning_scheduler: PlanningScheduler
+    reminders: ReminderService
+    metrics: Metrics
+    ops_monitor: OpsMonitor
+    event_retention: EventRetention
     consumers: ConsumerRunner
     deliveries: DeliveryRouter
     local_worker: LocalWorkerLoop | None
@@ -181,6 +202,19 @@ def _queue(settings: Settings) -> JobQueue:
     )
 
 
+def reminder_sender(settings: Settings) -> ReminderSender | None:
+    """No real channel provider yet. Deployed environments (and local runs that list test
+    recipients) only ever deliver to designated synthetic test students."""
+    if settings.reminder_provider is ReminderProvider.DISABLED:
+        return None
+    from app.adapters.notifications.senders import FakeReminderSender, TestRecipientGuard
+
+    sender: ReminderSender = FakeReminderSender()
+    if settings.is_deployed or settings.reminder_test_recipients:
+        sender = TestRecipientGuard(sender, settings.reminder_test_recipients)
+    return sender
+
+
 def model_router(settings: Settings) -> ModelRouter:
     fast, balanced, strong = settings.llm_models()
     return ModelRouter(
@@ -245,10 +279,16 @@ def build_services(
     worker_id: str | None = None,
     llm_provider: LlmProviderAdapter | None = None,
     consumers: Sequence[Consumer] = (),
+    reminder_sender_override: ReminderSender | None = None,
+    metrics: Metrics | None = None,
 ) -> Services:
     """`consumers`: the course-internal event consumers to run. None is registered in
     production yet (course follow-up rules arrive with Step 24.2); tests pass their own."""
     store = store or _store(settings)
+    if metrics is None:
+        from app.adapters.observability import LogMetrics
+
+        metrics = LogMetrics()
     clock = clock or SystemClock()
     ids = ids or RandomIdFactory()
     # Bundled packs now; reviewed course packages are installed by `content_sync` from the
@@ -273,10 +313,25 @@ def build_services(
     )
     publisher = EventPublisher(frozenset().union(*(c.subscribes for c in consumers)))
     assessments = AssessmentService(uow, packs, clock, ids, publisher)
-    planner = PlannerService(uow, packs, clock, ids)
     operations = FirestoreOperationsStore(store)
+    schedule = PlanningSchedulePolicy(local_time=parse_hhmm(settings.planning_local_time))
+    sender = reminder_sender_override or reminder_sender(settings)
+    reminders = ReminderService(
+        uow,
+        operations,
+        sender,
+        clock,
+        ReminderPolicy(
+            enabled=sender is not None,
+            local_time=parse_hhmm(settings.reminder_local_time),
+            weekly_cap=settings.reminder_weekly_cap,
+        ),
+        metrics,
+    )
+    planner = PlannerService(uow, packs, clock, ids, reminders=reminders)
+    planning_scheduler = PlanningScheduler(uow, operations, clock, ids, schedule)
     queue = queue or _queue(settings)
-    dispatcher = OutboxDispatcher(uow, operations, queue, clock)
+    dispatcher = OutboxDispatcher(uow, operations, queue, clock, metrics)
     run_execution = RunExecutionService(
         uow,
         catalog,
@@ -288,6 +343,7 @@ def build_services(
         max_attempts=settings.run_max_attempts,
         assessments=assessments,
         planner=planner,
+        metrics=metrics,
     )
     consumer_runner = ConsumerRunner(uow, consumers, clock)
     deliveries = DeliveryRouter(run_execution, consumer_runner, content_sync.ensure_fresh)
@@ -301,6 +357,7 @@ def build_services(
             recovery=recovery,
             execution=deliveries,
             poll_seconds=settings.local_worker_poll_seconds,
+            scans=(planning_scheduler.run_due, reminders.deliver_due),
         )
         if isinstance(queue, LocalQueue)
         else None
@@ -330,8 +387,8 @@ def build_services(
         service_authenticator=_service_authenticator(settings),
         queue=queue,
         dispatcher=dispatcher,
-        twin=TwinService(uow, catalog, clock),
-        courses=CourseService(uow, catalog, clock, ids),
+        twin=TwinService(uow, catalog, clock, schedule),
+        courses=CourseService(uow, catalog, clock, ids, schedule),
         tasks=TaskService(uow, catalog, clock),
         sessions=SessionService(uow, catalog, clock, ids, packs),
         commands=CommandService(uow, catalog, clock, ids, ledger),
@@ -341,6 +398,23 @@ def build_services(
         events=EventFeedService(uow),
         recovery=recovery,
         planner=planner,
+        planning_scheduler=planning_scheduler,
+        reminders=reminders,
+        metrics=metrics,
+        ops_monitor=OpsMonitor(
+            operations,
+            clock,
+            metrics,
+            AlertThresholds(
+                outbox_backlog=settings.alert_outbox_backlog,
+                outbox_age_seconds=settings.alert_outbox_age_seconds,
+                failed_runs_per_hour=settings.alert_failed_runs_per_hour,
+                budget_overruns_per_hour=settings.alert_budget_overruns_per_hour,
+            ),
+        ),
+        event_retention=EventRetention(
+            uow, operations, clock, retention_days=settings.event_retention_days
+        ),
         consumers=consumer_runner,
         deliveries=deliveries,
         local_worker=local_worker,

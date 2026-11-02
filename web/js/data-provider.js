@@ -336,6 +336,10 @@
       },
       cancelRun: function (runId) { return command("cancel:" + runId, "/api/runs/" + encodeURIComponent(runId) + "/cancel", {}); },
       fetchTwin: function () { return request("/api/twin"); },
+      // Allowlisted profile/goal/preference fields only; `version` is the twin's ETag value.
+      patchTwin: function (version, patch) {
+        return request("/api/twin", { method: "PATCH", body: patch, ifMatch: version });
+      },
       fetchEntitlements: function () { return request("/api/me/entitlements"); },
       fetchPacks: function () { return request("/api/packs"); },
       fetchCatalog: function () { return request("/api/courses/catalog"); },

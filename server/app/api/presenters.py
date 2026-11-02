@@ -351,4 +351,5 @@ def plan(p: Plan) -> pl.Plan:
             for e in p.entries
         ],
         created_at=p.created_at,
+        trigger=p.trigger,
     )

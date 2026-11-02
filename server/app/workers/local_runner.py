@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Awaitable, Callable, Sequence
+from typing import Any
 
 from app.adapters.queue.local_queue import LocalQueue
 from app.domain.recovery import RecoveryService
@@ -28,17 +30,23 @@ class LocalWorkerLoop:
         recovery: RecoveryService,
         execution: DeliveryRouter,
         poll_seconds: float,
+        scans: Sequence[Callable[[], Awaitable[Any]]] = (),
     ) -> None:
+        """`scans`: the Cloud Scheduler jobs, run on every tick locally (scheduled planning,
+        reminder delivery)."""
         self._queue = queue
         self._dispatcher = dispatcher
         self._recovery = recovery
         self._execution = execution
         self._poll = poll_seconds
+        self._scans = tuple(scans)
         self._task: asyncio.Task[None] | None = None
 
     async def tick(self) -> int:
         await self._recovery.requeue_stalled()
         await self._recovery.reissue_stalled_wakes()
+        for scan in self._scans:
+            await scan()
         await self._dispatcher.dispatch_pending()
         return await self._queue.drain(self._execution.process)
 

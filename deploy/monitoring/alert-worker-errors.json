@@ -1,0 +1,14 @@
+{
+  "displayName": "HSOS: worker 5xx responses",
+  "combiner": "OR",
+  "conditions": [{
+    "displayName": "worker returns 5xx (other than 503 retry signals) for 10 minutes",
+    "conditionThreshold": {
+      "filter": "metric.type=\"run.googleapis.com/request_count\" AND resource.type=\"cloud_run_revision\" AND resource.label.service_name=\"hsos-worker\" AND metric.label.response_code_class=\"5xx\" AND metric.label.response_code!=\"503\"",
+      "comparison": "COMPARISON_GT",
+      "thresholdValue": 5,
+      "duration": "600s",
+      "aggregations": [{"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_SUM"}]
+    }
+  }]
+}

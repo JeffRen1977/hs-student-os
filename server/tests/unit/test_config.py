@@ -15,6 +15,8 @@ SAFE_PROD = {
     "worker_oidc_audience": "https://worker.example.test",
     "worker_service_account": "tasks-invoker@hs-student-os-prod.iam.gserviceaccount.com",
     "require_reviewed_content": True,
+    "log_format": "json",
+    "run_lease_seconds": 300,
 }
 
 
@@ -56,6 +58,9 @@ def test_deployed_envs_reject_emulator_hosts(
         ({"storage_provider": StorageProvider.MEMORY}, "HSOS_STORAGE_PROVIDER=memory"),
         ({"worker_service_token": "local-secret"}, "HSOS_WORKER_SERVICE_TOKEN"),
         ({"worker_oidc_audience": None}, "HSOS_WORKER_OIDC_AUDIENCE"),
+        ({"log_format": "text"}, "HSOS_LOG_FORMAT"),
+        ({"run_lease_seconds": 120}, "HSOS_RUN_LEASE_SECONDS"),
+        ({"reminder_provider": "fake"}, "HSOS_REMINDER_PROVIDER=fake"),
     ],
 )
 def test_production_rejects_mock_providers(

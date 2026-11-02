@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.adapters.observability import configure_logging, install_request_metrics
 from app.api.errors import install_error_handlers
 from app.api.request_id import install_request_id
 from app.api.routes import (
@@ -27,6 +28,7 @@ from app.api.routes import (
 )
 from app.bootstrap import Services, build_services
 from app.config import APP_VERSION, QueueProvider, Settings, get_settings
+from app.domain.ports.metrics import Metrics, NullMetrics
 
 
 @asynccontextmanager
@@ -56,6 +58,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app(settings: Settings | None = None, services: Services | None = None) -> FastAPI:
     # Settings validation runs here, so an unsafe deployed config aborts startup.
     settings = settings or get_settings()
+    if settings.log_format == "json":
+        configure_logging(settings.log_level)
     app = FastAPI(
         title="High School Student OS API",
         version=APP_VERSION,
@@ -69,6 +73,12 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
         app.state.services = services
     install_request_id(app)
     install_error_handlers(app)
+
+    def _metrics() -> Metrics:
+        current: Services | None = getattr(app.state, "services", None)
+        return current.metrics if current is not None else NullMetrics()
+
+    install_request_metrics(app, _metrics)
     if settings.cors_allowed_origins:
         app.add_middleware(
             CORSMiddleware,
