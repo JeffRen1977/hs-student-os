@@ -2,7 +2,7 @@
 // useAppState() is the only place React state lives; components receive the returned
 // object (conventionally `S`). Server data arrives already loaded from the provider
 // (see app.js); Task, Session and Run are kept as separate collections.
-const { useState, useMemo } = React;
+const { useState, useMemo, useEffect } = React;
 
 const DRAFTS = HSProvider.createDraftStore(
   typeof localStorage !== "undefined" ? localStorage : HSProvider.memoryStorage()
@@ -66,6 +66,23 @@ function useAppState(data, api) {
     return c ? c.name : cid;
   };
   const pack = activeCourse ? HSData.getPackMeta(activeCourse, courseName(activeCourse)) : null;
+
+  // Skill names come from each course's package (GET /api/courses/{id}/agent), so a new
+  // course needs no frontend change. Unknown ids fall back to the id's last segment.
+  const [skillNames, setSkillNames] = useState({});
+  const enrolledKey = enrolledIds.join(",");
+  useEffect(() => {
+    if (!api || !api.fetchCourseAgent) return;
+    enrolledIds.forEach((cid) => {
+      api.fetchCourseAgent(cid).then((agent) => {
+        const names = {};
+        (agent.skills || []).forEach((sk) => { names[sk.skillId] = sk.name; });
+        setSkillNames((prev) => Object.assign({}, prev, names));
+      }, () => {});
+    });
+  }, [enrolledKey]);
+  const skillName = (skillId) => skillNames[skillId] || String(skillId).split(".").slice(1).join(".") || skillId;
+  const courseOfSkill = (skillId) => String(skillId).split(".")[0];
 
   // Every enrolled course's tasks (each course is independent; e.g. Calc BC and Digital SAT)
   // run in the same per-course agent view; unenrolled courses stay hidden.
@@ -212,7 +229,7 @@ function useAppState(data, api) {
     dark, toggleDark, mobileTab, setMobileTab,
     events: eventLog.events, lastSequence: eventLog.lastSequence, applyServerEvents,
     demoNotes, noteDemo,
-    architect, pack, courseName,
+    architect, pack, courseName, skillName, courseOfSkill,
     apTasks, satPreviews, admPreviews,
     currentTask, currentPreview, currentSession, currentRun, runForTask,
     selectCourse, selectAgent, openTask, openPreview, toggleEnrollment, goMobile,

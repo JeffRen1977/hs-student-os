@@ -60,11 +60,18 @@ class Preferences:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Entitlements:
-    """Backend-managed access grants. Never writable by the student."""
+    """Backend-managed access grants. Never writable by the student or a course author.
+
+    Access is granted per courseId (`ap_courses` for AP courses, `courses` for every other
+    course), never per category: an author choosing a category cannot widen who has access.
+    """
 
     ap_courses: Sequence[str] = ()
-    dsat: bool = False
+    courses: Sequence[str] = ()
     admissions: bool = False
+
+    def grants(self, course_id: str) -> bool:
+        return course_id in self.ap_courses or course_id in self.courses
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

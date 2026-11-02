@@ -12,6 +12,7 @@ MAX_PAGE_LIMIT = 100
 class Availability(StrEnum):
     ACTIVE = "active"
     PLANNED = "planned"
+    RETIRED = "retired"  # no new enrollments, sessions or tasks; records are kept
 
 
 class AgentType(StrEnum):

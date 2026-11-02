@@ -70,6 +70,7 @@ async def run_socratic_guidance(
         student_id=request.session.student_id,
         course_id=pack.course_id,
         skill_ids=skill_ids,
+        version=pack.pack_version,
     )
     system = "\n\n".join(
         (

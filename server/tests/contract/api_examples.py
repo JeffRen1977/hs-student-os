@@ -29,7 +29,7 @@ TWIN: dict[str, Any] = {
     "latestEventSequence": 18,
 }
 
-ENTITLEMENTS = {"apCourses": ["calc_bc"], "dsat": True, "admissions": False}
+ENTITLEMENTS = {"apCourses": ["calc_bc"], "courses": ["dsat"], "admissions": False}
 
 PACK = {
     "courseId": "calc_bc",

@@ -6,7 +6,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.registries.content import ContentError, load_json
-from app.schemas.fixtures import EntitlementFixture, StudentFixture, TaskFixture
+from app.schemas.fixtures import (
+    EntitlementFixture,
+    PlatformFixture,
+    StudentFixture,
+    TaskFixture,
+)
 from app.schemas.task import Task
 
 DEFAULT_FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "fixtures"
@@ -43,3 +48,7 @@ def load_seed_students(root: Path = DEFAULT_FIXTURE_ROOT) -> list[SeedStudent]:
             raise ContentError(f"{path}: unknown student {fx.student_id}")
         tasks[fx.student_id] = tasks.get(fx.student_id, ()) + tuple(fx.tasks)
     return [SeedStudent(students[sid], grants[sid], tasks.get(sid, ())) for sid in sorted(students)]
+
+
+def load_platform_fixture(root: Path = DEFAULT_FIXTURE_ROOT) -> PlatformFixture:
+    return PlatformFixture.model_validate(load_json(root / "platform" / "members.json"))

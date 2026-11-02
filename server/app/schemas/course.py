@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import StringConstraints
+from pydantic import Field, StringConstraints
 
 from app.domain.types.common import AgentType, Availability, StudyMode, TaskType
 from app.domain.types.course import CatalogStatus, CourseCategory, EnrollmentStatus
@@ -71,6 +71,11 @@ class EnrolledCoursesResponse(ApiModel):
     enrollments: list[EnrolledCourse]
 
 
+class SkillName(ApiModel):
+    skill_id: SkillId
+    name: str
+
+
 class CourseAgentView(ApiModel):
     """`GET /api/courses/{courseId}/agent` — never exposes prompts or tool endpoints."""
 
@@ -80,4 +85,7 @@ class CourseAgentView(ApiModel):
     modes: list[StudyMode]
     supported_task_types: list[TaskType]
     active_sessions: list[Session]
+    # The course's skill taxonomy, from its package: lets the client name skills without
+    # any course-specific code.
+    skills: list[SkillName] = Field(default_factory=list)
     mastery_summary: dict[SkillId, MasteryEntry]

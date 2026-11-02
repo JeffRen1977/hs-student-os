@@ -1,0 +1,793 @@
+{
+  "schemaVersion": "course-package/v1",
+  "manifest": {
+    "courseId": "dsat",
+    "version": "1.0.0",
+    "name": "Digital SAT",
+    "description": "Digital SAT Math practice as an independent course: short multiple-choice sets scored by answer key, with Socratic hints. No SAT score predictions.",
+    "category": "SAT",
+    "agentType": "DSAT",
+    "supportedTaskTypes": [
+      "PRACTICE"
+    ],
+    "supportedModes": [
+      "ADAPTIVE"
+    ],
+    "abilities": [
+      "socratic-guidance",
+      "choice-scoring"
+    ],
+    "tools": [
+      "content-retrieval"
+    ],
+    "modelTier": "balanced",
+    "contextBudgetTokens": 6000,
+    "workflowVersion": "dsat-practice-v1",
+    "publisher": {
+      "name": "HS Student OS content team"
+    },
+    "license": "Original work; internal use (synthetic draft, pending content review)"
+  },
+  "systemPrompt": "# Digital SAT Math tutor — system prompt (draft v1, pending content review)\n\nYou are the Digital SAT Math study agent inside High School Student OS. You are talking with\n{{studentName}}. The current study mode is {{currentMode}}.\n\n## Teaching style\n- Guide with questions first. Point to the step to check rather than naming the answer.\n- Never state which choice is correct for an item the student has not yet submitted.\n- Keep explanations short and concrete; one idea per reply.\n\n## Boundaries\n- Practice sets check skills. They are not SAT scores; never estimate or predict a SAT\n  score, section score, or percentile.\n- Hints you give are recorded, and answers given after a hint do not count as independent\n  work. Say so plainly if the student asks.\n- Stay within SAT Math; redirect unrelated requests politely.\n\n## Student context (filled in at runtime)\n{{masteryContext}}\n",
+  "skills": [
+    {
+      "skillId": "dsat.algebra.linear-equations",
+      "name": "Linear equations in one variable",
+      "description": "Solve and interpret linear equations."
+    },
+    {
+      "skillId": "dsat.advanced-math.equivalent-expressions",
+      "name": "Equivalent expressions",
+      "description": "Rewrite, factor, and simplify algebraic expressions."
+    },
+    {
+      "skillId": "dsat.advanced-math.nonlinear-functions",
+      "name": "Nonlinear functions",
+      "description": "Interpret and evaluate nonlinear functions, including compositions."
+    },
+    {
+      "skillId": "dsat.problem-solving.rates-ratios",
+      "name": "Ratios, rates, and units",
+      "description": "Set up and reason with rates, ratios, and unit conversions."
+    }
+  ],
+  "rubrics": [
+    {
+      "rubricId": "dsat-equiv-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 1"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 2"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 3"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-equiv-002",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 1"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 2"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 3"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-nonlin-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 1"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 2"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 3"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-nonlin-002",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 1"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 2"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 3"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    }
+  ],
+  "questions": [
+    {
+      "questionId": "q_dsat_equiv_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Equivalent expressions: set 1",
+      "skillIds": [
+        "dsat.advanced-math.equivalent-expressions"
+      ],
+      "difficulty": "medium",
+      "prompt": "Three items on rewriting and simplifying expressions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: A, 2: C, 3: B",
+      "rubricRef": {
+        "rubricId": "dsat-equiv-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "Which expression is equivalent to (6x² − 9x)/(3x), for x ≠ 0?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "2x − 3"
+            },
+            {
+              "key": "B",
+              "text": "2x − 9x"
+            },
+            {
+              "key": "C",
+              "text": "6x − 3"
+            },
+            {
+              "key": "D",
+              "text": "2x² − 3x"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "Which expression is equivalent to 3(x − 2) − 2(x + 1)?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x − 4"
+            },
+            {
+              "key": "B",
+              "text": "5x − 8"
+            },
+            {
+              "key": "C",
+              "text": "x − 8"
+            },
+            {
+              "key": "D",
+              "text": "x − 1"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "Which expression is equivalent to (x² − 9)/(x − 3), for x ≠ 3?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x − 3"
+            },
+            {
+              "key": "B",
+              "text": "x + 3"
+            },
+            {
+              "key": "C",
+              "text": "x² − 3"
+            },
+            {
+              "key": "D",
+              "text": "x + 9"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-3"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_equiv_002",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Equivalent expressions: set 2",
+      "skillIds": [
+        "dsat.advanced-math.equivalent-expressions"
+      ],
+      "difficulty": "easy",
+      "prompt": "Three items on rewriting and simplifying expressions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: B, 2: C, 3: A",
+      "rubricRef": {
+        "rubricId": "dsat-equiv-002",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "Which expression is equivalent to 2(3x + 4) − (x − 5)?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "5x + 3"
+            },
+            {
+              "key": "B",
+              "text": "5x + 13"
+            },
+            {
+              "key": "C",
+              "text": "7x + 13"
+            },
+            {
+              "key": "D",
+              "text": "5x − 1"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "Which expression is equivalent to (x + 3)²?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x² + 9"
+            },
+            {
+              "key": "B",
+              "text": "x² + 3x + 9"
+            },
+            {
+              "key": "C",
+              "text": "x² + 6x + 9"
+            },
+            {
+              "key": "D",
+              "text": "2x + 6"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "Which expression is equivalent to (8x³ − 4x)/(4x), for x ≠ 0?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "2x² − 1"
+            },
+            {
+              "key": "B",
+              "text": "2x² − 4x"
+            },
+            {
+              "key": "C",
+              "text": "2x³ − 1"
+            },
+            {
+              "key": "D",
+              "text": "8x² − 1"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-3"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_nonlin_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Function composition: set 1",
+      "skillIds": [
+        "dsat.advanced-math.nonlinear-functions"
+      ],
+      "difficulty": "medium",
+      "prompt": "Three items on composing functions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: A, 2: B, 3: A",
+      "rubricRef": {
+        "rubricId": "dsat-nonlin-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "f(x) = x² + 1 and g(x) = 2x − 3. What is f(g(2))?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "2"
+            },
+            {
+              "key": "B",
+              "text": "5"
+            },
+            {
+              "key": "C",
+              "text": "10"
+            },
+            {
+              "key": "D",
+              "text": "26"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "h(x) = (x − 4)² and h(x) = f(g(x)) with f(u) = u². Which could be g(x)?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x²"
+            },
+            {
+              "key": "B",
+              "text": "x − 4"
+            },
+            {
+              "key": "C",
+              "text": "(x − 4)²"
+            },
+            {
+              "key": "D",
+              "text": "x² − 16"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "f(x) = 3x and g(x) = x + 2. Which expression equals g(f(x))?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "3x + 2"
+            },
+            {
+              "key": "B",
+              "text": "3x + 6"
+            },
+            {
+              "key": "C",
+              "text": "3(x + 2)"
+            },
+            {
+              "key": "D",
+              "text": "x + 6"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-3"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_nonlin_002",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Function composition: set 2",
+      "skillIds": [
+        "dsat.advanced-math.nonlinear-functions"
+      ],
+      "difficulty": "easy",
+      "prompt": "Three items on composing functions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: A, 2: B, 3: C",
+      "rubricRef": {
+        "rubricId": "dsat-nonlin-002",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "f(x) = 2x + 1 and g(x) = x². What is f(g(3))?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "19"
+            },
+            {
+              "key": "B",
+              "text": "49"
+            },
+            {
+              "key": "C",
+              "text": "13"
+            },
+            {
+              "key": "D",
+              "text": "10"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "f(x) = x − 5 and g(x) = 3x. Which expression equals g(f(x))?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "3x − 5"
+            },
+            {
+              "key": "B",
+              "text": "3x − 15"
+            },
+            {
+              "key": "C",
+              "text": "x − 15"
+            },
+            {
+              "key": "D",
+              "text": "3x + 15"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "f(g(x)) = √(x + 7) and f(u) = √u. Which could be g(x)?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x"
+            },
+            {
+              "key": "B",
+              "text": "√x + 7"
+            },
+            {
+              "key": "C",
+              "text": "x + 7"
+            },
+            {
+              "key": "D",
+              "text": "x² + 7"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-3"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    }
+  ],
+  "materials": [],
+  "starterTasks": [
+    {
+      "questionId": "q_dsat_equiv_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Equivalent expressions: practice set 1",
+      "durationMin": 15
+    },
+    {
+      "questionId": "q_dsat_nonlin_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Nonlinear functions: practice set 1",
+      "durationMin": 15
+    }
+  ],
+  "evaluationSet": [
+    {
+      "caseId": "equiv-001-all-correct",
+      "questionId": "q_dsat_equiv_001",
+      "answerText": "1: A\n2: C\n3: B",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "equiv-001-one-wrong",
+      "questionId": "q_dsat_equiv_001",
+      "answerText": "1) B\n2) c\n3) b",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "equiv-001-unreadable",
+      "questionId": "q_dsat_equiv_001",
+      "answerText": "I think the first one is A, not sure about the rest.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "equiv-002-all-correct",
+      "questionId": "q_dsat_equiv_002",
+      "answerText": "1: B\n2: C\n3: A",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "equiv-002-one-wrong",
+      "questionId": "q_dsat_equiv_002",
+      "answerText": "1) C\n2) c\n3) a",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "equiv-002-unreadable",
+      "questionId": "q_dsat_equiv_002",
+      "answerText": "I think the first one is A, not sure about the rest.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "nonlin-001-all-correct",
+      "questionId": "q_dsat_nonlin_001",
+      "answerText": "1: A\n2: B\n3: A",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "nonlin-001-one-wrong",
+      "questionId": "q_dsat_nonlin_001",
+      "answerText": "1) B\n2) b\n3) a",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "nonlin-001-unreadable",
+      "questionId": "q_dsat_nonlin_001",
+      "answerText": "I think the first one is A, not sure about the rest.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "nonlin-002-all-correct",
+      "questionId": "q_dsat_nonlin_002",
+      "answerText": "1: A\n2: B\n3: C",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "nonlin-002-one-wrong",
+      "questionId": "q_dsat_nonlin_002",
+      "answerText": "1) B\n2) b\n3) c",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "nonlin-002-unreadable",
+      "questionId": "q_dsat_nonlin_002",
+      "answerText": "I think the first one is A, not sure about the rest.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    }
+  ]
+}

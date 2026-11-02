@@ -45,7 +45,8 @@ flowchart TD
 - 验证 Firebase ID token 的签名、issuer、audience、有效期；使用经验证的 subject 映射 studentId。生产拒绝 emulator token 与调用者自行声明的用户头。
 - 每个存储与领域函数显式接收 `ActorContext`，包含 actorId、studentId、权限范围。客户端不能靠 body 中的 studentId 选择他人身份。
 - email 是可变联系方式，不用于主键、文件路径或共享 JWT 密钥。未来参考产品账号通过独立映射和授权协议接入。
-- 学生可改 profile、goals、preferences 的叶字段白名单；`entitlements` 仅管理员配置。学生勾选一门课程不等于获准使用。
+- 学生可改 profile、goals、preferences 的叶字段白名单；`entitlements` 仅管理员配置，按 courseId 授予（`apCourses` / `courses`），课程类别不授予权限。学生勾选一门课程不等于获准使用。
+- 课程作者与平台审核员（Step 26）由 `platformMembers/{uid}` 解析为 `PlatformActor`（actorId、role、orgId、权限），它与 `ActorContext` 是不同类型、没有 studentId，因此无法传给任何学生存储或学习服务。作者只能访问本组织的课程包，其他组织的包返回 404。
 - Task、Session、Run、Submission、Assessment、事件、文件与检索均校验归属。跨学生 ID 查询返回 404，避免暴露存在性。
 - 家长不是学生会话的别名。后续 `summary:read` 授权只返回摘要投影，默认不含作答/对话/文书。API 校验授权关系，不能只靠前端隐藏。
 - 服务端 Firestore Admin SDK 绕过客户端规则，故 API/worker 仍必须做归属检查；浏览器不直接读写权威学习数据。
@@ -76,6 +77,10 @@ students/{studentId}/examRecords/{recordId}
 students/{studentId}/predictions/{predictionId}
 students/{studentId}/runInputs/{inputRequestId}   # M1：WAITING_INPUT 的类型化回复（如 OCR 核对）
 identities/{uid}                                  # M1：已验证 uid → studentId，仅服务端读写
+packageCourses/{courseId}                         # Step 26：课程归属组织、状态、active 版本
+packageVersions/{courseId}@{version}              # 包内容（规范 JSON）、校验报告、审核决定、状态历史
+platformMembers/{uid}                             # 作者（含 orgId）或平台审核员
+platformMembers/{uid}/idempotency/{keyHash}       # 平台成员命令的幂等记录
 ```
 
 M1 实现说明：仓储写在 `DocTxn` 接缝上（读穿透事务、写缓冲至提交，同一事务内可读到自己的缓冲写），生产后端为 Firestore SDK，测试/无 Java 本地开发使用内存后端（部署环境拒绝）。唯一性约束依赖文档而非查询：Task 文档的 `openSessionId` 保证一 Task 一 OPEN Session，Session 文档的 `activeRunId` 保证一 Session 一非终态 Run，`eventState/current` 保证事件序号连续，注册文档被 Session/命令事务读取以与取消注册互斥。
@@ -83,6 +88,8 @@ M1 实现说明：仓储写在 `DocTxn` 接缝上（读穿透事务、写缓冲�
 M2 实现说明：新增 `usage/{run-<id>|session-<id>|day-<UTC 日期>}`（预算计数与在途预留，预留超时失效）与 `toolResults/{id}`（工具账本，只存状态和输出，不存输入）。`mastery/{skillId}` 保存投影结果及其证据贡献列表（键为 evidence application id `{assessmentId}:{skillId}`，因此同一证据只应用一次，重评替换贡献，可由评估重建）。Assessment ID 由 Run 确定（`asm_{runId}`），重放提交返回已有结果。Submission 在接受时冻结服务端事实：此前提示次数 `serverHintCount` 与同题先前尝试次数 `priorAttemptCount`。
 
 M3 实现说明：新增 `consumerReceipts/{consumer}:{eventId}:{target}`、`consumerState/{consumer}`（消费者已处理的事件序号）、`plans/{planId}` 与 `planState/current`（当前 PLANNING Run 与最新计划）。outbox 条目增加 `kind`（`run` / `consumers`）；旧文档缺省为 `run`。
+
+Step 26 实现说明：课程包记录位于任何学生子树之外。运行时注册表由两部分组成：内置课程（`content/packs/`，Calc BC 与计划中的课程）和经审核的课程包（active、superseded、retired 版本）。`PackageContentSync` 重新校验并按内容哈希缓存后整体安装；激活/退役的实例立即刷新，其他实例（API 副本、worker）在副本超过 `HSOS_PACKAGE_REFRESH_SECONDS`（默认 30 秒）时于请求或投递前刷新。查找可指定版本：Session 固定的 `contextVersion.pack` 在新版本激活或课程退役后仍可加载，新 Session 使用 active 版本。
 
 按 studentId、状态、到期时间等实际查询建立索引。后台 outbox collection-group 查询仅服务身份可用；客户端不得用全局查询绕过学生边界。题目、rubric 与技能都属于各自的课程包，是独立版本化内容目录；课程之间不互相引用（2026-11-01 起不再有跨课程技能映射）。
 
@@ -174,7 +181,7 @@ Registry 加载版本化 manifest（agent、pack、skill），只启用已验证
 
 ### 7.1 SubjectPack manifest 与 system prompt
 
-每个课程包的目录结构：
+第三方（以及 2026-11-01 起的 Digital SAT）课程以单个 JSON 课程包提交，契约见 [COURSE_PACKAGE.md](COURSE_PACKAGE.md)，经校验和平台审核后才进入运行时。以下目录结构仅用于平台内置课程（Calc BC 及计划中的课程）：
 
 ```text
 content/packs/{courseId}/

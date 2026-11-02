@@ -14,7 +14,7 @@ from fastapi import Depends, Request
 from app.api.request_id import get_request_id
 from app.bootstrap import Services, get_services
 from app.domain.errors import DomainError, ErrorCode
-from app.domain.types.actor import SERVICE_ACTOR_PREFIX, ActorContext
+from app.domain.types.actor import SERVICE_ACTOR_PREFIX, ActorContext, ActorRole, PlatformActor
 
 FORBIDDEN_IDENTITY_HEADERS = ("x-user-email", "x-student-id", "x-user-id")
 FORBIDDEN_IDENTITY_PARAMS = ("studentId", "student_id", "email")
@@ -30,9 +30,7 @@ def _bearer_token(request: Request) -> str:
     return token.strip()
 
 
-async def get_actor(
-    request: Request, services: Annotated[Services, Depends(get_services)]
-) -> ActorContext:
+def _reject_asserted_identity(request: Request) -> None:
     for name in FORBIDDEN_IDENTITY_HEADERS:
         if name in request.headers:
             raise DomainError(
@@ -45,9 +43,16 @@ async def get_actor(
                 ErrorCode.VALIDATION_FAILED,
                 f"{name} is not accepted; identity comes from the ID token.",
             )
+
+
+async def get_actor(
+    request: Request, services: Annotated[Services, Depends(get_services)]
+) -> ActorContext:
+    _reject_asserted_identity(request)
     identity = await services.token_verifier.verify(_bearer_token(request))
     if identity.uid.startswith(SERVICE_ACTOR_PREFIX):
         raise DomainError(ErrorCode.UNAUTHENTICATED, "Invalid subject.")
+    await services.content_sync.ensure_fresh()
     student_id = await services.identities.resolve(identity.uid)
     if student_id is None:
         raise DomainError(ErrorCode.FORBIDDEN, "This account has no student record.")
@@ -55,5 +60,23 @@ async def get_actor(
     return ActorContext.for_student(student_id, request_id=get_request_id(request))
 
 
+async def get_platform_actor(
+    request: Request, services: Annotated[Services, Depends(get_services)]
+) -> PlatformActor:
+    """Authors and platform reviewers (Step 26). A student account is not a platform
+    member, so it gets 403 on every authoring and review route."""
+    _reject_asserted_identity(request)
+    identity = await services.token_verifier.verify(_bearer_token(request))
+    if identity.uid.startswith(SERVICE_ACTOR_PREFIX):
+        raise DomainError(ErrorCode.UNAUTHENTICATED, "Invalid subject.")
+    member = await services.platform_members.resolve(identity.uid)
+    if member is None:
+        raise DomainError(ErrorCode.FORBIDDEN, "This account is not a course author or reviewer.")
+    return PlatformActor.for_member(
+        member.uid, ActorRole(member.role), member.org_id, request_id=get_request_id(request)
+    )
+
+
 Actor = Annotated[ActorContext, Depends(get_actor)]
+Platform = Annotated[PlatformActor, Depends(get_platform_actor)]
 ServicesDep = Annotated[Services, Depends(get_services)]

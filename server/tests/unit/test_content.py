@@ -17,9 +17,11 @@ def registry():  # type: ignore[no-untyped-def]
     return load_content()
 
 
-def test_active_packs_are_calc_bc_and_dsat(registry) -> None:  # type: ignore[no-untyped-def]
-    # Digital SAT is an independent course (the M3 second-course candidate).
-    assert registry.active_course_ids() == {"calc_bc", "dsat"}
+def test_bundled_active_pack_is_calc_bc_only(registry) -> None:  # type: ignore[no-untyped-def]
+    # Digital SAT is no longer bundled: it reaches the runtime only as a reviewed course
+    # package (content/authored/dsat, Step 27).
+    assert registry.active_course_ids() == {"calc_bc"}
+    assert not (DEFAULT_CONTENT_ROOT / "packs/dsat").exists()
     for cid in ("apush", "physics_c"):
         pack = registry.pack(cid)
         assert pack is not None
@@ -125,16 +127,6 @@ def test_reviewed_status_requires_named_reviewer(tmp_path: Path) -> None:
         review={"status": "reviewed", "reviewer": None, "reviewedAt": None},
     )
     with pytest.raises(ContentError, match="reviewer"):
-        load_content(root)
-
-
-def test_question_cannot_use_another_courses_skill(tmp_path: Path) -> None:
-    root = _copy_content(tmp_path)
-    path = root / "packs/dsat/questions/q_dsat_equiv_001.json"
-    data = json.loads(path.read_text())
-    data["skillIds"] = ["calc_bc.algebraic-manipulation"]
-    path.write_text(json.dumps(data))
-    with pytest.raises(ContentError, match="unknown skills"):
         load_content(root)
 
 

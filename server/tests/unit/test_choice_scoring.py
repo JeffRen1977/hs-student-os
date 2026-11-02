@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import json
-import shutil
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from app.domain.skills.choice_scoring import parse_choices
-from app.registries.content import DEFAULT_CONTENT_ROOT, ContentError, load_content
+from app.registries.content import DEFAULT_CONTENT_ROOT
+from app.registries.package_validator import validate_package
 from app.schemas.content import Question
 
-CONTENT = load_content()
+DSAT_PACKAGE = DEFAULT_CONTENT_ROOT / "authored/dsat/package.json"
+
+
+def dsat_package() -> dict:  # type: ignore[type-arg]
+    return json.loads(DSAT_PACKAGE.read_text())
 
 
 @pytest.mark.parametrize(
@@ -31,7 +34,7 @@ def test_parse_choices(text: str, expected: dict[str, str] | None) -> None:
 
 
 def test_choice_items_need_a_valid_answer_key() -> None:
-    raw = CONTENT.packs["dsat"].questions["q_dsat_equiv_001"].model_dump(by_alias=True)
+    [raw] = [q for q in dsat_package()["questions"] if q["questionId"] == "q_dsat_equiv_001"]
     bad_key = {
         **raw,
         "items": [{**raw["items"][0], "answerKey": "D", "choices": raw["items"][0]["choices"][:3]}],
@@ -42,12 +45,10 @@ def test_choice_items_need_a_valid_answer_key() -> None:
         Question.model_validate({**raw, "diagnostic": {"targetSkillId": "dsat.x"}})
 
 
-def test_a_pack_with_choice_items_must_select_choice_scoring(tmp_path: Path) -> None:
-    root = tmp_path / "content"
-    shutil.copytree(DEFAULT_CONTENT_ROOT, root)
-    path = root / "packs/dsat/manifest.json"
-    manifest = json.loads(path.read_text())
-    manifest["skills"] = ["socratic-guidance"]
-    path.write_text(json.dumps(manifest))
-    with pytest.raises(ContentError, match="cannot score items"):
-        load_content(root)
+def test_a_pack_with_choice_items_must_select_choice_scoring() -> None:
+    package = dsat_package()
+    package["manifest"]["abilities"] = ["socratic-guidance"]
+    report = validate_package(package).report
+    assert not report.valid
+    assert {e.code for e in report.errors} == {"ability_not_selected"}
+    assert all(e.path.startswith("questions[q_dsat_") for e in report.errors)

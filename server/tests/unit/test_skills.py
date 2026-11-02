@@ -291,14 +291,25 @@ async def test_skill_must_be_pinned_on_the_session() -> None:
     assert err.value.code == "SKILL_NOT_ENABLED"
 
 
-async def test_pack_version_change_under_open_session_fails_loudly() -> None:
+async def test_unloadable_pinned_content_fails_loudly() -> None:
+    # A session runs only on the package version it pinned (Step 26.4): if that version
+    # is not loadable, or its workflow differs, the run fails instead of switching content.
     case = CASES[0]
     session = session_for(case.question_ref.question_id)
-    stale = dataclasses.replace(
+    unknown = dataclasses.replace(
         session, context_version=ContextVersion(pack="0.9.0", workflow="old")
     )
     with pytest.raises(ExecutionFailure) as err:
-        await executor(ScriptedProvider()).execute(assess_request(submission_for(case), stale))
+        await executor(ScriptedProvider()).execute(assess_request(submission_for(case), unknown))
+    assert err.value.code == "COURSE_CONTENT_UNAVAILABLE"
+    other_workflow = dataclasses.replace(
+        session,
+        context_version=ContextVersion(pack=session.context_version.pack, workflow="old"),
+    )
+    with pytest.raises(ExecutionFailure) as err:
+        await executor(ScriptedProvider()).execute(
+            assess_request(submission_for(case), other_workflow)
+        )
     assert err.value.code == "CONTENT_VERSION_CHANGED"
 
 
@@ -372,8 +383,10 @@ def test_material_retrieval_filters_course_and_owner_first() -> None:
     )
 
     class Registry(ContentSubjectPackRegistry):
-        def materials(self, course_id: str) -> tuple[MaterialContent, ...]:
-            return (*super().materials(course_id), other_course, other_student)
+        def materials(
+            self, course_id: str, version: str | None = None
+        ) -> tuple[MaterialContent, ...]:
+            return (*super().materials(course_id, version), other_course, other_student)
 
     found = retrieve_materials(
         Registry(CONTENT),

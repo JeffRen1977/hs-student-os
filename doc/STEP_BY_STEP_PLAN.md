@@ -13,11 +13,11 @@ The product is a **course platform with one shared runtime**: third parties add 
 | M0 Contracts and baseline | 1–7 | **Implemented; verification partial**: emulator tests not yet run, content not yet human-reviewed |
 | M1 Reliable foundation | 8–15 | **Implemented; verified over the in-memory backend**: Firestore-emulator run pending (no Java), Cloud Tasks/OIDC verified in staging (Step 30) |
 | M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator run pending (no Java) |
-| M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. Package contract, ability catalog, authoring/review and the authored rebuild are not started. |
+| M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. **Steps 26–27 implemented 2026-11-01** (package contract v1 + validator, author/reviewer roles, review gate, version pinning, retire; Digital SAT rebuilt as an authored package; course-driven frontend). Not started: ability catalog contract (23), course-internal follow-up rules (24.2), package-sourced deadlines (25.4), re-expressing Calc BC as a package (22.3). |
 | M4 Proactive planning and pilot | 28–33 | Not started (pilot: Calc BC + Digital SAT, authored) |
 | M5 Optional expansion | 34–38 | Not started |
 
-Last local verification (`make check`, 2026-11-01, after the M2 review fixes): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **490 passed, 8 skipped** (7 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **33 passed**.
+Last local verification (`make check`, 2026-11-01, after Steps 26–27): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **514 passed, 8 skipped** (7 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **33 passed**. Browser check over `make server-memory` + `make web`: Alex answered a Digital SAT set (served from the package store), the assessment showed package skill names, and the replanned week listed Calc BC and Digital SAT entries.
 
 Open items before M0–M2 can be called complete:
 - **Real-model evaluation (Steps 16, 21):** first run done 2026-11-01 with OpenAI `gpt-5.5` (`content/evaluation/calc_bc/report-v1.md`): 17/18 criteria, 6/6 statuses. One false credit (parametric `second-derivative-method`) awaits the reviewer's decision. Not yet run against Anthropic. These are draft-content results only, so they don't measure quality until content review is done and thresholds are set.
@@ -740,7 +740,7 @@ Decisions behind this milestone:
 
 **Goal:** One versioned, documented, data-only format that fully describes a course, and a validator that accepts or rejects a package with actionable errors.
 
-- [ ] 22.1 Contract first: write the package schema in `app/schemas/` and document it (new `doc/COURSE_PACKAGE.md`; update API.md/BACKEND.md). A package contains:
+- [~] 22.1 Contract first (package format v1 done for authored packages, see Step 26; course requirements and completion-rule types still missing): write the package schema in `app/schemas/` and document it (new `doc/COURSE_PACKAGE.md`; update API.md/BACKEND.md). A package contains:
   - Manifest: courseId, version, title/description, publisher (author org), content license, availability, model tier ceiling, abilities used and their settings, tool whitelist (from the platform catalog only)
   - Skill taxonomy: skill IDs, names, optional prerequisite edges **within the course**
   - Question bank: versioned questions with source/license, skills tagged, answer format (free response / choice items), rubric or answer-key reference
@@ -748,7 +748,7 @@ Decisions behind this milestone:
   - Course requirements: e.g. recommended weekly minutes, known exam/assignment dates with a source, enrollment eligibility
   - Completion and mastery criteria: what counts as an accepted assessment and when a task or the course is complete, expressed with platform-defined rule types and parameters (no expressions or code)
   - Evaluation set: annotated cases the course must pass before review
-- [ ] 22.2 Validator: schema check plus cross-reference checks (every question's skills and rubric exist, criteria map to skills, abilities have the data they need, answer keys never in student-facing fields, license present, no unknown fields). Returns all errors with paths, not just the first.
+- [~] 22.2 Validator (done for authored packages: all errors with paths, cross-course references, ability data, license, unknown fields; `app/registries/package_validator.py`): schema check plus cross-reference checks (every question's skills and rubric exist, criteria map to skills, abilities have the data they need, answer keys never in student-facing fields, license present, no unknown fields). Returns all errors with paths, not just the first.
 - [ ] 22.3 Re-express `calc_bc` in the v1 format; the runtime loads only through the validated contract. (`dsat` is rebuilt through the authoring path in Step 27.)
 - [x] 22.4 Remove the cross-course layer: `content/mappings/`, the mapping registry, `prerequisite_service` mapping rules, the `prerequisite-mapper` consumer's cross-course logic, `prerequisite.*` events and payloads, `/api/prerequisites`, the findings card, and the prerequisite evaluation cases. Keep the event feed contract backward compatible where events were already stored (or document the cut, since no real student data exists).
 - [ ] 22.5 Tests: valid packages load; each class of invalid package is rejected with the right error path; a package cannot reference another course's skills or content; contract parity between schema, domain types and docs.
@@ -816,16 +816,16 @@ Decisions behind this milestone:
 
 **Goal:** A third-party author can submit a course; only platform-approved versions reach students.
 
-- [ ] 26.1 Identities and roles: author accounts belong to an author organization; `ActorContext` gains `author` and `platform_reviewer` roles with their own permissions. Authors never see student data (aggregate, privacy-safe course metrics are a later step).
-- [ ] 26.2 Submission: authenticated API to upload a package version → validator report (Step 22) → `submitted`. Authors see only their own organization's packages; other organizations' packages return 404.
-- [ ] 26.3 Review workflow: `draft → submitted → approved → active`, plus `rejected` (with reviewer notes) and `retired`. Approval records reviewer, time, evaluation-set results and license attestation. Only `active` versions appear in the catalog.
-- [ ] 26.4 Versioning: each Run pins the package version; a new version never changes open sessions or past assessments; retiring a course stops new enrollments and tasks without deleting student records.
-- [ ] 26.5 Entitlements stay platform-managed (an author cannot grant students access); content storage and retrieval are scoped per course.
-- [ ] 26.6 Tests: author isolation (org A vs org B → 404), students cannot call authoring routes, unapproved versions are never served, version pinning across an upgrade, retire with an open session, idempotent submission.
+- [x] 26.1 Identities and roles: `platformMembers/{uid}` → `PlatformActor` (role `author` with an `orgId`, or `platform_reviewer`), a separate type from `ActorContext` with no `studentId`; permissions `packages:author` / `packages:review`. Students get 403 on authoring/review routes; platform members get 403 on student routes.
+- [x] 26.2 Submission: `POST /api/authoring/packages` → validator report → `draft`; `.../submit` → `submitted` (409 `PACKAGE_INVALID` if the report has errors). Other organizations' packages return 404; a courseId owned by another organization or a bundled course → 409 `COURSE_ID_TAKEN`.
+- [x] 26.3 Review workflow: `draft → submitted → approved → active` (+ `rejected`, `superseded`, `retired`). Approval records reviewer, time, notes, license and model-evaluation attestations; requires a valid report and every key-scored evaluation case passing. Only active versions appear in the catalog. Every transition is in the version's `history`.
+- [x] 26.4 Versioning: Sessions pin `contextVersion.pack`; the registry serves pinned versions (`superseded`/`retired`) for open sessions and past assessments; an older version cannot replace a newer active one. Retire stops new enrollments, sessions and commands (409 `COURSE_NOT_AVAILABLE`) and keeps all records readable.
+- [x] 26.5 Entitlements stay platform-managed and are now per courseId (`apCourses` + new `courses`, replacing the `dsat` flag): a package's category never grants access. Package records live outside student subtrees.
+- [x] 26.6 Tests: `tests/contract/test_package_review.py` (gate end to end with audit trail, org isolation, role enforcement, invalid package, approval requirements, rejection and immutability, idempotency, version pinning across an upgrade, retire with an open session, no student data in author views), `tests/unit/test_package_validator.py`.
 
 **Verify:** A package goes from upload to `active` only through validation plus reviewer approval, and every state change is auditable.
 
-**Status: ⏳ not started.** Today's review gate is the `review.status` field in content files plus `HSOS_REQUIRE_REVIEWED_CONTENT`.
+**Status: ✅ implemented and verified over the in-memory backend (2026-11-01).** Contract: [COURSE_PACKAGE.md](COURSE_PACKAGE.md), API.md §6.3, BACKEND.md §2–3. Code: `app/schemas/package.py`, `app/registries/package_validator.py`, `app/registries/package_sync.py`, `app/domain/package_service.py`, `app/adapters/firestore/package_repository.py`, `app/api/routes/packages.py`. The validator covers what the gate needs from Step 22.1–22.2 (manifest incl. publisher/license, skills, rubrics, questions, materials, starter tasks, evaluation set; all errors with paths); course requirements (dated items, weekly minutes) and completion-rule types are not in the contract yet. Not done: emulator run (no emulator verification on this machine), an admin entitlement tool (tests write the access document directly), author-facing UI (API only), prompt-injection checks on author text beyond the template-variable whitelist (Step 23.2). Multi-instance freshness relies on a 30 s refresh window (`HSOS_PACKAGE_REFRESH_SECONDS`).
 
 ---
 
@@ -834,15 +834,15 @@ Decisions behind this milestone:
 **Goal:** Evidence that a new course needs data only.
 
 - [x] 27.1a Second course chosen (2026-11-01): **Digital SAT**. Its current draft content (four choice sets) was converted by hand in Step 22.4 and does not count as authored.
-- [ ] 27.1 Rebuild Digital SAT as a package through the Step 26 path, by someone working only on content (no edits under `server/app/` or `web/js/` for that course)
-- [ ] 27.2 Pass the package's evaluation set, review and approval; enroll a synthetic student; run the full loop (task → session → assessment → mastery → follow-up → plan) for both courses side by side
-- [ ] 27.3 Frontend renders everything from course data: answer formats (free response, choice items), skill names, rubric feedback, follow-up reasons, plan entries per course. Remove the findings card. UI language is English.
-- [ ] 27.4 Record the course's authoring time, validator errors hit and any platform gap found; a gap becomes a platform ability or contract change, never course-specific code
-- [ ] 27.5 Test in browser: both courses, enrolment through completion and replan
+- [x] 27.1 Digital SAT rebuilt as `server/content/authored/dsat/package.json` (v1.0.0, owned by `org_hsos_content`); `content/packs/dsat` removed. No Digital SAT code in `server/app/` or `web/js/` (the old `PACK_META.dsat` entry was removed; it renders from course data).
+- [x] 27.2 `tests/contract/test_authored_course_loop.py`: from a platform with no Digital SAT, the package file goes through upload → report (12/12 evaluation cases) → submit → approve → activate over the API; a synthetic student gets access, enrolls (starter tasks created), runs a Digital SAT set (key-scored, no model) and a Calc BC answer (model-graded) side by side; mastery stays per course; one plan covers both. Follow-up (24.2) is not built, so the loop stops at the plan.
+- [x] 27.3 Frontend: skill names from `GET /api/courses/{id}/agent` `skills` (assessment card, mastery list with course label), plan entries labelled per course, generic "Exam prediction" label, course events show course names, choice vs free-response answer forms from the session activity. Findings card already removed. Criterion descriptions are not in the assessment API yet, so rubric lines show criterion ids. Demo-mode preview panels (`agents/dsat.js`) are untouched.
+- [x] 27.4 Authoring record: converting the existing draft content took one script plus writing 12 evaluation cases; first validation passed. Platform gaps found and fixed as platform/contract changes, not course code: (1) nothing created tasks for a newly enrolled course → `starterTasks` in the contract; (2) category-based SAT entitlement let an author's category choice grant access → per-courseId grants; (3) the client could not name skills → `skills` on the agent view; (4) one loaded version per course → versioned registry for pinning.
+- [x] 27.5 Browser check (2026-11-01, `make server-memory` + `make web`, Chrome): Alex opened a Digital SAT task, answered the choice set, saw an accepted assessment with package skill names, and replanned; the plan listed both courses; no console errors. Enrollment-through-completion for a *newly* authored course in the browser was not exercised (no admin UI to grant access); the API test covers it.
 
 **Verify M3:** The second course reaches `active` and works end to end with no platform code change made for it; Calc BC still passes its regression and evaluation cases; isolation and replay checks pass for both courses.
 
-**Status: ⏳ not started.** Digital SAT is chosen. The web UI was switched to English and the findings card removed on 2026-11-01.
+**Status: ✅ 27.1–27.5 implemented (2026-11-01).** Digital SAT content is still `draft` (no named content reviewer), so `HSOS_REQUIRE_REVIEWED_CONTENT` would withhold it. Local seeding installs the package as active with an audit trail labelled `seed:local-dev`, not a platform review. M3 overall still needs Steps 22.3, 23, 24.2–24.5 and 25.4–25.7.
 
 ---
 

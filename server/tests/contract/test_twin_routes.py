@@ -117,17 +117,17 @@ async def test_patch_with_malformed_if_match_is_400(harness: Harness) -> None:
 async def test_entitlements_are_read_only(harness: Harness) -> None:
     response = await harness.client.get("/api/me/entitlements", headers=harness.auth("stu_beth"))
     assert response.status_code == 200
-    assert Entitlements.model_validate(response.json()).dsat is False
+    assert Entitlements.model_validate(response.json()).courses == []
     for method in ("PATCH", "POST", "PUT"):
         attempt = await harness.client.request(
             method,
             "/api/me/entitlements",
-            json={"dsat": True},
+            json={"courses": ["dsat"]},
             headers=harness.cmd("stu_beth"),
         )
         assert attempt.status_code == 405, method
     again = await harness.client.get("/api/me/entitlements", headers=harness.auth("stu_beth"))
-    assert again.json()["dsat"] is False
+    assert again.json()["courses"] == []
 
 
 async def test_selecting_a_course_grants_nothing(harness: Harness) -> None:
@@ -138,7 +138,7 @@ async def test_selecting_a_course_grants_nothing(harness: Harness) -> None:
     )
     assert response.status_code == 200
     ent = await harness.client.get("/api/me/entitlements", headers=harness.auth("stu_beth"))
-    assert ent.json() == {"apCourses": ["calc_bc"], "dsat": False, "admissions": False}
+    assert ent.json() == {"apCourses": ["calc_bc"], "courses": [], "admissions": False}
     catalog = await harness.client.get("/api/courses/catalog", headers=harness.auth("stu_beth"))
     dsat = next(c for c in catalog.json()["courses"] if c["courseId"] == "dsat")
     assert dsat["entitled"] is False and dsat["enrolled"] is False

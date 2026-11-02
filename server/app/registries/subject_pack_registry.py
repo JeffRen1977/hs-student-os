@@ -1,8 +1,13 @@
 """SubjectPack registry: validated, versioned pack content for the skill runtime (Step 17.1).
 
-Only `active` packs are runnable. With `require_reviewed=True` (enforced in production),
-content still in `draft` review is withheld: an unreviewed question cannot start a session
-and an unreviewed material cannot be retrieved.
+Without a version, only the course's `active` pack is returned (new sessions). With a
+version — the one a Session pinned — that exact version is returned even after a newer
+version was activated or the course retired, so open sessions and past assessments never
+change content under the student (Step 26.4).
+
+With `require_reviewed=True` (enforced in production), content still in `draft` review is
+withheld: an unreviewed question cannot start a session and an unreviewed material cannot
+be retrieved.
 """
 
 from __future__ import annotations
@@ -97,16 +102,19 @@ class ContentSubjectPackRegistry:
         self._content = content
         self._require_reviewed = require_reviewed
 
-    def _active(self, course_id: str) -> Pack | None:
+    def _active(self, course_id: str, version: str | None = None) -> Pack | None:
+        if version is not None:
+            return self._content.pack_version(course_id, version)
         pack = self._content.pack(course_id)
         return pack if pack is not None and pack.is_active else None
 
-    def pack(self, course_id: str) -> PackContent | None:
-        pack = self._active(course_id)
-        if pack is None:
+    def pack(self, course_id: str, version: str | None = None) -> PackContent | None:
+        pack = self._active(course_id, version)
+        if pack is None or pack.system_prompt is None:
             return None
         m = pack.manifest
-        assert m.workflow_version and m.model_tier and pack.system_prompt is not None
+        if not m.workflow_version or not m.model_tier:
+            return None  # planned packs have no runnable content
         reviewed = all(q.review.status == "reviewed" for q in pack.questions.values()) and all(
             r.review.status == "reviewed" for r in pack.rubrics.values()
         )
@@ -122,8 +130,10 @@ class ContentSubjectPackRegistry:
             reviewed=reviewed,
         )
 
-    def question(self, course_id: str, question_id: str) -> QuestionContent | None:
-        pack = self._active(course_id)
+    def question(
+        self, course_id: str, question_id: str, version: str | None = None
+    ) -> QuestionContent | None:
+        pack = self._active(course_id, version)
         q = pack.questions.get(question_id) if pack else None
         if q is None:
             return None
@@ -131,8 +141,10 @@ class ContentSubjectPackRegistry:
             return None
         return _question(q)
 
-    def rubric(self, course_id: str, rubric_id: str, version: str) -> RubricContent | None:
-        pack = self._active(course_id)
+    def rubric(
+        self, course_id: str, rubric_id: str, version: str, pack_version: str | None = None
+    ) -> RubricContent | None:
+        pack = self._active(course_id, pack_version)
         r = pack.rubrics.get((rubric_id, version)) if pack else None
         if r is None:
             return None
@@ -140,8 +152,8 @@ class ContentSubjectPackRegistry:
             return None
         return _rubric(r)
 
-    def materials(self, course_id: str) -> Sequence[MaterialContent]:
-        pack = self._active(course_id)
+    def materials(self, course_id: str, version: str | None = None) -> Sequence[MaterialContent]:
+        pack = self._active(course_id, version)
         if pack is None:
             return ()
         return tuple(

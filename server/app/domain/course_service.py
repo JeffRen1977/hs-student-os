@@ -13,6 +13,7 @@ from app.domain.access import (
 )
 from app.domain.commands import CommandKey, Outcome, find_replay, remember
 from app.domain.errors import DomainError, ErrorCode
+from app.domain.planner_service import all_tasks, local_today, place_new_task
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.repositories import EventDraft, SessionQuery, Tx, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
@@ -27,6 +28,7 @@ from app.domain.types.course import (
 from app.domain.types.event import EventType
 from app.domain.types.session import Session, SessionStatus
 from app.domain.types.student import MasterySummary
+from app.domain.types.task import Task, TaskReason, TaskReasonCode, TaskStatus
 
 ENROLLMENT_RESOURCE = "enrollment"
 
@@ -130,6 +132,7 @@ class CourseService:
                 unenrolled_at=None,
             )
             tx.enrollments.save(actor, enrollment)
+            await self._create_starter_tasks(tx, actor, course)
             await tx.events.append(
                 actor,
                 EventDraft(
@@ -147,6 +150,48 @@ class CourseService:
             return Outcome(value=enrollment)
 
         return await self._uow.transaction(write)
+
+    async def _create_starter_tasks(
+        self, tx: Tx, actor: ActorContext, course: CourseDefinition
+    ) -> None:
+        """The package's starter tasks, in the enrollment transaction, the first time a
+        student has no tasks in this course. Re-enrolling never duplicates them. Each one
+        goes to the earliest day with room, as with any new task; the planner may move it."""
+        if not course.starter_tasks:
+            return
+        existing = await all_tasks(tx, actor)
+        if any(t.course_id == course.course_id for t in existing):
+            return
+        student = await tx.students.get(actor)
+        if student is None:
+            raise DomainError(ErrorCode.NOT_FOUND, "Student not found.")
+        now = self._clock.now()
+        today = local_today(now, student.preferences.timezone)
+        scheduled = list(existing)
+        for spec in course.starter_tasks:
+            place = place_new_task(
+                today, student.preferences.weekly_available_minutes, scheduled, spec.duration_min
+            )
+            task = Task(
+                task_id=self._ids.new("task"),
+                student_id=actor.student_id,
+                agent=course.agent.agent_type,
+                course_id=course.course_id,
+                task_type=spec.task_type,
+                mode=spec.mode,
+                title=spec.title,
+                duration_min=spec.duration_min,
+                scheduled_date=place.scheduled_date,
+                status=TaskStatus.PLANNED,
+                version=1,
+                reason=TaskReason(
+                    code=TaskReasonCode.INITIAL_PRACTICE,
+                    explanation=f"Starter practice for {course.name}. {place.explanation}",
+                ),
+                question_id=spec.question_id,
+            )
+            tx.tasks.save(actor, task, now=now)
+            scheduled.append(task)
 
     async def unenroll(
         self, actor: ActorContext, course_id: str, cmd: CommandKey

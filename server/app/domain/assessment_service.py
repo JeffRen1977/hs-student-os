@@ -191,8 +191,9 @@ class AssessmentService:
         submission = await tx.submissions.get(actor, draft.submission_id)
         session = await tx.sessions.get(actor, run.session_id) if run.session_id else None
         course_id = session.course_id if session else ""
-        question = self._registry.question(course_id, draft.question_id)
-        rubric = self._registry.rubric(course_id, draft.rubric_id, draft.rubric_version)
+        pinned = session.context_version.pack if session else None
+        question = self._registry.question(course_id, draft.question_id, pinned)
+        rubric = self._registry.rubric(course_id, draft.rubric_id, draft.rubric_version, pinned)
         submission, session, question, rubric = validate_draft(
             draft, run, submission, session, question, rubric, tool_result_ids
         )

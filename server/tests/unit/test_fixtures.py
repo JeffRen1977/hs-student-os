@@ -12,7 +12,12 @@ from app.adapters.seed_documents import build_seed_documents
 from app.domain.types.course import EnrollmentStatus
 from app.domain.types.student import PredictionStatus
 from app.registries.content import load_content
-from app.registries.fixtures import DEFAULT_FIXTURE_ROOT, SeedStudent, load_seed_students
+from app.registries.fixtures import (
+    DEFAULT_FIXTURE_ROOT,
+    SeedStudent,
+    load_platform_fixture,
+    load_seed_students,
+)
 from app.schemas.fixtures import StudentFixture
 
 
@@ -38,15 +43,15 @@ def test_two_isolated_students(seeds: list[SeedStudent]) -> None:
 def test_entitlements_differ_and_are_separate(seeds: list[SeedStudent]) -> None:
     students = by_id(seeds)
     alex, beth = students["stu_alex"].entitlements, students["stu_beth"].entitlements
-    assert alex.entitlements.ap_courses == ["calc_bc"] and alex.entitlements.dsat
-    assert beth.entitlements.ap_courses == ["calc_bc"] and not beth.entitlements.dsat
+    assert alex.entitlements.ap_courses == ["calc_bc"] and alex.entitlements.courses == ["dsat"]
+    assert beth.entitlements.ap_courses == ["calc_bc"] and beth.entitlements.courses == []
     raw = json.loads((DEFAULT_FIXTURE_ROOT / "students/student-a.json").read_text())
     assert "entitlements" not in raw and "subscriptions" not in raw
 
 
 def test_student_fixture_cannot_embed_entitlements() -> None:
     raw = json.loads((DEFAULT_FIXTURE_ROOT / "students/student-a.json").read_text())
-    raw["entitlements"] = {"apCourses": ["apush"], "dsat": True, "admissions": True}
+    raw["entitlements"] = {"apCourses": ["apush"], "courses": ["dsat"], "admissions": True}
     with pytest.raises(ValidationError):
         StudentFixture.model_validate(raw)
 
@@ -78,16 +83,17 @@ def test_fixtures_are_synthetic_only() -> None:
 
 
 def test_enrollments_are_active_entitled_courses(seeds: list[SeedStudent]) -> None:
-    content = load_content()
+    # Bundled courses, plus the authored packages local seeding installs as active.
+    active = load_content().active_course_ids() | {
+        s.path for s in load_platform_fixture().seed_packages
+    }
     for seed in seeds:
         for enrollment in seed.student.enrollments:
             assert enrollment.status is EnrollmentStatus.ACTIVE
-            assert enrollment.course_id in content.active_course_ids()
+            assert enrollment.course_id in active
             granted = seed.entitlements.entitlements
-            if enrollment.course_id == "dsat":  # SAT access is a flag, AP access a list
-                assert granted.dsat
-            else:
-                assert enrollment.course_id in granted.ap_courses
+            # Access is granted per courseId, never per category.
+            assert enrollment.course_id in [*granted.ap_courses, *granted.courses]
 
 
 def test_selected_planned_course_is_not_treated_as_active() -> None:
@@ -102,8 +108,8 @@ def test_seed_documents_are_scoped_per_student(seeds: list[SeedStudent]) -> None
         assert path.startswith(f"students/{owner}")
         if "studentId" in data:
             assert data["studentId"] == owner
-    assert docs["students/stu_alex/access/current"]["dsat"] is True
-    assert docs["students/stu_beth/access/current"]["dsat"] is False
+    assert docs["students/stu_alex/access/current"]["courses"] == ["dsat"]
+    assert docs["students/stu_beth/access/current"]["courses"] == []
     assert "entitlements" not in docs["students/stu_alex"]
     assert docs["students/stu_alex/enrollments/calc_bc"]["status"] == "active"
     assert docs["students/stu_alex/eventState/current"] == {"nextSequence": 1}

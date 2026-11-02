@@ -74,7 +74,9 @@ def twin(student: Student) -> st.TwinSummary:
 
 
 def entitlements(e: Entitlements) -> st.Entitlements:
-    return st.Entitlements(ap_courses=list(e.ap_courses), dsat=e.dsat, admissions=e.admissions)
+    return st.Entitlements(
+        ap_courses=list(e.ap_courses), courses=list(e.courses), admissions=e.admissions
+    )
 
 
 def agent_summary(a: AgentConfig) -> c.AgentSummary:
@@ -121,6 +123,7 @@ def course_agent(ag: CourseAgent, packs: SubjectPackRegistry | None = None) -> c
         modes=list(ag.course.agent.modes),
         supported_task_types=list(ag.course.agent.supported_task_types),
         active_sessions=[session(x, packs) for x in ag.active_sessions],
+        skills=[c.SkillName(skill_id=k, name=v) for k, v in sorted(ag.course.skill_names.items())],
         mastery_summary={
             k: st.MasteryEntry(
                 level=v.level, independent_evidence_count=v.independent_evidence_count
@@ -158,7 +161,7 @@ def task(x: Task) -> t.Task:
 def session(x: Session, packs: SubjectPackRegistry | None = None) -> s.Session:
     activity = None
     if x.activity is not None and packs is not None:
-        q = packs.question(x.course_id, x.activity.question_id)
+        q = packs.question(x.course_id, x.activity.question_id, x.context_version.pack)
         if q is not None and q.version == x.activity.question_version:
             activity = s.SessionActivity(
                 question_id=q.question_id, question_version=q.version,

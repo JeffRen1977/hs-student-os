@@ -50,7 +50,9 @@ class SkillExecutor:
         session = request.session
         if request.run.kind is not RunKind.ASSESS_SUBMISSION or session.activity is None:
             return False
-        question = self._registry.question(session.course_id, session.activity.question_id)
+        question = self._registry.question(
+            session.course_id, session.activity.question_id, session.context_version.pack
+        )
         return choice_scoring.is_choice_set(question)
 
     async def execute(self, request: ExecutionRequest) -> ExecutionOutput:
@@ -58,17 +60,19 @@ class SkillExecutor:
             assert self._fallback is not None
             return await self._fallback.execute(request)
         session = request.session
-        pack = self._registry.pack(session.course_id)
+        # The package version the Session pinned, even if a newer one is active now.
+        pinned = session.context_version.pack
+        pack = self._registry.pack(session.course_id, pinned)
         if pack is None:
             raise ExecutionFailure("COURSE_CONTENT_UNAVAILABLE")
-        if pack.pack_version != session.context_version.pack or (
-            pack.workflow_version != session.context_version.workflow
-        ):
-            # Pinned versions changed under an open session: do not silently switch.
+        if pack.pack_version != pinned or pack.workflow_version != session.context_version.workflow:
+            # Pinned content no longer matches: do not silently switch.
             raise ExecutionFailure("CONTENT_VERSION_CHANGED")
         question: QuestionContent | None = None
         if session.activity is not None:
-            question = self._registry.question(session.course_id, session.activity.question_id)
+            question = self._registry.question(
+                session.course_id, session.activity.question_id, pinned
+            )
             if question is None or question.version != session.activity.question_version:
                 raise ExecutionFailure("CONTENT_VERSION_CHANGED")
 
@@ -89,11 +93,13 @@ class SkillExecutor:
             if submission is None:
                 raise ExecutionFailure("SUBMISSION_NOT_FOUND")
             if question is None or question.question_id != submission.question_id:
-                question = self._registry.question(session.course_id, submission.question_id)
+                question = self._registry.question(
+                    session.course_id, submission.question_id, pinned
+                )
             if question is None or question.version != submission.question_version:
                 raise ExecutionFailure("CONTENT_VERSION_CHANGED")
             rubric = self._registry.rubric(
-                session.course_id, question.rubric_id, question.rubric_version
+                session.course_id, question.rubric_id, question.rubric_version, pinned
             )
             if rubric is None:
                 raise ExecutionFailure("COURSE_CONTENT_UNAVAILABLE")

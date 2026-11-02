@@ -23,7 +23,7 @@ function CourseSessionPanel({ S }) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [retry, setRetry] = React.useState(null); // the failed action, retried with its key
-  const [choices, setChoices] = React.useState({}); // itemId → key, for SAT choice sets
+  const [choices, setChoices] = React.useState({}); // itemId → key, for choice-set questions
   const [newDate, setNewDate] = React.useState("");
   const actionIdRef = React.useRef(newActionId());
 
@@ -153,7 +153,6 @@ function CourseSessionPanel({ S }) {
 
   const open = session && session.status === "OPEN";
   const canSend = open && !active && !busy;
-  const isSat = task.agent === "DSAT";
   const answerReady = kind === "answer" && items ? !!choiceText : !!S.draft.trim();
   return (
     <React.Fragment>
@@ -165,7 +164,7 @@ function CourseSessionPanel({ S }) {
             <div className="text-[11px] text-slate-500">{TASK_STATUS_LABEL[task.status]}{S.architect ? " · " + task.taskId : ""}</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] text-slate-500">{isSat ? "SAT prediction" : "AP prediction"}</div>
+            <div className="text-[10px] text-slate-500">Exam prediction</div>
             <PredictionBadge entry={(S.twin.predictionSummary || {})[task.courseId]} />
           </div>
         </div>
@@ -205,7 +204,7 @@ function CourseSessionPanel({ S }) {
         </section>
       )}
 
-      {assessments.map((a) => <AssessmentCard key={a.assessmentId} assessment={a} architect={S.architect} />)}
+      {assessments.map((a) => <AssessmentCard key={a.assessmentId} assessment={a} architect={S.architect} skillName={S.skillName} />)}
 
       {error && (
         <div role="alert" className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 ring-1 ring-rose-200 dark:ring-rose-500/30 text-xs text-rose-700 dark:text-rose-200 flex flex-wrap items-center gap-2">
@@ -309,7 +308,7 @@ const OBSERVATION_LABEL = {
   incorrect: "Incorrect",
 };
 
-function AssessmentCard({ assessment, architect }) {
+function AssessmentCard({ assessment, architect, skillName }) {
   const a = assessment;
   const accepted = a.status === "accepted";
   const earned = a.rubricResults.reduce((n, r) => n + r.earned, 0);
@@ -336,7 +335,7 @@ function AssessmentCard({ assessment, architect }) {
       </div>
       {accepted && a.skillEvidence.length > 0 && (
         <div className="text-[11px] text-slate-600 dark:text-slate-300">
-          {a.skillEvidence.map((e) => <div key={e.skillId}>{e.skillId}: {OBSERVATION_LABEL[e.observation] || e.observation}</div>)}
+          {a.skillEvidence.map((e) => <div key={e.skillId}>{skillName ? skillName(e.skillId) : e.skillId}: {OBSERVATION_LABEL[e.observation] || e.observation}</div>)}
         </div>
       )}
       <div className="text-[10px] text-slate-400">

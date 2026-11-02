@@ -44,7 +44,9 @@ async def require_service(
     if not authorization or not authorization.startswith("Bearer "):
         raise DomainError(ErrorCode.UNAUTHENTICATED, "Service authentication required.")
     services = get_services(request)
-    return await services.service_authenticator.authenticate(authorization[7:].strip())
+    identity = await services.service_authenticator.authenticate(authorization[7:].strip())
+    await services.content_sync.ensure_fresh()
+    return identity
 
 
 router = APIRouter(prefix="/internal", dependencies=[Depends(require_service)])

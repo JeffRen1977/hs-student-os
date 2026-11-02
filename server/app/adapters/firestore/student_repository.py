@@ -128,7 +128,7 @@ class FirestoreStudentStore:
             return Entitlements()
         return Entitlements(
             ap_courses=tuple(doc.get("apCourses", [])),
-            dsat=bool(doc.get("dsat", False)),
+            courses=tuple(doc.get("courses", [])),
             admissions=bool(doc.get("admissions", False)),
         )
 

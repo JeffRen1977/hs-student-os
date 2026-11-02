@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import Field, StringConstraints, model_validator
 
@@ -67,4 +67,40 @@ class TaskFixture(ApiModel):
             raise ValueError("fixtures must be marked synthetic")
         if any(t.student_id != self.student_id for t in self.tasks):
             raise ValueError("every task must belong to the fixture student")
+        return self
+
+
+class PlatformMemberFixture(ApiModel):
+    uid: Annotated[str, StringConstraints(pattern=r"^(author|reviewer)_[a-z0-9_]+$")]
+    role: Literal["author", "platform_reviewer"]
+    org_id: Annotated[str, StringConstraints(pattern=r"^org_[a-z0-9_]+$")] | None
+    email: SyntheticEmail
+    display_name: Annotated[str, StringConstraints(min_length=1, max_length=80)]
+
+    @model_validator(mode="after")
+    def _authors_have_an_org(self) -> Self:
+        if (self.role == "author") != (self.org_id is not None):
+            raise ValueError("authors belong to one organization; reviewers to none")
+        return self
+
+
+class SeedPackageFixture(ApiModel):
+    """A package under `content/authored/{path}/package.json` that local seeding installs
+    as already approved. Local development convenience only: the review gate itself is
+    exercised through the API (tests/contract/test_package_review.py)."""
+
+    path: Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]+$")]
+    org_id: Annotated[str, StringConstraints(pattern=r"^org_[a-z0-9_]+$")]
+    uploaded_by: str
+
+
+class PlatformFixture(ApiModel):
+    synthetic: bool
+    members: list[PlatformMemberFixture]
+    seed_packages: list[SeedPackageFixture] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _synthetic_only(self) -> Self:
+        if not self.synthetic:
+            raise ValueError("fixtures must be marked synthetic")
         return self

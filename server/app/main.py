@@ -18,6 +18,7 @@ from app.api.routes import (
     courses,
     events,
     health,
+    packages,
     plans,
     runs,
     sessions,
@@ -35,6 +36,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     if services is None:
         services = build_services(settings)
         app.state.services = services
+    await services.content_sync.refresh()  # reviewed course packages
     loop = services.local_worker
     run_loop = (
         loop is not None
@@ -85,6 +87,8 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
         health, twin, courses, tasks, sessions, runs, assessments, events, plans,
     ):  # fmt: skip
         app.include_router(module.router)
+    app.include_router(packages.authoring)
+    app.include_router(packages.review)
     return app
 
 

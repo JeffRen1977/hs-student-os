@@ -10,8 +10,8 @@ from app.domain.errors import DomainError, ErrorCode
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.repositories import Tx
 from app.domain.types.actor import ActorContext
+from app.domain.types.common import Availability
 from app.domain.types.course import (
-    CourseCategory,
     CourseDefinition,
     CourseEnrollment,
     EnrollmentStatus,
@@ -20,13 +20,9 @@ from app.domain.types.student import Entitlements
 
 
 def is_entitled(entitlements: Entitlements, course: CourseDefinition) -> bool:
-    match course.category:
-        case CourseCategory.AP:
-            return course.course_id in entitlements.ap_courses
-        case CourseCategory.SAT:
-            return entitlements.dsat
-        case CourseCategory.ADMISSIONS:
-            return entitlements.admissions
+    """Per-course grants only. A package's category is a label: it never grants access,
+    so an author cannot widen who may enroll (Step 26.5)."""
+    return entitlements.grants(course.course_id)
 
 
 def is_enrolled(enrollment: CourseEnrollment | None) -> bool:
@@ -41,6 +37,8 @@ def require_known_course(catalog: CourseCatalog, course_id: str) -> CourseDefini
 
 
 def check_available_and_entitled(course: CourseDefinition, entitlements: Entitlements) -> None:
+    if course.availability is Availability.RETIRED:
+        raise DomainError(ErrorCode.COURSE_NOT_AVAILABLE, "This course has been retired.")
     if not course.is_active:
         raise DomainError(ErrorCode.COURSE_NOT_AVAILABLE, "This course is not available yet.")
     if not is_entitled(entitlements, course):

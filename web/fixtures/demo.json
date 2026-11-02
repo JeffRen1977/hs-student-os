@@ -57,7 +57,9 @@
     "apCourses": [
       "calc_bc"
     ],
-    "dsat": true,
+    "courses": [
+      "dsat"
+    ],
     "admissions": false
   },
   "catalog": {

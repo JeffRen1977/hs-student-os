@@ -18,10 +18,10 @@ from app.adapters.firebase import (
     init_firebase_app,
     resolve_target,
 )
-from app.adapters.seed_documents import build_seed_documents
+from app.adapters.seed_documents import build_platform_documents, build_seed_documents
 from app.config import ConfigError, Settings
 from app.registries.content import load_content
-from app.registries.fixtures import load_seed_students
+from app.registries.fixtures import load_platform_fixture, load_seed_students
 
 
 def _upsert_auth_user(app: object, uid: str, email: str, display_name: str) -> str:
@@ -47,7 +47,9 @@ def main() -> int:
 
     content = load_content()
     seeds = load_seed_students()
-    active = content.active_course_ids()
+    platform = load_platform_fixture()
+    # Bundled courses plus the authored packages seeded as active (local convenience).
+    active = content.active_course_ids() | {p.path for p in platform.seed_packages}
     for seed in seeds:
         for enrollment in seed.student.enrollments:
             if enrollment.course_id not in active:
@@ -60,8 +62,15 @@ def main() -> int:
         fx = seed.student
         result = _upsert_auth_user(app, fx.student_id, fx.email, fx.profile.display_name)
         print(f"auth user {fx.student_id}: {result}")
+    for member in platform.members:
+        result = _upsert_auth_user(app, member.uid, member.email, member.display_name)
+        print(f"auth user {member.uid} ({member.role}): {result}")
 
-    documents = build_seed_documents(seeds, now=datetime.now(UTC))
+    now = datetime.now(UTC)
+    documents = {
+        **build_seed_documents(seeds, now=now),
+        **build_platform_documents(platform, now=now),
+    }
     batch = db.batch()
     for path, data in documents.items():
         batch.set(db.document(path), data)

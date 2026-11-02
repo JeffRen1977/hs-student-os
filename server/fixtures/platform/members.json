@@ -1,0 +1,33 @@
+{
+  "synthetic": true,
+  "members": [
+    {
+      "uid": "author_hsos",
+      "role": "author",
+      "orgId": "org_hsos_content",
+      "email": "author.hsos@example.test",
+      "displayName": "HS Student OS content author"
+    },
+    {
+      "uid": "author_sample",
+      "role": "author",
+      "orgId": "org_sample_press",
+      "email": "author.sample@example.test",
+      "displayName": "Sample Press author"
+    },
+    {
+      "uid": "reviewer_platform",
+      "role": "platform_reviewer",
+      "orgId": null,
+      "email": "reviewer@example.test",
+      "displayName": "Platform reviewer"
+    }
+  ],
+  "seedPackages": [
+    {
+      "path": "dsat",
+      "orgId": "org_hsos_content",
+      "uploadedBy": "author_hsos"
+    }
+  ]
+}

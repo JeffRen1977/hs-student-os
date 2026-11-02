@@ -9,11 +9,17 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Protocol
 
 from app.domain.errors import DomainError, ErrorCode
 from app.domain.ports.repositories import Tx
 from app.domain.types.actor import ActorContext
 from app.domain.types.common import IdempotencyRecord
+
+
+class HasActorId(Protocol):
+    @property
+    def actor_id(self) -> str: ...
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -22,7 +28,7 @@ class CommandKey:
     key: str  # client Idempotency-Key (already format-validated)
     request_digest: str  # hash of the normalized path + body
 
-    def key_hash(self, actor: ActorContext) -> str:
+    def key_hash(self, actor: HasActorId) -> str:
         raw = f"{actor.actor_id}\n{self.scope}\n{self.key}".encode()
         return hashlib.sha256(raw).hexdigest()
 

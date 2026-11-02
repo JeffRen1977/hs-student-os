@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 
@@ -72,6 +72,17 @@ class CourseCatalogEntry:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class StarterTaskSpec:
+    """A task the course package asks to create when a student first enrolls."""
+
+    question_id: str
+    task_type: TaskType
+    mode: StudyMode
+    title: str
+    duration_min: int
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class CourseDefinition:
     """A course as the domain sees it, built from a versioned SubjectPack manifest."""
 
@@ -83,7 +94,9 @@ class CourseDefinition:
     pack_version: str
     workflow_version: str | None
     agent: AgentConfig
-    skills: Sequence[str] = ()
+    skills: Sequence[str] = ()  # platform abilities the package selected
+    starter_tasks: Sequence[StarterTaskSpec] = ()
+    skill_names: Mapping[str, str] = field(default_factory=dict)  # skillId → display name
 
     @property
     def is_active(self) -> bool:

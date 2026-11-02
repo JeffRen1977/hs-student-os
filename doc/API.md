@@ -56,8 +56,10 @@
 `GET /api/me/entitlements` 返回后端管理的权限：
 
 ```json
-{"apCourses": ["calc_bc"], "dsat": true, "admissions": false}
+{"apCourses": ["calc_bc"], "courses": ["dsat"], "admissions": false}
 ```
+
+访问按 courseId 授予：AP 课程在 `apCourses`，其他课程在 `courses`（2026-11-01 起取代 v0.3 的 `dsat` 布尔值）。课程包的 category 只是目录标签，不授予访问权限。
 
 `PATCH /api/twin` 仅允许明确列出的叶字段：profile.displayName/grade/school/targetMajor/targetSchools、goals.satTarget/apTargets、preferences.timezone/weeklyAvailableMinutes/selectedCourses/notifications。每个字段有范围和格式校验，不能任意追加子树。
 
@@ -477,6 +479,29 @@ Run FAILED 的 `error.code`（面向学生，不含供应商消息）：`BUDGET_
 - `GET /api/plans/latest`（还没有计划时 404）、`GET /api/plans/{planId}` → `planId`、`runId`、`ruleVersion`（`planner-rules-v1`）、`localDate`、`horizonEnd`、`weeklyMinutes`、`dailyMinutes`、`evidenceAvailable`、`entries[{taskId, courseId, durationMin, previousDate, scheduledDate, priority, placement, explanation, sourceEventIds}]`。
 - `priority`：`deadline` > `evidence_gap` > `practice`（固定任务为 null）。所有已注册课程的任务共用每周时间；排序不会用一门课程的证据评判另一门课程的任务。`placement`：`fixed`（进行中/已完成/学生锁定）、`kept`、`moved`、`deferred`（本周时间已满，顺延到下周）、`over_budget`（为截止日期超出每日预算）。
 - GET 从不触发重排。PLANNING Run 失败码：`RUN_ATTEMPTS_EXHAUSTED`。
+
+## 6.3 M3 课程包：作者、审核与发布（Step 26）
+
+契约与校验规则见 [COURSE_PACKAGE.md](COURSE_PACKAGE.md)。作者与平台审核员是平台成员（`platformMembers/{uid}`），不是学生：学生调用以下接口返回 403，平台成员调用学生接口也返回 403。所有 POST 需要 Idempotency-Key（同 key 同请求重放原结果，同 key 不同请求 409 `IDEMPOTENCY_CONFLICT`）。
+
+作者（本组织范围；其他组织的包返回 404）：
+
+- `POST /api/authoring/packages` body `{package: {...}}` → 201（新 draft）/ 200（覆盖 draft）`PackageVersion`，含校验报告。缺 courseId/version 时 400；courseId 属于其他组织或内置课程时 409 `COURSE_ID_TAKEN`；版本已提交或不大于已提交版本时 409 `PACKAGE_VERSION_EXISTS`。
+- `GET /api/authoring/packages` → `{versions: [...]}`；`GET /api/authoring/packages/{courseId}/versions/{version}` → 单个版本（含 `package`）。
+- `POST /api/authoring/packages/{courseId}/versions/{version}/submit` body `{}` → submitted；报告有错误时 409 `PACKAGE_INVALID`。
+
+平台审核员：
+
+- `GET /api/review/packages?status=submitted&status=approved`（默认这两种；draft 永远不可见）。
+- `GET /api/review/packages/{courseId}/versions/{version}`（含 `package`）。
+- `POST .../approve` body `{notes, licenseAttested, modelEvaluationAttested}`；条件不满足 409 `REVIEW_REQUIREMENTS_NOT_MET`。
+- `POST .../reject` body `{notes}`（必填）。
+- `POST .../activate` body `{}`：approved → active，旧 active → superseded。
+- `POST /api/review/courses/{courseId}/retire` body `{notes}`。
+
+`PackageVersion`：`courseId`、`version`、`title`、`status`（draft / submitted / approved / active / superseded / rejected / retired）、`orgId`、`contentHash`、`uploadedBy`、`createdAt`、`updatedAt`、`report{valid, validatorVersion, errors[{path, code, message}], evaluation{autoCases, autoPassed, modelCases, failures[]}}`、`review{reviewerId, decision, decidedAt, notes, licenseAttested, modelEvaluationAttested}|null`、`history[{fromStatus, toStatus, actorId, at, notes}]`，单版本读取时另含 `package`。
+
+学生侧变化：`Availability` 增加 `retired`（退役课程不在目录列表中，`GET /api/courses/{id}` 仍可读，新工作返回 409 `COURSE_NOT_AVAILABLE`）；`GET /api/courses/{courseId}/agent` 增加 `skills[{skillId, name}]`（来自课程包，前端据此显示技能名）；首次注册时按课程包 `starterTasks` 创建任务。
 
 ## 7. v0.1 → v0.2 迁移与验收
 

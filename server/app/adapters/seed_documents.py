@@ -5,11 +5,37 @@ Pure function so it can be unit-tested without an emulator.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
+from app.adapters.firestore.package_repository import (
+    course_path,
+    course_to_doc,
+    member_path,
+    version_path,
+    version_to_doc,
+)
+from app.domain.types.package import (
+    CourseState,
+    PackageCourse,
+    PackageStatus,
+    PackageVersion,
+    ReviewDecision,
+    StatusChange,
+)
+from app.registries.content import DEFAULT_CONTENT_ROOT
 from app.registries.fixtures import SeedStudent
+from app.registries.package_validator import validate_package
+from app.schemas.fixtures import PlatformFixture
+
+SEED_REVIEWER = "seed:local-dev"
+SEED_NOTE = (
+    "Synthetic local seed, not a platform review. Real packages are approved through "
+    "POST /api/review/packages/{courseId}/versions/{version}/approve."
+)
 
 
 def student_paths(student_id: str) -> dict[str, str]:
@@ -70,4 +96,67 @@ def build_seed_documents(
                 "openSessionId": None,
                 "updatedAt": now,
             }
+    return docs
+
+
+def build_platform_documents(
+    platform: PlatformFixture,
+    *,
+    now: datetime,
+    authored_root: Path = DEFAULT_CONTENT_ROOT / "authored",
+) -> dict[str, dict[str, Any]]:
+    """Platform members, and the seed packages installed as active.
+
+    Each seed package must pass the same validator (and its evaluation set) as an upload;
+    its audit trail says plainly that the approval is a local seed, not a review.
+    """
+    docs: dict[str, dict[str, Any]] = {}
+    for m in platform.members:
+        docs[member_path(m.uid)] = {"uid": m.uid, "role": m.role, "orgId": m.org_id}
+    for seed in platform.seed_packages:
+        raw = json.loads((authored_root / seed.path / "package.json").read_text("utf-8"))
+        checked = validate_package(raw)
+        if not checked.report.valid or not checked.report.evaluation.auto_all_passed:
+            raise ValueError(f"seed package {seed.path} does not validate: {checked.report}")
+        assert checked.course_id and checked.version
+        history = tuple(
+            StatusChange(from_status=a, to_status=b, actor_id=who, at=now, notes=note)
+            for a, b, who, note in (
+                (None, PackageStatus.DRAFT, seed.uploaded_by, "uploaded"),
+                (PackageStatus.DRAFT, PackageStatus.SUBMITTED, seed.uploaded_by, ""),
+                (PackageStatus.SUBMITTED, PackageStatus.APPROVED, SEED_REVIEWER, SEED_NOTE),
+                (PackageStatus.APPROVED, PackageStatus.ACTIVE, SEED_REVIEWER, SEED_NOTE),
+            )
+        )
+        version = PackageVersion(
+            course_id=checked.course_id,
+            version=checked.version,
+            org_id=seed.org_id,
+            status=PackageStatus.ACTIVE,
+            title=checked.title,
+            package_json=checked.canonical_json,
+            content_hash=checked.content_hash,
+            report=checked.report,
+            uploaded_by=seed.uploaded_by,
+            created_at=now,
+            updated_at=now,
+            review=ReviewDecision(
+                reviewer_id=SEED_REVIEWER,
+                decision=PackageStatus.APPROVED,
+                decided_at=now,
+                notes=SEED_NOTE,
+            ),
+            history=history,
+        )
+        docs[version_path(version.course_id, version.version)] = version_to_doc(version)
+        docs[course_path(version.course_id)] = course_to_doc(
+            PackageCourse(
+                course_id=version.course_id,
+                org_id=seed.org_id,
+                state=CourseState.ACTIVE,
+                active_version=version.version,
+                created_at=now,
+                updated_at=now,
+            )
+        )
     return docs

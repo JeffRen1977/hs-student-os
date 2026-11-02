@@ -24,14 +24,14 @@ from app.adapters.firestore.memory_store import MemoryDocumentStore
 from app.adapters.firestore.task_repository import task_to_doc
 from app.adapters.llm.provider import LlmProvider, ProviderResponse
 from app.adapters.queue.local_queue import LocalQueue
-from app.adapters.seed_documents import build_seed_documents
+from app.adapters.seed_documents import build_platform_documents, build_seed_documents
 from app.bootstrap import Services, build_services
 from app.config import Settings, StorageProvider
 from app.domain.ports.execution import RunExecutor
 from app.domain.types.common import AgentType, StudyMode, TaskType
 from app.domain.types.task import Task, TaskReason, TaskReasonCode, TaskStatus
 from app.main import create_app
-from app.registries.fixtures import load_seed_students
+from app.registries.fixtures import load_platform_fixture, load_seed_students
 from app.workers.consumers.base import Consumer
 
 PROJECT = "demo-hs-student-os"
@@ -237,11 +237,22 @@ def build_harness(
     executor: RunExecutor | None = None,
     llm_provider: LlmProvider | None = None,
     consumers: Sequence[Consumer] = (),
+    seed_packages: bool = True,
     **settings_overrides: Any,
 ) -> Harness:
+    """`seed_packages=False`: platform members only, no authored package installed, so a
+    test can take a course through the whole review gate itself."""
     settings = harness_settings(monkeypatch, **settings_overrides)
     clock = FakeClock()
-    store = MemoryDocumentStore(build_seed_documents(load_seed_students(), now=clock.now()))
+    platform = load_platform_fixture()
+    if not seed_packages:
+        platform = platform.model_copy(update={"seed_packages": []})
+    store = MemoryDocumentStore(
+        {
+            **build_seed_documents(load_seed_students(), now=clock.now()),
+            **build_platform_documents(platform, now=clock.now()),
+        }
+    )
     queue = LocalQueue()
     services = build_services(
         settings,

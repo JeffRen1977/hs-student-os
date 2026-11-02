@@ -44,11 +44,16 @@ class Retrieval:
 
 
 def retrieve_materials(
-    registry: SubjectPackRegistry, *, student_id: str, course_id: str, skill_ids: Sequence[str]
+    registry: SubjectPackRegistry,
+    *,
+    student_id: str,
+    course_id: str,
+    skill_ids: Sequence[str],
+    version: str | None = None,
 ) -> Retrieval:
     candidates = [
         m
-        for m in registry.materials(course_id)
+        for m in registry.materials(course_id, version)
         # ACL first: course material, or this student's own; never another course/student.
         if m.course_id == course_id and m.student_id in (None, student_id)
     ]

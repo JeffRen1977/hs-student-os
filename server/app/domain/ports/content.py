@@ -99,15 +99,24 @@ class PackContent:
 
 
 class SubjectPackRegistry(Protocol):
-    def pack(self, course_id: str) -> PackContent | None:
-        """Only active packs are returned; planned packs have no runnable content."""
+    """`version=None` → the course's active pack (for new sessions); a version → exactly
+    that pinned package version, which stays loadable after a newer one is activated."""
+
+    def pack(self, course_id: str, version: str | None = None) -> PackContent | None:
+        """Without a version only active packs are returned; planned packs have no content."""
         ...
 
-    def question(self, course_id: str, question_id: str) -> QuestionContent | None: ...
+    def question(
+        self, course_id: str, question_id: str, version: str | None = None
+    ) -> QuestionContent | None: ...
 
-    def rubric(self, course_id: str, rubric_id: str, version: str) -> RubricContent | None: ...
+    def rubric(
+        self, course_id: str, rubric_id: str, version: str, pack_version: str | None = None
+    ) -> RubricContent | None: ...
 
-    def materials(self, course_id: str) -> Sequence[MaterialContent]: ...
+    def materials(
+        self, course_id: str, version: str | None = None
+    ) -> Sequence[MaterialContent]: ...
 
 
 MODE_LABELS: dict[StudyMode, str] = {

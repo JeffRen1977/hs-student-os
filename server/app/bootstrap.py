@@ -20,6 +20,10 @@ from app.adapters.firestore.documents import DocumentStore
 from app.adapters.firestore.identity_repository import FirestoreIdentityDirectory
 from app.adapters.firestore.memory_store import MemoryDocumentStore
 from app.adapters.firestore.outbox_repository import FirestoreOperationsStore
+from app.adapters.firestore.package_repository import (
+    DocumentPackageUnitOfWork,
+    FirestorePlatformDirectory,
+)
 from app.adapters.firestore.unit_of_work import DocumentUnitOfWork
 from app.adapters.llm.gateway import Gateway
 from app.adapters.llm.provider import LlmProvider as LlmProviderAdapter
@@ -35,11 +39,13 @@ from app.domain.course_service import CourseService
 from app.domain.event_feed import EventFeedService
 from app.domain.events import EventPublisher
 from app.domain.mastery_service import MasteryService
+from app.domain.package_service import PackageService
 from app.domain.planner_service import PlannerService
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.content import ModelTier, SubjectPackRegistry
 from app.domain.ports.execution import JobQueue, RunExecutor
 from app.domain.ports.identity import TokenVerifier
+from app.domain.ports.packages import PlatformDirectory
 from app.domain.ports.repositories import IdentityDirectory, OperationsStore, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
 from app.domain.recovery import RecoveryService
@@ -50,6 +56,8 @@ from app.domain.task_service import TaskService
 from app.domain.twin_service import TwinService
 from app.registries.content import ContentRegistry, load_content
 from app.registries.course_catalog import RegistryCourseCatalog
+from app.registries.package_sync import PackageContentSync
+from app.registries.package_validator import PlatformPackageValidator
 from app.registries.subject_pack_registry import ContentSubjectPackRegistry
 from app.registries.tool_registry import ToolRegistry
 from app.workers.auth import (
@@ -72,6 +80,10 @@ class Services:
     uow: UnitOfWork
     operations: OperationsStore
     identities: IdentityDirectory
+    platform_members: PlatformDirectory
+    content: ContentRegistry
+    content_sync: PackageContentSync
+    packages: PackageService
     catalog: CourseCatalog
     packs: SubjectPackRegistry
     budget: BudgetLedger
@@ -98,10 +110,16 @@ class Services:
 
 
 def seeded_memory_store() -> MemoryDocumentStore:
-    from app.adapters.seed_documents import build_seed_documents
-    from app.registries.fixtures import load_seed_students
+    from app.adapters.seed_documents import build_platform_documents, build_seed_documents
+    from app.registries.fixtures import load_platform_fixture, load_seed_students
 
-    return MemoryDocumentStore(build_seed_documents(load_seed_students(), now=datetime.now(UTC)))
+    now = datetime.now(UTC)
+    return MemoryDocumentStore(
+        {
+            **build_seed_documents(load_seed_students(), now=now),
+            **build_platform_documents(load_platform_fixture(), now=now),
+        }
+    )
 
 
 def _store(settings: Settings) -> DocumentStore:
@@ -214,10 +232,6 @@ def _executor(
     return SkillExecutor(gateway, packs, ToolRegistry([MathVerifyTool()]), clock, ids)
 
 
-def _course_skills(content: ContentRegistry) -> dict[str, list[str]]:
-    return {cid: sorted(pack.skill_ids) for cid, pack in content.packs.items()}
-
-
 def build_services(
     settings: Settings,
     *,
@@ -237,10 +251,16 @@ def build_services(
     store = store or _store(settings)
     clock = clock or SystemClock()
     ids = ids or RandomIdFactory()
+    # Bundled packs now; reviewed course packages are installed by `content_sync` from the
+    # package store (at startup, after each activation/retirement, and when stale).
     content = load_content()
     catalog = catalog or RegistryCourseCatalog(content)
     packs = ContentSubjectPackRegistry(content, require_reviewed=settings.require_reviewed_content)
     uow = DocumentUnitOfWork(store)
+    package_uow = DocumentPackageUnitOfWork(store)
+    content_sync = PackageContentSync(
+        content, package_uow, max_age_seconds=settings.package_refresh_seconds
+    )
     ledger = BudgetLedger(
         uow,
         clock,
@@ -270,7 +290,7 @@ def build_services(
         planner=planner,
     )
     consumer_runner = ConsumerRunner(uow, consumers, clock)
-    deliveries = DeliveryRouter(run_execution, consumer_runner)
+    deliveries = DeliveryRouter(run_execution, consumer_runner, content_sync.ensure_fresh)
     recovery = RecoveryService(
         uow, operations, clock, requeue_after_seconds=settings.run_requeue_after_seconds
     )
@@ -291,6 +311,16 @@ def build_services(
         uow=uow,
         operations=operations,
         identities=FirestoreIdentityDirectory(store),
+        platform_members=FirestorePlatformDirectory(store),
+        content=content,
+        content_sync=content_sync,
+        packages=PackageService(
+            package_uow,
+            PlatformPackageValidator(),
+            content_sync,
+            clock,
+            reserved_course_ids=content.bundled_course_ids,
+        ),
         catalog=catalog,
         packs=packs,
         budget=ledger,
@@ -307,7 +337,7 @@ def build_services(
         commands=CommandService(uow, catalog, clock, ids, ledger),
         run_execution=run_execution,
         assessments=assessments,
-        mastery=MasteryService(uow, catalog, _course_skills(content)),
+        mastery=MasteryService(uow, catalog),
         events=EventFeedService(uow),
         recovery=recovery,
         planner=planner,

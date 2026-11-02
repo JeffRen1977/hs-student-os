@@ -99,9 +99,13 @@ class MasteryView:
 
 class MasteryService:
     def __init__(
-        self, uow: UnitOfWork, catalog: CourseCatalog, skills: Mapping[str, Sequence[str]]
+        self,
+        uow: UnitOfWork,
+        catalog: CourseCatalog,
+        skills: Mapping[str, Sequence[str]] | None = None,
     ):
-        """`skills`: courseId → the course's skill ids (from the pack's skills.json)."""
+        """`skills`: optional override of courseId → skill ids. By default the course's own
+        skill taxonomy from the catalog is used (it changes when a package version does)."""
         self._uow = uow
         self._catalog = catalog
         self._skills = skills
@@ -113,7 +117,11 @@ class MasteryService:
         actor.require(Permission.LEARNING_READ)
         if self._catalog.get(course_id) is None:
             raise DomainError(ErrorCode.NOT_FOUND, "Course not found.")
-        skill_ids = sorted(self._skills.get(course_id, ()))
+        course = self._catalog.get(course_id)
+        assert course is not None
+        skill_ids = sorted(
+            self._skills.get(course_id, ()) if self._skills is not None else course.skill_names
+        )
         start = 0
         if page.cursor is not None:
             if page.cursor not in skill_ids:

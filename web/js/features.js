@@ -158,8 +158,10 @@ function TwinSummary({ S }) {
       <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">Skill mastery (independent evidence count)</div>
       {mastery.length === 0 && <div className="text-[11px] text-slate-400">No assessed evidence yet.</div>}
       {mastery.map(([skillId, m]) => (
-        <div key={skillId} className="flex justify-between items-center text-[11px] px-1">
-          <span className="font-mono text-slate-600 dark:text-slate-300 truncate">{skillId.split(".").slice(1).join(".")}</span>
+        <div key={skillId} className="flex justify-between items-center text-[11px] px-1 gap-2">
+          <span className="text-slate-600 dark:text-slate-300 truncate" title={S.architect ? skillId : undefined}>
+            <span className="text-slate-400">{HSData.getPackMeta(S.courseOfSkill(skillId), S.courseName(S.courseOfSkill(skillId))).shortName} · </span>{S.skillName(skillId)}
+          </span>
           <span className="text-slate-500 dark:text-slate-400">{MASTERY_LABEL[m.level] || m.level} · {m.independentEvidenceCount}</span>
         </div>
       ))}
@@ -186,10 +188,11 @@ function PlanCard({ S }) {
           <div className="text-[10px] text-slate-500">7 days from {plan.localDate} · about {plan.dailyMinutes} min a day ({plan.weeklyMinutes} a week){plan.evidenceAvailable ? "" : " · no assessed evidence yet, so ordered conservatively"}</div>
           {plan.entries.map((e) => {
             const t = S.taskById(e.taskId);
+            const meta = t ? HSData.getPackMeta(t.courseId, S.courseName(t.courseId)) : null;
             return (
               <div key={e.taskId} className="text-[11px] border-t border-slate-200/70 dark:border-slate-800 pt-1.5">
                 <div className="flex justify-between gap-2">
-                  <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{t ? t.title : e.taskId}</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{meta ? meta.icon + " " + meta.shortName + " · " : ""}{t ? t.title : e.taskId}</span>
                   <span className="text-slate-500 whitespace-nowrap">{e.scheduledDate} · {PLACEMENT_LABEL[e.placement] || e.placement}</span>
                 </div>
                 <div className="text-slate-500 dark:text-slate-400 leading-relaxed">{e.explanation}</div>
@@ -223,9 +226,9 @@ function plainEvent(type) {
   }[type] || "Learning record updated";
 }
 
-function describeEvent(e) {
+function describeEvent(e, S) {
   const p = e.payload || {};
-  if (e.type === "course.enrolled" || e.type === "course.unenrolled") return p.courseId;
+  if (e.type === "course.enrolled" || e.type === "course.unenrolled") return S ? S.courseName(p.courseId) : p.courseId;
   if (e.type === "run.failed") return "Error " + p.errorCode + (p.retryable ? ", can retry" : "");
   if (e.type === "assessment.completed") return p.status === "accepted" ? "Assessment accepted" : "Not enough evidence; mastery not updated";
   if (e.type === "plan.updated") return (p.changedTaskIds || []).length + " tasks changed";
@@ -262,7 +265,7 @@ function EventFeed({ S }) {
               {S.architect ? <span className="font-mono text-indigo-600 dark:text-indigo-300">#{e.sequence} {e.type}</span> : <span className="text-indigo-600 dark:text-indigo-200">{plainEvent(e.type)}</span>}
               <span className="text-slate-400 dark:text-slate-500">{formatTime(e.occurredAt)}</span>
             </div>
-            <div className="text-slate-700 dark:text-slate-200 leading-relaxed">{describeEvent(e)}</div>
+            <div className="text-slate-700 dark:text-slate-200 leading-relaxed">{describeEvent(e, S)}</div>
           </article>
         ))}
       </div>

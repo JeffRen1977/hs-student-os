@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     # Local only: run the outbox dispatcher + worker loop inside the API process.
     local_worker_enabled: bool = True
     local_worker_poll_seconds: float = Field(default=1.0, gt=0, le=60)
+    # How stale this instance's copy of the active course packages may get before it
+    # reloads them (the instance that activates or retires a package reloads at once).
+    package_refresh_seconds: float = Field(default=30.0, ge=0, le=3600)
 
     # Model gateway (Step 16). Tier → model id; unset tiers use DEFAULT_MODELS for the
     # selected provider. Keys come from ANTHROPIC_API_KEY / OPENAI_API_KEY (Secret Manager

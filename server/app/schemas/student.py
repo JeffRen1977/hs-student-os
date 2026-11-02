@@ -66,7 +66,9 @@ class Entitlements(ApiModel):
     """Response only. There is deliberately no request model that accepts entitlements."""
 
     ap_courses: list[CourseId]
-    dsat: bool
+    # Per-course grants for non-AP courses (e.g. "dsat"). Replaces the v0.3 `dsat` flag:
+    # access is granted per courseId, never per category.
+    courses: list[CourseId] = Field(default_factory=list)
     admissions: bool
 
 

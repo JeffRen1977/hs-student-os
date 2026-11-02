@@ -22,15 +22,16 @@ const PACK_META = {
   },
   apush: { shortName: "APUSH", icon: "📜", family: "humanities", canvas: "history", currentUnit: "", skills: [], rag: [], tools: [] },
   physics_c: { shortName: "Physics C", icon: "⚡", family: "stem", canvas: "physics", currentUnit: "", skills: [], rag: [], tools: [] },
-  dsat: { shortName: "Digital SAT", icon: "🎯", family: "sat", canvas: "calc", currentUnit: "", skills: [], rag: [], tools: [] },
 };
 
+// Courses without an entry here (e.g. every authored course package, including Digital SAT)
+// render from their own course data: the catalog name, its skills and its questions.
 const FALLBACK_META = { shortName: "", icon: "📘", family: "stem", canvas: "calc", currentUnit: "", skills: [], rag: [], tools: [] };
 
 const MODE_LABEL = {
   GPA_SYNC: "Daily homework",
   EXAM_CRUNCH: "Exam grading",
-  ADAPTIVE: "SAT practice",
+  ADAPTIVE: "Adaptive practice",
   INTERVIEW: "Essay interview",
   SCHOOL_LIST: "College list",
   ACTIVITIES: "Activities list",

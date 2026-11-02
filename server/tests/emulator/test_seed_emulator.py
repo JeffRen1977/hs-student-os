@@ -33,11 +33,17 @@ def test_seed_is_idempotent_and_isolated() -> None:
     assert alex["predictionSummary"]["calc_bc"]["status"] == "unavailable"
     assert "entitlements" not in alex
 
-    assert db.document("students/stu_alex/access/current").get().to_dict()["dsat"] is True
-    assert db.document("students/stu_beth/access/current").get().to_dict()["dsat"] is False
+    assert db.document("students/stu_alex/access/current").get().to_dict()["courses"] == ["dsat"]
+    assert db.document("students/stu_beth/access/current").get().to_dict()["courses"] == []
 
     alex_enrollments = [d.id for d in db.collection("students/stu_alex/enrollments").stream()]
-    assert alex_enrollments == ["calc_bc"]
+    assert sorted(alex_enrollments) == ["calc_bc", "dsat"]
+
+    # Platform members and the seeded (labelled, not reviewed) Digital SAT package.
+    reviewer = db.document("platformMembers/reviewer_platform").get().to_dict()
+    assert reviewer["role"] == "platform_reviewer" and reviewer["orgId"] is None
+    dsat = db.document("packageVersions/dsat@1.0.0").get().to_dict()
+    assert dsat["status"] == "active" and dsat["review"]["reviewerId"] == "seed:local-dev"
 
 
 def test_firestore_transaction_round_trip() -> None:
