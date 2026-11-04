@@ -225,3 +225,12 @@ def test_factory_picks_the_configured_provider(clean_env: pytest.MonkeyPatch) ->
     assert isinstance(real_llm_provider(settings(ProviderName.ANTHROPIC)), AnthropicProvider)
     with pytest.raises(ConfigError):
         real_llm_provider(settings(ProviderName.MOCK))
+
+
+def test_openai_provider_without_key_constructs_lazily(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The API service builds the runtime without the key (only the worker holds it); the
+    # OpenAI SDK raises at client construction, so creation must wait for the first call.
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    provider = OpenAIProvider.from_api_key(None)
+    with pytest.raises(openai.OpenAIError):
+        provider._get_client()

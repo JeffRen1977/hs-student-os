@@ -34,9 +34,13 @@ def env_file(name: str) -> dict[str, str]:
     return out
 
 
+@pytest.mark.parametrize("provider", ["anthropic", "openai"])
 @pytest.mark.parametrize("name", ["api.env.yaml", "worker.env.yaml"])
-def test_staging_env_files_are_accepted(clean_env: pytest.MonkeyPatch, name: str) -> None:
-    for key, value in {**env_file(name), **INJECTED}.items():
+def test_staging_env_files_are_accepted(
+    clean_env: pytest.MonkeyPatch, name: str, provider: str
+) -> None:
+    injected = INJECTED | {"HSOS_LLM_PROVIDER": provider}
+    for key, value in {**env_file(name), **injected}.items():
         clean_env.setenv(key, value)
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
     assert settings.app_env is AppEnv.STAGING and settings.is_deployed
@@ -55,3 +59,12 @@ def test_scheduler_jobs_target_existing_worker_routes() -> None:
     assert jobs and set(jobs) <= routes
     assert set(routes) - set(jobs) == {"/internal/runs/execute", "/internal/consumers/process"}
     json.loads((DEPLOY.parent / "monitoring" / "alert-ops.json").read_text())
+
+
+def test_deploys_pass_env_vars_from_one_merged_file() -> None:
+    """`gcloud run deploy` rejects --env-vars-file together with --set-env-vars."""
+    script = (DEPLOY / "provision.sh").read_text()
+    code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    assert "--set-env-vars" not in code
+    assert script.count('--env-vars-file "$(merged_env ') == 2
+    assert "HSOS_LLM_PROVIDER" not in env_file("api.env.yaml") | env_file("worker.env.yaml")

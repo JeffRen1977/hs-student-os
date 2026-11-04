@@ -1,0 +1,5 @@
+# Source uploaded by `gcloud builds submit` (deploy/staging/provision.sh). Never upload secrets.
+.gcloudignore
+.git
+#!include:.gitignore
+#!include:.dockerignore

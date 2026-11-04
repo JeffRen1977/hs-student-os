@@ -26,6 +26,8 @@
   <!-- Plain script (no JSX): async data-provider seam, also unit-tested under Node. -->
   <script src="js/data-provider.js"></script>
   <script src="js/auth.js"></script>
+  <!-- Deployment settings (empty locally; filled in by deploy/staging/deploy_web.sh). -->
+  <script src="config.js"></script>
   <!-- Modules load in dependency order: data -> store -> ui -> agents -> features -> app -->
   <script type="text/babel" src="js/data.js"></script>
   <script type="text/babel" src="js/store.js"></script>

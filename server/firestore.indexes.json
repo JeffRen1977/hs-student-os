@@ -203,6 +203,120 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "enrollments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "courseId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "scheduledDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "taskId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scheduledDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "taskId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sessionId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "courseId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sessionId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sessionId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "assessments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sessionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "assessmentId",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

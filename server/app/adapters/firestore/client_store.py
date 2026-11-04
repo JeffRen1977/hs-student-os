@@ -2,13 +2,56 @@
 
 from __future__ import annotations
 
+import asyncio
+import random
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any
 
+from google.api_core.exceptions import Aborted
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.adapters.firestore.documents import Doc, DocTxn, QuerySpec
+from app.domain.errors import DomainError, ErrorCode
+
+# Whole-transaction attempts when Firestore aborts for contention. The SDK already retries
+# an aborted *commit* (keeping its place in line); it does not retry a read that aborts,
+# and when its own attempts run out it raises a bare ValueError.
+CONTENTION_ATTEMPTS = 4
+CONTENTION_BACKOFF_SECONDS = 0.05
+
+
+def is_contention(exc: BaseException) -> bool:
+    if isinstance(exc, Aborted):
+        return True
+    # The SDK wraps a commit that aborted on every attempt: ValueError from Aborted.
+    return isinstance(exc, ValueError) and isinstance(exc.__cause__, Aborted)
+
+
+async def retry_on_contention[T](
+    attempt: Callable[[], Awaitable[T]],
+    *,
+    attempts: int = CONTENTION_ATTEMPTS,
+    backoff_seconds: float = CONTENTION_BACKOFF_SECONDS,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> T:
+    """Re-run a whole transaction on contention with jittered exponential backoff, so two
+    requests racing for the same document stop retrying in lockstep. Transaction bodies
+    are retry-safe: writes are buffered and no external calls happen inside (CLAUDE.md
+    §2.4). Persistent contention is a typed, retryable 503, never a 500."""
+    last: BaseException | None = None
+    for n in range(attempts):
+        if n:
+            await sleep(random.uniform(0, backoff_seconds * 2**n))
+        try:
+            return await attempt()
+        except Exception as exc:
+            if not is_contention(exc):
+                raise
+            last = exc
+    raise DomainError(
+        ErrorCode.SERVICE_UNAVAILABLE, "The service is busy. Try again.", retryable=True
+    ) from last
 
 
 def _build_query(base: Any, spec: QuerySpec) -> Any:
@@ -60,8 +103,7 @@ class FirestoreDocumentStore:
                     transaction.update(ref, write.data)
             return result
 
-        result: T = await body(client.transaction())
-        return result
+        return await retry_on_contention(lambda: body(client.transaction()))
 
     async def query_group(self, collection_id: str, spec: QuerySpec) -> list[Doc]:
         query = _build_query(self._client.collection_group(collection_id), spec)

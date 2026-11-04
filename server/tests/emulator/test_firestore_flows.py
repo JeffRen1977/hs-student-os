@@ -17,11 +17,11 @@ from httpx import ASGITransport, AsyncClient
 from app.adapters.firebase import create_async_firestore_client
 from app.adapters.firestore.client_store import FirestoreDocumentStore
 from app.adapters.queue.local_queue import LocalQueue
-from app.adapters.seed_documents import build_seed_documents
+from app.adapters.seed_documents import build_platform_documents, build_seed_documents
 from app.bootstrap import build_services
 from app.config import Settings
 from app.main import create_app
-from app.registries.fixtures import load_seed_students
+from app.registries.fixtures import load_platform_fixture, load_seed_students
 from tests.support import FakeClock, emulator_token, idem
 
 
@@ -47,6 +47,8 @@ async def make_env(llm_provider: Any = None, consumers: Any = ()) -> dict[str, A
             if key in new:
                 new[key] = new_path.split("/")[1]
         docs[new_path] = new
+    # Approved course packages (DSAT) live in the package store, as in the contract harness.
+    docs |= build_platform_documents(load_platform_fixture(), now=clock.now())
     batch = client.batch()
     for path, data in docs.items():
         batch.set(client.document(path), data)
@@ -117,6 +119,9 @@ async def test_enrollment_session_command_and_worker(env: dict[str, Any]) -> Non
     )
     assert other.status_code == 409
 
+    # The reply is written after the model call, so it is later than the student message.
+    # A frozen clock would tie on createdAt and fall back to (random) messageId order.
+    env["clock"].advance(seconds=1)
     await services.dispatcher.dispatch_pending()
     await env["queue"].drain(services.run_execution.process)
     run = await http.get(f"/api/runs/{first.json()['runId']}", headers=_h(env, "alex"))

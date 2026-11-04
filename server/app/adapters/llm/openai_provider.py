@@ -8,7 +8,7 @@ responses are not stored on OpenAI's side (`store=False`).
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import openai
@@ -34,13 +34,27 @@ TRANSIENT_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504})
 
 
 class OpenAIProvider:
-    def __init__(self, client: openai.AsyncOpenAI) -> None:
-        self._client = client
+    def __init__(self, client: openai.AsyncOpenAI | Callable[[], openai.AsyncOpenAI]) -> None:
+        # A factory defers client creation to the first call. The OpenAI SDK raises at
+        # construction when no key is set, and the API service builds the shared runtime
+        # without holding the key (only the worker reads it from Secret Manager).
+        self._client: openai.AsyncOpenAI | None = None
+        self._factory: Callable[[], openai.AsyncOpenAI] | None = None
+        if isinstance(client, openai.AsyncOpenAI):
+            self._client = client
+        else:
+            self._factory = client
 
     @classmethod
     def from_api_key(cls, api_key: str | None) -> OpenAIProvider:
         # None → the SDK reads OPENAI_API_KEY from the process environment. Never logged.
-        return cls(openai.AsyncOpenAI(api_key=api_key, max_retries=0))
+        return cls(lambda: openai.AsyncOpenAI(api_key=api_key, max_retries=0))
+
+    def _get_client(self) -> openai.AsyncOpenAI:
+        if self._client is None:
+            assert self._factory is not None
+            self._client = self._factory()
+        return self._client
 
     async def complete(
         self,
@@ -60,7 +74,7 @@ class OpenAIProvider:
             else:
                 params.append({"role": "assistant", "content": m.text})
         try:
-            response = await self._client.responses.create(
+            response = await self._get_client().responses.create(
                 model=model,
                 instructions=system,
                 input=params,
