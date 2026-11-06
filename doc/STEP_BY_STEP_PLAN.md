@@ -1,18 +1,18 @@
 # High School Student OS — Step-by-Step Implementation Plan v5.0
 
-Updated: 2026-11-04 (M5 Steps 34–38 implemented ahead of the pilot gate at the owner's request; Step 30 deployed to staging on 2026-11-03). Previously 2026-11-01 (v5.0: M3 redefined from Calc→SAT transfer to a course platform; see M3). Previously 2026-10-31. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). Checked boxes mark sub-tasks implemented in the working tree; each step's **Status** line records what was actually verified.
+Updated: 2026-11-05 (Firestore emulator suite run: 8/8 pass; M5 backend redeployed to staging). Previously 2026-11-04 (M5 Steps 34–38 implemented ahead of the pilot gate at the owner's request; Step 30 deployed to staging on 2026-11-03). Previously 2026-11-01 (v5.0: M3 redefined from Calc→SAT transfer to a course platform; see M3). Previously 2026-10-31. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). Checked boxes mark sub-tasks implemented in the working tree; each step's **Status** line records what was actually verified.
 
 The product is a **course platform with one shared runtime**: third parties add courses as data (skills, question bank, rubrics and criteria, course requirements, completion criteria) and every course runs the same loop: **practice → supported assessment → saved evidence → in-course follow-up → an explained plan across enrolled courses**. Courses are independent; there is no cross-course inference. Calc BC is the first-party reference course. M0–M4 deliver the pilot (Calc BC plus one course authored through the package path); M5 contains independently selectable extensions.
 
 ## Current state
 
-### Implementation status (as of 2026-11-04)
+### Implementation status (as of 2026-11-05)
 
 | Milestone | Steps | Status |
 |---|---|---|
-| M0 Contracts and baseline | 1–7 | **Implemented; verification partial**: emulator tests not yet run, content not yet human-reviewed |
-| M1 Reliable foundation | 8–15 | **Implemented; verified over the in-memory backend**: Firestore-emulator run pending (no Java), Cloud Tasks/OIDC verified in staging (Step 30) |
-| M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator run pending (no Java) |
+| M0 Contracts and baseline | 1–7 | **Implemented; verification partial**: emulator suite run (`make test-emulator` passed 8/8 on 2026-11-05); content not yet human-reviewed |
+| M1 Reliable foundation | 8–15 | **Implemented; verified over the in-memory backend and on the Firestore emulator** (`make test-emulator` passed 8/8 on 2026-11-05); Cloud Tasks/OIDC verified in staging (Step 30) |
+| M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator suite passed 2026-11-05 |
 | M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. **Steps 26–27 implemented 2026-11-01** (package contract v1 + validator, author/reviewer roles, review gate, version pinning, retire; Digital SAT rebuilt as an authored package; course-driven frontend). Not started: ability catalog contract (23), course-internal follow-up rules (24.2), package-sourced deadlines (25.4), re-expressing Calc BC as a package (22.3). |
 | M4 Proactive planning and pilot | 28–33 | **Steps 28, 29, 31 implemented 2026-11-01; verified over the in-memory backend** (scheduled planning, student controls + opt-in reminders, structured logs/metrics/alerts, backup/restore/delete, event retention). **Step 30 deployed to staging 2026-11-03** (project `hs-student-os`; real Firebase Auth + Firestore + Cloud Tasks + worker + model smoke test passed, see [OPERATIONS.md](OPERATIONS.md) §5; the deployed image predates M5). **Step 32** now unblocked, not yet run. **Step 33 gate recorded as not passed** ([PILOT_GATE.md](PILOT_GATE.md)). |
 | M5 Optional expansion | 34–38 | **Implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
@@ -21,7 +21,7 @@ Last local verification (`make check`, 2026-11-01, after M4 Steps 28–31): ruff
 
 Open items before M0–M2 can be called complete:
 - **Real-model evaluation (Steps 16, 21):** first run done 2026-11-01 with OpenAI `gpt-5.5` (`content/evaluation/calc_bc/report-v1.md`): 17/18 criteria, 6/6 statuses. One false credit (parametric `second-derivative-method`) awaits the reviewer's decision. Not yet run against Anthropic. These are draft-content results only, so they don't measure quality until content review is done and thresholds are set.
-- **Emulator verification (Steps 5, 9, 14, 15):** `make emulators` / `make test-emulator` have not been run on this machine (no Java runtime installed; Firebase emulators need Java 11+). `tests/emulator/test_seed_emulator.py` and `tests/emulator/test_firestore_flows.py` are written but currently skip. M1 transaction behaviour is proven only over the in-memory store until they run.
+- ~~**Emulator verification (Steps 5, 9, 14, 15)**~~ — done 2026-11-05: `make test-emulator` (openjdk 21) passed 8/8: seed idempotence and isolation, a Firestore transaction round trip, isolation and twin concurrency, enrollment → session → command → worker, the atomic and fenced assessment commit, consumer effect + receipt + offset in one transaction with a no-op replay, the atomic PLANNING commit, and export → delete → restore. The first run failed one test written in M3 that assumed the test probe was the only consumer; M5's `course-metrics` consumer is registered by default, so the test now selects the probe's receipt and checks that `course-metrics` recorded its own.
 - **Content review (Steps 4, 7, 26):** questions, rubrics and evaluation cases are `draft` with no named reviewer. Evaluation thresholds in `dimensions.json` are unset until a content reviewer sets them. From M3 on, review happens through the platform review gate (Step 26), which applies to first-party courses too.
 
 ### Checkout contents
@@ -168,7 +168,7 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** `make emulators` launches Auth + Firestore. `make seed` populates two students. Firestore data is queryable. Production config check rejects `FIRESTORE_EMULATOR_HOST`.
 
-**Status:** 🟡 Implemented, not verified against live emulators. `firebase.json`, `.firebaserc`, `firestore.rules`, the seed script, and the Makefile targets exist; the unit tests (`test_firebase_adapter.py`, `test_config.py`) pass. `tests/emulator/test_seed_emulator.py` skips because no Java runtime is installed. Next: install Java 11+ and run `make test-emulator`.
+**Status:** ✅ Done. `firebase.json`, `.firebaserc`, `firestore.rules`, the seed script, and the Makefile targets exist; the unit tests (`test_firebase_adapter.py`, `test_config.py`) pass, and `make test-emulator` passed 8/8 on 2026-11-05 (`tests/emulator/test_seed_emulator.py` included).
 
 ---
 
@@ -274,7 +274,7 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Isolation enforced. Version conflicts detected. Forbidden fields rejected. Data survives restart.
 
-**Status:** 🟡 Implemented; verified over the in-memory backend. Repositories live in `app/adapters/firestore/` on a `DocTxn` seam (Firestore SDK in production, in-memory store for tests and Java-free local runs). `tests/contract/test_twin_routes.py` covers isolation, 409/428, forbidden fields, and preferences ≠ entitlements, plus restart over a retained store. Emulator run pending: `tests/emulator/test_firestore_flows.py` is written but skips (no Java on this machine).
+**Status:** 🟡 Implemented; verified over the in-memory backend. Repositories live in `app/adapters/firestore/` on a `DocTxn` seam (Firestore SDK in production, in-memory store for tests and Java-free local runs). `tests/contract/test_twin_routes.py` covers isolation, 409/428, forbidden fields, and preferences ≠ entitlements, plus restart over a retained store. Emulator: `tests/emulator/test_firestore_flows.py` passes (`make test-emulator` passed 8/8 on 2026-11-05).
 
 ---
 
@@ -462,7 +462,7 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify:** Atomic command acceptance. Idempotency enforced. At-most-one active Run per Session. Transaction failures leave clean state.
 
-**Status:** ✅ Done (in-memory backend). `tests/contract/test_command_routes.py`: atomic write set, replay/conflict, 4 concurrent submits giving 1×202 and 3×409 `RUN_IN_PROGRESS`, foreign question/file/superseded refs rejected, stale run input rejected, cancel racing enqueue, and an injected commit failure leaving the store byte-identical with the retry succeeding. Emulator run pending: `tests/emulator/test_firestore_flows.py` is written but skips (no Java on this machine).
+**Status:** ✅ Done (in-memory backend). `tests/contract/test_command_routes.py`: atomic write set, replay/conflict, 4 concurrent submits giving 1×202 and 3×409 `RUN_IN_PROGRESS`, foreign question/file/superseded refs rejected, stale run input rejected, cancel racing enqueue, and an injected commit failure leaving the store byte-identical with the retry succeeding. Emulator: `tests/emulator/test_firestore_flows.py` passes (`make test-emulator` passed 8/8 on 2026-11-05).
 
 ---
 
@@ -497,7 +497,7 @@ Each step below is a reviewable change with verification criteria.
 
 **Verify M1:** Restart recovery works across crash windows. Duplicate deliveries don't cause duplicate effects. Synthetic outputs are clearly labeled. Two-student isolation holds across all new resources. Course enrollment flow works end-to-end.
 
-**Status:** 🟡 Implemented; verified over the in-memory backend. `tests/unit/test_run_worker.py` covers each crash window, duplicate delivery, live-lease retry, lease expiry and requeue, stale fencing-token commit, both cancel/commit orderings, retry exhaustion, lost enrollment, worker HTTP auth (a student token → 401), and synthetic labeling. A real `uvicorn` run (`make server-memory`) went enroll → session → message → local worker → SUCCEEDED, with a labeled synthetic reply. Gaps: (1) execution is a single bounded step per attempt, so checkpoints inside a step arrive with the LLM gateway (Step 16); (2) the Cloud Tasks adapter and Google OIDC worker auth are unit-tested against fakes only, and need verifying in staging (Step 30); (3) Emulator run pending: `tests/emulator/test_firestore_flows.py` is written but skips (no Java on this machine).
+**Status:** 🟡 Implemented; verified over the in-memory backend. `tests/unit/test_run_worker.py` covers each crash window, duplicate delivery, live-lease retry, lease expiry and requeue, stale fencing-token commit, both cancel/commit orderings, retry exhaustion, lost enrollment, worker HTTP auth (a student token → 401), and synthetic labeling. A real `uvicorn` run (`make server-memory`) went enroll → session → message → local worker → SUCCEEDED, with a labeled synthetic reply. Gaps: (1) execution is a single bounded step per attempt, so checkpoints inside a step arrive with the LLM gateway (Step 16); (2) the Cloud Tasks adapter and Google OIDC worker auth are unit-tested against fakes only, and need verifying in staging (Step 30); (3) emulator: `tests/emulator/test_firestore_flows.py` and `test_assessment_commit.py` pass (`make test-emulator` passed 8/8 on 2026-11-05).
 
 ---
 
@@ -623,7 +623,7 @@ Reviewed without changes: gateway retry/budget accounting, lease/fencing commit,
 
 **Verify:** Atomic commit. No double-counting. Insufficient evidence handled correctly. State consistent after failures.
 
-**Status: ✅ implemented, verified over the in-memory backend.** `app/domain/assessment_service.py`, `app/domain/mastery_service.py`, `app/domain/types/mastery.py`, routes in `app/api/routes/assessments.py` + `POST /sessions/:id/complete`. `tests/contract/test_assessment_flow.py` covers the full loop, crash at commit (nothing written, recovery finishes once), stale fencing token, replayed commit, cancellation during grading, insufficient_evidence, complete idempotency / `RUN_IN_PROGRESS` / `COMPLETION_REQUIREMENTS_NOT_MET`, isolation, budget exhaustion, invalid output, rejected drafts, correction after feedback, prediction still `unavailable`. `tests/unit/test_mastery.py` covers idempotent apply, regrade replacement and rebuild = incremental. Regrade exists at the domain level only (no public trigger yet). `tests/emulator/test_assessment_commit.py` is written but skips (no Java).
+**Status: ✅ implemented, verified over the in-memory backend.** `app/domain/assessment_service.py`, `app/domain/mastery_service.py`, `app/domain/types/mastery.py`, routes in `app/api/routes/assessments.py` + `POST /sessions/:id/complete`. `tests/contract/test_assessment_flow.py` covers the full loop, crash at commit (nothing written, recovery finishes once), stale fencing token, replayed commit, cancellation during grading, insufficient_evidence, complete idempotency / `RUN_IN_PROGRESS` / `COMPLETION_REQUIREMENTS_NOT_MET`, isolation, budget exhaustion, invalid output, rejected drafts, correction after feedback, prediction still `unavailable`. `tests/unit/test_mastery.py` covers idempotent apply, regrade replacement and rebuild = incremental. Regrade exists at the domain level only (no public trigger yet). `tests/emulator/test_assessment_commit.py` passes (`make test-emulator` passed 8/8 on 2026-11-05).
 
 ---
 
@@ -792,7 +792,7 @@ Decisions behind this milestone:
 
 **Verify:** Exactly one intended task per dedupe scope; no effect ever crosses into another course.
 
-**Status: 🟡 infrastructure implemented (M3); no production consumer.** `app/workers/consumers/` (runner, receipts, offsets), `EventPublisher`, outbox `kind`, `/internal/consumers/process` and `RecoveryService.reissue_stalled_wakes` are kept; the Calc→SAT consumers were removed (Step 22.4). Course-internal rules (24.2) are next. Emulator variant: `tests/emulator/test_consumers_and_planning_emulator.py` (skips without Java).
+**Status: 🟡 infrastructure implemented (M3); no production consumer.** `app/workers/consumers/` (runner, receipts, offsets), `EventPublisher`, outbox `kind`, `/internal/consumers/process` and `RecoveryService.reissue_stalled_wakes` are kept; the Calc→SAT consumers were removed (Step 22.4). Course-internal rules (24.2) are next. Emulator variant: `tests/emulator/test_consumers_and_planning_emulator.py` passes (`make test-emulator` passed 8/8 on 2026-11-05), alongside the `course-metrics` consumer (Step 34.4).
 
 ---
 
@@ -1064,9 +1064,9 @@ Each extension is independently selected and verified. None are prerequisites fo
 
 | Milestone | Steps | Key Exit Criteria | Status |
 |---|---|---|---|
-| M0 Contracts and baseline | 1–7 | Buildable skeleton, schemas, fixtures, evaluation cases, Firebase emulators, frontend contract | Implemented; emulator + content review pending |
-| M1 Reliable foundation | 8–15 | Independent auth, Firestore repos, course enrollment, Task/Session/Run lifecycle, queue/outbox/worker, two-student isolation | Implemented; emulator + staging verification pending |
-| M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; real-model evaluation, emulator and staging verification pending |
+| M0 Contracts and baseline | 1–7 | Buildable skeleton, schemas, fixtures, evaluation cases, Firebase emulators, frontend contract | Implemented; emulator run 2026-11-05; content review pending |
+| M1 Reliable foundation | 8–15 | Independent auth, Firestore repos, course enrollment, Task/Session/Run lifecycle, queue/outbox/worker, two-student isolation | Implemented; emulator run 2026-11-05; staging smoke test passed; Step 32 pending |
+| M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; emulator run 2026-11-05; real-model evaluation review and Step 32 pending |
 | M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
 | M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 deployed to staging 2026-11-03; 32 not yet run; 33 not passed |
 | M5 Optional expansion | 34–38 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure) | Implemented 2026-11-04 (in-memory, synthetic); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred |

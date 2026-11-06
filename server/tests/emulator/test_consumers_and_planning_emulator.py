@@ -3,7 +3,8 @@
 The in-memory suites prove the rules; these prove that one real Firestore transaction
 writes a consumer's effect, receipt and offset together, that replaying the log adds
 nothing, and that a PLANNING run commits its plan and task moves atomically. The consumer
-is the test-only `ProbeConsumer` (no production consumer is registered yet).
+under test is the test-only `ProbeConsumer`; the platform's own `course-metrics` consumer
+(Step 34.4) stays registered, so its receipts appear alongside the probe's.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.domain.types.outbox import Delivery, OutboxKind
+from app.workers.consumers.course_metrics import NAME as COURSE_METRICS
 from tests.contract.test_event_consumers import PROBE, ProbeConsumer
 from tests.emulator.test_firestore_flows import _h, make_env
 
@@ -48,9 +50,12 @@ async def test_consumer_commits_effect_receipt_and_offset_together() -> None:
     await _settle(env)
 
     follow = [t for t in await _docs(env, "alex", "tasks") if t["taskId"].startswith("follow_")]
-    [receipt] = await _docs(env, "alex", "consumerReceipts")
+    receipts = await _docs(env, "alex", "consumerReceipts")
+    [receipt] = [x for x in receipts if x["consumer"] == PROBE]
     assert [t["taskId"] for t in follow] == [receipt["taskId"]]
     assert follow[0]["courseId"] == "dsat"
+    # The platform consumer ran on the same event in its own transaction, untouched.
+    assert [x["consumer"] for x in receipts if x["consumer"] != PROBE] == [COURSE_METRICS]
 
     # Replay the whole log from zero: the receipt makes it a no-op.
     before = len(await _docs(env, "alex", "tasks"))
@@ -64,6 +69,7 @@ async def test_consumer_commits_effect_receipt_and_offset_together() -> None:
                  kind=OutboxKind.CONSUMERS)
     )  # fmt: skip
     assert len(await _docs(env, "alex", "tasks")) == before
+    assert len(await _docs(env, "alex", "consumerReceipts")) == len(receipts)
     assert await _docs(env, "beth", "consumerReceipts") == []
 
 

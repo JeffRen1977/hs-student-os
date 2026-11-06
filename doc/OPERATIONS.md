@@ -75,7 +75,7 @@ M4 发现：此前的默认租约 120 s 小于最坏模型调用时间 180 s。f
 | Cloud Scheduler 作业与 `--ingress internal-and-cloud-load-balancing` 的组合 | 🟡 作业已创建并启用 | 6 个作业 ENABLED；尚未查看它们的执行日志确认调用成功 |
 | 部署中发现并修复的问题 | ✅ | 缺 7 个 Firestore 复合索引（内存存储与模拟器都不检查索引，只有真实 Firestore 会报 `FailedPrecondition`）；API 无密钥时 OpenAI SDK 构造即失败（改为首次调用时创建）；provision.sh 三处问题（worker 首次部署前需要自身 URL、桶“已拥有”提示未识别、告警策略需要 gcloud alpha，改用 REST）。已加 `server/.gcloudignore`，确保 `.env` 不会上传 |
 | 跨实例恢复、SSE 跨实例重连、Cloud Run 超时 | ❌ 未运行 | Step 32.3–32.4 |
-| Firestore 模拟器测试（含新增备份测试） | ❌ 未运行 | 本机现已安装 Java（2026-11-03），但 `make test-emulator` 还没有运行 |
+| Firestore 模拟器测试（含新增备份测试） | ✅ 已运行（2026-11-05） | `make test-emulator`（openjdk 21）：8/8 通过——评估原子提交、备份、消费者效果 + 回执 + 偏移同一事务且重放无副作用、PLANNING 原子提交、核心流程、种子。首次运行时消费者测试失败：它写于 M3，假定只有测试用 `ProbeConsumer`，而 M5 的 `course-metrics` 默认注册，产生第二条回执（模拟器 harness 不像 contract harness 那样关闭它）。修正为只按 `PROBE` 取回执，并断言 `course-metrics` 在同一事件上各自记账、重放不增加回执 |
 | 托管备份恢复演练 | ❌ 未运行 | 需要 staging |
 | 告警策略实际触发 | ❌ 未运行 | 两条策略已创建并启用；需在 staging 制造一次积压确认通知送达 |
 | 已知风险 | ⚠️ | 2026-11-03 开启邮箱登录时，Identity Toolkit 返回的密码哈希 `signerKey` 被打印进一次会话记录（未提交到仓库）。项目只有合成用户；将其视为仅测试用项目，引入真实用户前先评估轮换方式 |
