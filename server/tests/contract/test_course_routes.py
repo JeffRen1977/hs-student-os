@@ -33,10 +33,11 @@ async def _unenroll(h: Harness, sid: str, course: str, key: str | None = None) -
 
 async def test_catalog_reflects_entitlements_per_student(harness: Harness) -> None:
     alex = await _catalog(harness, "stu_alex")
-    assert set(alex) == {"calc_bc", "apush", "physics_c", "dsat"}
+    # APUSH is an authored package waiting for platform review: not in the catalog yet.
+    assert set(alex) == {"calc_bc", "physics_c", "dsat"}
     assert alex["calc_bc"]["status"] == "enrolled"
     assert alex["dsat"]["entitled"] is True and alex["dsat"]["status"] == "enrolled"
-    assert alex["apush"]["status"] == "coming_soon"
+    assert alex["physics_c"]["status"] == "coming_soon"
     assert alex["calc_bc"]["agent"]["supportedTaskTypes"] == ["SOCRATIC_STUDY", "FRQ_PRACTICE"]
     _revoke_calc(harness, "stu_beth")
     await _unenroll(harness, "stu_beth", "calc_bc")
@@ -69,7 +70,7 @@ async def test_enroll_requires_idempotency_key(harness: Harness) -> None:
 
 
 async def test_enroll_planned_course_is_409(harness: Harness) -> None:
-    response = await _enroll(harness, "stu_alex", "apush")
+    response = await _enroll(harness, "stu_alex", "physics_c")
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "COURSE_NOT_AVAILABLE"
 

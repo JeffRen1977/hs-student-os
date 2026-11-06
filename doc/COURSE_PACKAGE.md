@@ -1,6 +1,6 @@
 # 课程包契约 v1（course-package/v1）
 
-更新：2026-11-01。实现：`server/app/schemas/package.py`（契约）、`server/app/registries/package_validator.py`（校验器）、`server/app/domain/package_service.py`（审核与发布流程）。参考包：`server/content/authored/dsat/package.json`（Digital SAT）。
+更新：2026-11-04（M5：能力 `source-analysis`、题目字段 `sourceMaterialIds`、APUSH 作者包、作者预览与课程指标）。2026-11-01。实现：`server/app/schemas/package.py`（契约）、`server/app/registries/package_validator.py`（校验器）、`server/app/domain/package_service.py`（审核与发布流程）。参考包：`server/content/authored/dsat/package.json`（Digital SAT）、`server/content/authored/apush/package.json`（AP US History，含基于材料的写作题）。
 
 课程包是**纯数据**：一个 JSON 文档完整描述一门课程。包里没有代码；能力（ability）和工具只能从平台目录中选择。缺少的能力由平台新增，所有课程都可选用，绝不为某门课写运行时分支。
 
@@ -13,7 +13,7 @@
   "systemPrompt": "…",
   "skills": [{"skillId": "dsat.algebra.linear-equations", "name": "…", "description": "…"}],
   "rubrics": [ /* 与 content/packs/*/rubrics 相同的 Rubric 结构 */ ],
-  "questions": [ /* Question：自由作答，或带 items 的选择题组 */ ],
+  "questions": [ /* Question：自由作答、带 items 的选择题组，或带 sourceMaterialIds 的基于材料写作题 */ ],
   "materials": [ /* 可选，审核过的参考材料 */ ],
   "starterTasks": [{"questionId": "…", "taskType": "PRACTICE", "mode": "ADAPTIVE", "title": "…", "durationMin": 15}],
   "evaluationSet": [{"caseId": "…", "questionId": "…", "answerText": "1: A\n2: C", "expectedStatus": "accepted", "expectedEarned": {"item-1": 1, "item-2": 0}}]
@@ -22,7 +22,9 @@
 
 **manifest**：`courseId`、`version`（MAJOR.MINOR.PATCH）、`name`、`description`、`category`（AP / SAT / ADMISSIONS，仅为目录标签，**不授予访问权限**）、`agentType`、`supportedTaskTypes`、`supportedModes`、`abilities`、`tools`、`modelTier`、`contextBudgetTokens`、`workflowVersion`、`publisher.name`（显示名；归属以上传作者所在组织为准）、`license`。
 
-平台能力目录：`socratic-guidance`、`rubric-assessment`、`choice-scoring`。工具目录：`math-verify`、`content-retrieval`。
+平台能力目录：`socratic-guidance`、`rubric-assessment`、`choice-scoring`、`source-analysis`（M5 Step 34.2）。工具目录：`math-verify`、`content-retrieval`。
+
+**基于材料的写作题**（`source-analysis`）：题目带 `sourceMaterialIds`（≤8，指向本包 `materials`），如 DBQ、基于给定段落的论证。学生在 Session `activity.sources` 中看到这些材料。评分时材料作为不可信内容隔离注入；评分器对每个 criterion 给出所用材料 `documentsCited`，引用题目材料之外的文档 → 输出无效；得分证据只能引自学生作答。这个能力不属于任何一门课：任何课程包都可以选用。
 
 **starterTasks**：学生首次注册且该课程尚无任务时，在注册事务中创建这些 PLANNED 任务（reason `INITIAL_PRACTICE`），放在最早有空余时间的日期。重新注册不会重复创建。
 
@@ -35,7 +37,7 @@
 1. 模式：契约字段、未知字段拒绝、大小上限 900 KB（单个 Firestore 文档）。
 2. 归属：所有题目/rubric/材料/技能属于 manifest 的 courseId；skillId 以 `{courseId}.` 开头。
 3. 引用：题目 → rubric、rubric/题目/材料 → 技能、starter task 与评测用例 → 题目、answerCheck 与选择题 item → rubric criterion；ID 不重复。
-4. 平台目录：能力与工具存在；所选能力有所需数据（`choice-scoring` ↔ 选择题组，`rubric-assessment` ↔ 自由作答题）。在校验时拒绝，而不是在运行时失败。
+4. 平台目录：能力与工具存在；所选能力有所需数据（`choice-scoring` ↔ 选择题组，`rubric-assessment` ↔ 不带材料的自由作答题，`source-analysis` ↔ 带 `sourceMaterialIds` 的题，材料必须存在：`unknown_material`）。选择题组不能带材料。在校验时拒绝，而不是在运行时失败。
 5. systemPrompt：只允许平台模板变量 `{{studentName}}`、`{{currentMode}}`、`{{masteryContext}}`。
 6. 评测：运行选择题用例，失败的 caseId 列入 `evaluation.failures`。
 
@@ -49,7 +51,7 @@
                                                            active ─retire→ retired
 ```
 
-- **作者**属于一个作者组织，只能看到本组织的包；其他组织的包返回 404。courseId 被其他组织或平台内置课程（calc_bc、apush、physics_c）占用时返回 409 `COURSE_ID_TAKEN`。
+- **作者**属于一个作者组织，只能看到本组织的包；其他组织的包返回 404。courseId 被其他组织或平台内置课程（calc_bc、physics_c）占用时返回 409 `COURSE_ID_TAKEN`。APUSH 的内置“planned”占位已在 M5 移除，`apush` 由第一方作者组织以课程包提供。
 - draft 可以覆盖上传；submitted 之后版本不可变。新版本号必须大于已提交过的所有版本（409 `PACKAGE_VERSION_EXISTS`）。
 - 报告有错误时不能提交（409 `PACKAGE_INVALID`）。
 - **平台审核员**批准需要：报告无错误、选择题评测全部通过、评测集非空、`licenseAttested: true`、有模型用例时 `modelEvaluationAttested: true`；否则 409 `REVIEW_REQUIREMENTS_NOT_MET`。驳回必须写备注，作者可见。
@@ -64,4 +66,12 @@ Session 创建时固定 `contextVersion.pack`。运行时按固定版本加载�
 
 ## 5. 本地开发
 
-`server/fixtures/platform/members.json` 定义合成作者（`author_hsos`、`author_sample`）、审核员（`reviewer_platform`）和本地种子包。种子包与上传走同一个校验器和评测集，但其审核记录明确标注为 `seed:local-dev`（本地种子，不是平台审核）。完整审核流程由 `tests/contract/test_package_review.py` 与 `tests/contract/test_authored_course_loop.py` 通过 API 验证。
+`server/fixtures/platform/members.json` 定义合成作者（`author_hsos`、`author_sample`）、审核员（`reviewer_platform`）和本地种子包。种子包与上传走同一个校验器和评测集。`status: "active"` 的种子（dsat）审核记录明确标注为 `seed:local-dev`（本地种子，不是平台审核）；`status: "submitted"` 的种子（apush）只到提交为止，在审核队列中等待平台审核员。同一文件还定义合成家长账号（`parent_alex`、`parent_other`，Step 36）。完整审核流程由 `tests/contract/test_package_review.py` 与 `tests/contract/test_authored_course_loop.py` 通过 API 验证。
+
+## 6. 作者门户与课程指标（M5 Step 34）
+
+- **门户**：`web/author.html`。作者上传/替换 draft、查看校验报告（含评测集结果）、提交审核、查看审核意见与状态历史、以学生视角预览（`GET /api/authoring/packages/{courseId}/versions/{version}/preview`：不含答案键、expectedAnswer、rubric、systemPrompt、evaluationSet），以及查看课程指标。门户不能批准或激活，审核仍由平台审核员完成。
+- **课程指标**：`GET /api/authoring/courses/{courseId}/metrics`，只有聚合数：不同学生数、评估数（按状态）、每个 rubric criterion 的平均得分。不同学生少于 5 人时整体隐藏（`suppressed: true`）。作者看不到任何单个学生的数据。
+- **新增课程（Step 34.3）**：APUSH 1.0.0（`content/authored/apush`）：一道简答题（rubric-assessment）、一道基于两份公有领域文献的 DBQ 式写作题（source-analysis）、一组材料分析选择题（choice-scoring）；评测集 3 条选择题用例（上传时自动运行，全部通过）+ 4 条模型评分用例（审核员批准时须声明 `modelEvaluationAttested`）。本地种子把它放在 **submitted**（等待平台审核），不是 active。内容为草稿，文献摘录的措辞需在内容审核时与原文核对。
+- **回归（Step 34.5）**：`tests/unit/test_platform_abilities.py` 在每次新增能力后检查所有作者包仍通过校验并通过自动评测用例，内置课程不受影响。
+

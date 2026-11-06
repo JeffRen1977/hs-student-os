@@ -35,6 +35,7 @@ from app.domain.ports.packages import (
 from app.domain.ports.runtime import Clock
 from app.domain.types.actor import Permission, PlatformActor
 from app.domain.types.common import IdempotencyRecord
+from app.domain.types.course_metrics import CourseMetrics
 from app.domain.types.package import (
     PACKAGE_TRANSITIONS,
     CourseState,
@@ -271,6 +272,20 @@ class PackageService:
         if v is None or v.org_id != actor.org_id:
             raise _not_found()  # another organization's package does not exist for you
         return v
+
+    async def course_metrics(self, actor: PlatformActor, course_id: str) -> CourseMetrics:
+        """Aggregates for a course the author's organization owns (Step 34.4). Another
+        organization's course, or a bundled one, is not found. The caller decides how much
+        to show; below `MIN_COHORT` students the API returns nothing but the threshold."""
+        actor.require(Permission.PACKAGES_AUTHOR)
+
+        async def read(tx: PackageTx) -> CourseMetrics:
+            course = await tx.courses.get(course_id)
+            if course is None or course.org_id != actor.org_id:
+                raise _not_found()
+            return await tx.metrics.get(course_id) or CourseMetrics(course_id=course_id)
+
+        return await self._uow.transaction(read)
 
     # ---- Platform reviewer ---------------------------------------------------------------
 

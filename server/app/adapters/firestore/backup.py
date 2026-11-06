@@ -12,10 +12,14 @@ student API.
   has been deleted (tombstone `deletedStudents/{id}`), so restoring an older backup never
   resurrects deleted data, and refuses to overwrite an existing student unless asked.
 - `verify_student` → the list of broken links (empty means consistent).
-- `delete_student` → removes the subtree and identity mappings and writes a tombstone
+- `delete_student` → removes the subtree, identity mappings and the parent-link index
+  entries and invites the student's links point to, and writes a tombstone
   holding only the id and time. Collection-group scans (outbox, runs, plan schedules,
   reminders) then find nothing for the student; managed backups that still contain the
-  student expire with the backup retention period.
+  student expire with the backup retention period. Aggregate course metrics
+  (`courseMetrics/{courseId}`, Step 34.4) hold no student data and are left as they are.
+- A restore brings back a student's parent links but not the parent's index entry, so a
+  restored link grants nothing until the parent is linked again.
 
 Uploaded files (Cloud Storage objects) are not built yet (text-only pilot); when they
 are, their objects must be exported and deleted alongside `students/{id}/files`.
@@ -91,12 +95,30 @@ async def restore_student(
     return len(backup.documents)
 
 
+def _parent_link_paths(docs: Mapping[str, Doc], student_id: str) -> list[str]:
+    """Documents outside the subtree that a student's parent links point to (Step 36): the
+    parent's index entry and the invite. Derived from the links themselves."""
+    prefix = f"students/{student_id}/parentLinks/"
+    out: list[str] = []
+    for path, d in docs.items():
+        if not path.startswith(prefix):
+            continue
+        if d.get("parentUid"):
+            out.append(f"parents/{d['parentUid']}/children/{student_id}")
+        if d.get("inviteCodeHash"):
+            out.append(f"parentInvites/{d['inviteCodeHash']}")
+    return out
+
+
 async def delete_student(store: SubtreeStore, student_id: str, *, now: datetime) -> int:
     docs = await store.read_subtree(f"students/{student_id}")
+    linked = _parent_link_paths(docs, student_id)
     docs.update(await _identity_docs(store, student_id))
     # Children first, so an interrupted run never leaves an orphaned subtree without its
     # root (a re-run finishes the job).
     ordered = sorted(docs, key=lambda p: p.count("/"), reverse=True)
+    # Parent access goes first: once the links are gone nothing else points here.
+    await store.delete_documents(linked)
     await store.delete_documents(ordered)
     await store.write_documents(
         {f"{TOMBSTONES}/{student_id}": {"studentId": student_id, "deletedAt": now}}

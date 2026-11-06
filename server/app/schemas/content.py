@@ -151,6 +151,10 @@ class Question(ApiModel):
     answer_check: AnswerCheck | None = None
     # Choice sets: multiple-choice items scored deterministically (choice-scoring).
     items: list[ChoiceItem] | None = Field(default=None, min_length=1, max_length=10)
+    # Source-based writing (source-analysis): the course materials the student writes
+    # from, e.g. the documents of a document-based question. Shown to the student and to
+    # the grader; a grade may cite only these.
+    source_material_ids: list[OpaqueId] = Field(default_factory=list, max_length=8)
     source: ContentSource
     review: Review
 
@@ -162,6 +166,10 @@ class Question(ApiModel):
                 raise ValueError("itemId values must be unique")
             if self.answer_check is not None:
                 raise ValueError("choice sets are scored by key, not by math-verify")
+            if self.source_material_ids:
+                raise ValueError("choice sets are scored by key, not by source-analysis")
+        if len(self.source_material_ids) != len(set(self.source_material_ids)):
+            raise ValueError("sourceMaterialIds must be unique")
         return self
 
 

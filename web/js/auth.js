@@ -20,6 +20,12 @@
     { uid: "stu_alex", label: "Alex (synthetic student, grade 11)" },
     { uid: "stu_beth", label: "Beth (synthetic student, grade 10)" },
   ]);
+  // Synthetic platform members for the author portal (server/fixtures/platform/members.json).
+  const SYNTHETIC_PLATFORM_MEMBERS = Object.freeze([
+    { uid: "author_hsos", label: "HS Student OS content author (synthetic)" },
+    { uid: "author_sample", label: "Sample Press author (synthetic)" },
+    { uid: "reviewer_platform", label: "Platform reviewer (synthetic)" },
+  ]);
   const DEV_UID_KEY = "hsos.localEmulatorUid";
   const FIREBASE_SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 
@@ -62,6 +68,10 @@
     const mode = chooseMode(o);
     const storage = o.storage || null;
     const projectId = o.projectId || "demo-hs-student-os";
+    // Which synthetic accounts local sign-in offers (students by default; the author
+    // portal passes the synthetic platform members). Never real accounts.
+    const localUsers = o.localUsers || SYNTHETIC_STUDENTS;
+    const uidKey = o.storageKey || DEV_UID_KEY;
     let firebase = null; // { auth, mod }
 
     async function loadFirebase() {
@@ -78,14 +88,14 @@
 
     return {
       mode: mode,
-      students: mode === "local_emulator" ? SYNTHETIC_STUDENTS : [],
+      students: mode === "local_emulator" ? localUsers : [],
       currentUid: function () {
-        if (mode === "local_emulator") return storage ? storage.getItem(DEV_UID_KEY) : null;
+        if (mode === "local_emulator") return storage ? storage.getItem(uidKey) : null;
         return firebase && firebase.auth.currentUser ? firebase.auth.currentUser.uid : null;
       },
       getIdToken: async function () {
         if (mode === "local_emulator") {
-          const uid = storage ? storage.getItem(DEV_UID_KEY) : null;
+          const uid = storage ? storage.getItem(uidKey) : null;
           return uid ? emulatorToken(uid, projectId) : null;
         }
         if (mode === "firebase") {
@@ -96,8 +106,8 @@
       },
       signInLocal: function (uid) {
         if (mode !== "local_emulator") throw new Error("local emulator sign-in is not available here");
-        if (!SYNTHETIC_STUDENTS.some(function (s) { return s.uid === uid; })) throw new Error("unknown synthetic student");
-        storage.setItem(DEV_UID_KEY, uid);
+        if (!localUsers.some(function (s) { return s.uid === uid; })) throw new Error("unknown synthetic account");
+        storage.setItem(uidKey, uid);
       },
       signInWithPassword: async function (email, password) {
         if (mode !== "firebase") throw new Error("Firebase sign-in is not configured");
@@ -105,7 +115,7 @@
         await fb.mod.signInWithEmailAndPassword(fb.auth, email, password);
       },
       signOut: async function () {
-        if (mode === "local_emulator" && storage) storage.removeItem(DEV_UID_KEY);
+        if (mode === "local_emulator" && storage) storage.removeItem(uidKey);
         if (mode === "firebase") {
           const fb = await loadFirebase();
           await fb.mod.signOut(fb.auth);
@@ -114,5 +124,11 @@
     };
   }
 
-  return { createAuth: createAuth, chooseMode: chooseMode, emulatorToken: emulatorToken, SYNTHETIC_STUDENTS: SYNTHETIC_STUDENTS };
+  return {
+    createAuth: createAuth,
+    chooseMode: chooseMode,
+    emulatorToken: emulatorToken,
+    SYNTHETIC_STUDENTS: SYNTHETIC_STUDENTS,
+    SYNTHETIC_PLATFORM_MEMBERS: SYNTHETIC_PLATFORM_MEMBERS,
+  };
 });

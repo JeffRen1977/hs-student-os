@@ -85,18 +85,31 @@ class PlatformMemberFixture(ApiModel):
 
 
 class SeedPackageFixture(ApiModel):
-    """A package under `content/authored/{path}/package.json` that local seeding installs
-    as already approved. Local development convenience only: the review gate itself is
+    """A package under `content/authored/{path}/package.json` that local seeding installs.
+
+    `active`: installed as already approved — a local development convenience whose audit
+    trail says it is a seed, not a review. `submitted`: uploaded and submitted, waiting in
+    the platform review queue like any author submission. The review gate itself is
     exercised through the API (tests/contract/test_package_review.py)."""
 
     path: Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]+$")]
     org_id: Annotated[str, StringConstraints(pattern=r"^org_[a-z0-9_]+$")]
     uploaded_by: str
+    status: Literal["active", "submitted"] = "active"
+
+
+class ParentFixture(ApiModel):
+    """A synthetic parent account (Step 36). Links to students are created by students."""
+
+    uid: Annotated[str, StringConstraints(pattern=r"^parent_[a-z0-9_]+$")]
+    email: SyntheticEmail
+    display_name: Annotated[str, StringConstraints(min_length=1, max_length=80)]
 
 
 class PlatformFixture(ApiModel):
     synthetic: bool
     members: list[PlatformMemberFixture]
+    parents: list[ParentFixture] = Field(default_factory=list)
     seed_packages: list[SeedPackageFixture] = Field(default_factory=list)
 
     @model_validator(mode="after")

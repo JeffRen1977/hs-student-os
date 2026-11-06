@@ -10,6 +10,7 @@ class ActorRole(StrEnum):
     ADMIN = "admin"  # back-office tooling, e.g. entitlement management
     AUTHOR = "author"  # course-package author, member of one author organization
     PLATFORM_REVIEWER = "platform_reviewer"  # approves, activates and retires packages
+    PARENT = "parent"  # reads a scoped summary of a linked student (Step 36)
 
 
 class Permission(StrEnum):
@@ -21,6 +22,7 @@ class Permission(StrEnum):
     ENTITLEMENTS_WRITE = "entitlements:write"
     PACKAGES_AUTHOR = "packages:author"
     PACKAGES_REVIEW = "packages:review"
+    SUMMARY_READ = "summary:read"  # parent: the summary projection only (Step 36)
 
 
 STUDENT_PERMISSIONS = frozenset(
@@ -35,6 +37,10 @@ STUDENT_PERMISSIONS = frozenset(
 SERVICE_PERMISSIONS = frozenset({Permission.LEARNING_READ, Permission.RUN_EXECUTE})
 
 SERVICE_ACTOR_PREFIX = "svc:"
+
+# A parent acting on a linked student's data holds exactly the scopes the student granted,
+# and those scopes are limited to this set.
+PARENT_SCOPES = frozenset({Permission.SUMMARY_READ})
 
 PLATFORM_ROLE_PERMISSIONS: dict[ActorRole, frozenset[Permission]] = {
     ActorRole.AUTHOR: frozenset({Permission.PACKAGES_AUTHOR}),
@@ -65,6 +71,10 @@ class ActorContext:
             raise ValueError("service actor ids start with 'svc:' so they never collide with uids")
         if self.role is ActorRole.STUDENT and self.actor_id.startswith(SERVICE_ACTOR_PREFIX):
             raise ValueError("student ids may not use the service prefix")
+        if self.role is ActorRole.PARENT and (
+            self.actor_id == self.student_id or not self.permissions <= PARENT_SCOPES
+        ):
+            raise ValueError("a parent acts for a linked student with summary scopes only")
 
     def can(self, permission: Permission) -> bool:
         return permission in self.permissions
@@ -98,12 +108,44 @@ class ActorContext:
             request_id=request_id,
         )
 
+    @classmethod
+    def for_parent(
+        cls,
+        parent_uid: str,
+        student_id: str,
+        scopes: frozenset[Permission],
+        request_id: str | None = None,
+    ) -> ActorContext:
+        """Only built by ParentService, inside the transaction that verified an active link
+        granting `scopes` (Step 36). Never from a request body."""
+        return cls(
+            actor_id=parent_uid,
+            student_id=student_id,
+            role=ActorRole.PARENT,
+            permissions=scopes,
+            request_id=request_id,
+        )
+
     def require(self, permission: Permission) -> None:
         if permission not in self.permissions:
             # Imported lazily to keep this module dependency-free.
             from app.domain.errors import DomainError, ErrorCode
 
             raise DomainError(ErrorCode.FORBIDDEN, f"missing permission {permission.value}")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ParentActor:
+    """A verified parent account (Step 36). Like `PlatformActor` it has no `student_id`:
+    it cannot reach any student store until ParentService verifies an active link and
+    builds a scoped `ActorContext.for_parent` for that one student."""
+
+    actor_id: str
+    request_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.actor_id or self.actor_id.startswith(SERVICE_ACTOR_PREFIX):
+            raise ValueError("parent actors need a real uid")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

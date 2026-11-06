@@ -92,6 +92,9 @@ def main(argv: list[str] | None = None) -> int:
     for member in platform.members:
         result = _upsert_auth_user(app, member.uid, member.email, member.display_name, password)
         print(f"auth user {member.uid} ({member.role}): {result}")
+    for parent in platform.parents:
+        result = _upsert_auth_user(app, parent.uid, parent.email, parent.display_name, password)
+        print(f"auth user {parent.uid} (parent): {result}")
 
     now = datetime.now(UTC)
     documents = {

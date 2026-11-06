@@ -13,9 +13,11 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
+from app.adapters.firestore.course_metrics_repository import metrics_from_doc, metrics_path
 from app.adapters.firestore.documents import Doc, DocTxn, DocumentStore, Filter, QuerySpec
 from app.domain.ports.packages import PackageTx
 from app.domain.types.common import IdempotencyRecord
+from app.domain.types.course_metrics import CourseMetrics
 from app.domain.types.package import (
     CourseState,
     EvaluationSummary,
@@ -263,11 +265,21 @@ class FirestorePlatformIdempotencyStore:
         )
 
 
+class FirestoreCourseMetricsReader:
+    def __init__(self, txn: DocTxn) -> None:
+        self._txn = txn
+
+    async def get(self, course_id: str) -> CourseMetrics | None:
+        doc = await self._txn.get(metrics_path(course_id))
+        return metrics_from_doc(doc) if doc else None
+
+
 class FirestorePackageTx:
     def __init__(self, txn: DocTxn) -> None:
         self.courses = FirestorePackageCourseStore(txn)
         self.versions = FirestorePackageVersionStore(txn)
         self.idempotency = FirestorePlatformIdempotencyStore(txn)
+        self.metrics = FirestoreCourseMetricsReader(txn)
 
 
 class DocumentPackageUnitOfWork:

@@ -4,7 +4,13 @@ from typing import Annotated, Self
 
 from pydantic import Field, StringConstraints, model_validator
 
-from app.domain.types.run import TERMINAL_RUN_STATUSES, InputRequestKind, RunKind, RunStatus
+from app.domain.types.run import (
+    SESSIONLESS_KINDS,
+    TERMINAL_RUN_STATUSES,
+    InputRequestKind,
+    RunKind,
+    RunStatus,
+)
 from app.schemas.common import ApiModel, OpaqueId, RequestModel
 
 
@@ -34,6 +40,7 @@ class Run(ApiModel):
     kind: RunKind
     submission_id: OpaqueId | None = None
     message_id: OpaqueId | None = None
+    subject_id: OpaqueId | None = None  # admissions runs: the answer or feedback request
     attempt_count: int = Field(ge=0)
     input_request: InputRequest | None
     result: RunResult | None
@@ -41,8 +48,8 @@ class Run(ApiModel):
 
     @model_validator(mode="after")
     def _consistent(self) -> Self:
-        if self.session_id is None and self.kind is not RunKind.PLANNING:
-            raise ValueError("only PLANNING runs may have sessionId=null")
+        if self.session_id is None and self.kind not in SESSIONLESS_KINDS:
+            raise ValueError("only planning and admissions runs may have sessionId=null")
         if (self.status is RunStatus.WAITING_INPUT) != (self.input_request is not None):
             raise ValueError("inputRequest is present exactly when status is WAITING_INPUT")
         if self.result is not None and self.status is not RunStatus.SUCCEEDED:

@@ -99,7 +99,11 @@ async def test_only_a_reviewed_and_activated_package_reaches_students(h: Harness
     await post(h, f"{BASE}/1.0.0/submit", AUTHOR, {}, 200)
     assert COURSE not in await catalog_ids(h)
     queue = await get(h, "/api/review/packages", REVIEWER)
-    assert [(v["courseId"], v["status"]) for v in queue["versions"]] == [(COURSE, "submitted")]
+    # The seeded APUSH package (Step 34.3) waits in the same queue.
+    assert [(v["courseId"], v["status"]) for v in queue["versions"]] == [
+        (COURSE, "submitted"),
+        ("apush", "submitted"),
+    ]
 
     approved = await post(h, f"{REVIEW}/1.0.0/approve", REVIEWER, APPROVE, 200)
     assert approved["review"]["reviewerId"] == REVIEWER and approved["review"]["licenseAttested"]

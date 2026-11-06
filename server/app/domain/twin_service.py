@@ -6,6 +6,7 @@ import dataclasses
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from app.domain.calibration import decide_prediction
 from app.domain.errors import DomainError, ErrorCode
 from app.domain.planning_schedule import PlanningSchedulePolicy, ensure_schedule
 from app.domain.ports.catalog import CourseCatalog
@@ -13,6 +14,7 @@ from app.domain.ports.repositories import Tx, UnitOfWork
 from app.domain.ports.runtime import Clock
 from app.domain.reminder_service import record_notification_consent
 from app.domain.types.actor import ActorContext, Permission
+from app.domain.types.course import EnrollmentStatus
 from app.domain.types.student import Entitlements, Student
 
 # The only leaf fields a student may change (API.md §1.1). Everything else — studentId,
@@ -94,7 +96,14 @@ class TwinService:
             student = await tx.students.get(actor)
             if student is None:
                 raise DomainError(ErrorCode.NOT_FOUND, "Student not found.")
-            return student
+            # Step 37: the prediction gate is the only source of prediction status. No
+            # accepted calibration exists, so every enrolled course reads `unavailable`.
+            enrolled = await tx.enrollments.list(actor, status=EnrollmentStatus.ACTIVE)
+            predictions = {
+                **student.prediction_summary,
+                **{e.course_id: decide_prediction(e.course_id, None) for e in enrolled},
+            }
+            return dataclasses.replace(student, prediction_summary=predictions)
 
         return await self._uow.transaction(read)
 

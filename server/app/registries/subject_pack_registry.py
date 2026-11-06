@@ -82,6 +82,7 @@ def _question(q: Question) -> QuestionContent:
             if q.items is not None
             else None
         ),
+        source_material_ids=tuple(q.source_material_ids),
     )
 
 

@@ -1,12 +1,12 @@
 # High School Student OS — Step-by-Step Implementation Plan v5.0
 
-Updated: 2026-11-01 (v5.0: M3 redefined from Calc→SAT transfer to a course platform; see M3). Previously 2026-10-31. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). Checked boxes mark sub-tasks implemented in the working tree; each step's **Status** line records what was actually verified.
+Updated: 2026-11-04 (M5 Steps 34–38 implemented ahead of the pilot gate at the owner's request; Step 30 deployed to staging on 2026-11-03). Previously 2026-11-01 (v5.0: M3 redefined from Calc→SAT transfer to a course platform; see M3). Previously 2026-10-31. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). Checked boxes mark sub-tasks implemented in the working tree; each step's **Status** line records what was actually verified.
 
 The product is a **course platform with one shared runtime**: third parties add courses as data (skills, question bank, rubrics and criteria, course requirements, completion criteria) and every course runs the same loop: **practice → supported assessment → saved evidence → in-course follow-up → an explained plan across enrolled courses**. Courses are independent; there is no cross-course inference. Calc BC is the first-party reference course. M0–M4 deliver the pilot (Calc BC plus one course authored through the package path); M5 contains independently selectable extensions.
 
 ## Current state
 
-### Implementation status (as of 2026-11-01)
+### Implementation status (as of 2026-11-04)
 
 | Milestone | Steps | Status |
 |---|---|---|
@@ -14,8 +14,8 @@ The product is a **course platform with one shared runtime**: third parties add 
 | M1 Reliable foundation | 8–15 | **Implemented; verified over the in-memory backend**: Firestore-emulator run pending (no Java), Cloud Tasks/OIDC verified in staging (Step 30) |
 | M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator run pending (no Java) |
 | M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. **Steps 26–27 implemented 2026-11-01** (package contract v1 + validator, author/reviewer roles, review gate, version pinning, retire; Digital SAT rebuilt as an authored package; course-driven frontend). Not started: ability catalog contract (23), course-internal follow-up rules (24.2), package-sourced deadlines (25.4), re-expressing Calc BC as a package (22.3). |
-| M4 Proactive planning and pilot | 28–33 | **Steps 28, 29, 31 implemented 2026-11-01; verified over the in-memory backend** (scheduled planning, student controls + opt-in reminders, structured logs/metrics/alerts, backup/restore/delete, event retention). **Step 30** deployment config written and checked locally (image build, config tests, dry run), **not deployed** (no staging project). **Step 32 blocked** on staging. **Step 33 gate recorded as not passed** ([PILOT_GATE.md](PILOT_GATE.md)). |
-| M5 Optional expansion | 34–38 | Not started |
+| M4 Proactive planning and pilot | 28–33 | **Steps 28, 29, 31 implemented 2026-11-01; verified over the in-memory backend** (scheduled planning, student controls + opt-in reminders, structured logs/metrics/alerts, backup/restore/delete, event retention). **Step 30 deployed to staging 2026-11-03** (project `hs-student-os`; real Firebase Auth + Firestore + Cloud Tasks + worker + model smoke test passed, see [OPERATIONS.md](OPERATIONS.md) §5; the deployed image predates M5). **Step 32** now unblocked, not yet run. **Step 33 gate recorded as not passed** ([PILOT_GATE.md](PILOT_GATE.md)). |
+| M5 Optional expansion | 34–38 | **Implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
 
 Last local verification (`make check`, 2026-11-01, after M4 Steps 28–31): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **561 passed, 9 skipped** (8 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **34 passed**. Docker image built and smoke-checked locally. Browser check over `make server-memory` + `make web`: Beth locked a task date, turned reminders off, and skipped a task with a reason; no console errors.
 
@@ -33,8 +33,9 @@ Open items before M0–M2 can be called complete:
 - M1: Firebase token auth → `ActorContext`; Firestore repositories on a `DocTxn` seam with an in-memory test backend; twin, course catalog/enrollment/agent, task, session, message/submission, and run routes; transactional command acceptance with idempotency and outbox; outbox dispatcher, local queue, Cloud Tasks adapter, a lease/fencing-token run worker with its own HTTP service, a stalled-run recovery scan, and a labeled synthetic executor
 - M2: LLM gateway with budgets and tier routing, Socratic and rubric-assessment skills, math-verify tool, atomic AssessmentService commit with mastery projection, session complete, durable event feed with SSE, frontend wired to the real API (sign-in, sessions, submissions, assessments), evaluation runner
 - M3 so far: outbox-woken replay-safe consumer infrastructure (receipts + offsets + wake recovery; no production consumer yet), PLANNING runs with planner-rules-v1 and plan API, task skip reasons and reschedule-locks, `choice-scoring` in the shared runtime, Digital SAT as an independent course, plan view. The Calc→SAT mappings, findings API/card and `prerequisite.*` events were removed (Step 22.4)
-- M4 so far: timezone-aware scheduled planning, task controls in the UI, opt-in reminders (fake sender only), structured JSON logs with redaction, log-based metrics, alert checks, per-student backup/restore/verify/delete, event retention, Dockerfile and staging provisioning script (not run)
-- Not built yet: file upload/OCR, regrade trigger, a real reminder channel
+- M4 so far: timezone-aware scheduled planning, task controls in the UI, opt-in reminders (fake sender only), structured JSON logs with redaction, log-based metrics, alert checks, per-student backup/restore/verify/delete, event retention, Dockerfile, staging provisioning (applied 2026-11-03) and Firebase Hosting deploy script
+- M5: `source-analysis` ability and `sourceMaterialIds`; APUSH package; author portal (`web/author.html`) with preview and aggregate metrics (`course-metrics` consumer — the first production consumer); parent links and summaries; admissions workspace with two session-less Run kinds; calibration pipeline (`scripts/run_calibration.py`) and prediction gate; optional-infrastructure assessment ([OPTIONAL_INFRASTRUCTURE.md](OPTIONAL_INFRASTRUCTURE.md))
+- Not built yet: file upload/OCR, regrade trigger, a real reminder channel, student-facing admissions UI, parent UI, admissions deadlines in the planner
 
 Each step below is a reviewable change with verification criteria.
 
@@ -924,7 +925,7 @@ Decisions behind this milestone:
 
 **Verify:** Real Cloud Tasks OIDC works. Cross-instance recovery works. Request timeout handling correct. Finite cost limits configured.
 
-**Status:** 🟡 Configuration written, **not deployed**. `server/Dockerfile` (one image, API or worker by `HSOS_ASGI_APP`, non-root, no fixtures) was built and smoke-checked locally. `deploy/staging/provision.sh` covers APIs, Firestore and daily managed backups, separate service accounts and IAM, secrets, buckets, the queue, both Cloud Run services, six OIDC Scheduler jobs, log-based metrics, alert policies and a billing budget. It is a dry run unless `APPLY=1` and refuses `demo-*` projects. `tests/unit/test_deploy_config.py` checks that the staging env files pass the deployed-config checks and that every Scheduler job targets an existing worker route. Finding: the default run lease (120 s) was shorter than the worst model call (60 s × 3), so deployed configs now must have lease > timeout × attempts (staging uses 300 s). The Verify criteria need a real staging project; the record of what ran is in [OPERATIONS.md](OPERATIONS.md) §5.
+**Status:** ✅ **Deployed 2026-11-03** to project `hs-student-os` (Firestore `nam5`; Cloud Run, Tasks, Scheduler in `us-central1`; OpenAI key in Secret Manager; web on Firebase Hosting). A smoke test with synthetic users passed end to end through real Firebase Auth, Firestore, Cloud Tasks (OIDC), the private worker and the model (record in [OPERATIONS.md](OPERATIONS.md) §5). Deploying exposed four bugs no local test could catch, all fixed: missing composite indexes (neither the in-memory store nor the emulator enforces indexes), the OpenAI SDK failing at construction in the key-less API service, the worker needing its own URL before its first deploy, and alert policies needing gcloud alpha. Scheduler job execution logs, alert delivery and a managed-backup restore are not yet checked. The deployed image predates M5. Original configuration notes: `server/Dockerfile` (one image, API or worker by `HSOS_ASGI_APP`, non-root, no fixtures) was built and smoke-checked locally. `deploy/staging/provision.sh` covers APIs, Firestore and daily managed backups, separate service accounts and IAM, secrets, buckets, the queue, both Cloud Run services, six OIDC Scheduler jobs, log-based metrics, alert policies and a billing budget. It is a dry run unless `APPLY=1` and refuses `demo-*` projects. `tests/unit/test_deploy_config.py` checks that the staging env files pass the deployed-config checks and that every Scheduler job targets an existing worker route. Finding: the default run lease (120 s) was shorter than the worst model call (60 s × 3), so deployed configs now must have lease > timeout × attempts (staging uses 300 s). The Verify criteria need a real staging project; the record of what ran is in [OPERATIONS.md](OPERATIONS.md) §5.
 
 ---
 
@@ -967,7 +968,7 @@ Decisions behind this milestone:
 
 **Verify:** All chains pass in staging with real infrastructure. Cloud-specific issues (OIDC, timeouts, instance rotation) handled.
 
-**Status:** ⛔ Blocked: no staging environment (Step 30 not applied). The checklist is in [OPERATIONS.md](OPERATIONS.md) §5. 32.2's follow-up chains also depend on Step 24.2, which is not built.
+**Status:** ⏳ Unblocked (staging deployed 2026-11-03), not yet run; only the Step 30 smoke test has run. The checklist is in [OPERATIONS.md](OPERATIONS.md) §5. 32.2's follow-up chains also depend on Step 24.2, which is not built.
 
 ---
 
@@ -1010,40 +1011,52 @@ Decisions behind this milestone:
 
 Each extension is independently selected and verified. None are prerequisites for the pilot.
 
+**2026-11-04:** all five steps were implemented at the owner's request, before the pilot gate passed and while M3 Steps 22.3, 23, 24.2 and 25.4 are still open. Everything below is verified over the in-memory backend with synthetic data and, where a model is involved, a scripted provider. Nothing in M5 is deployed to staging yet, and nothing here is evidence of learning quality. `make check` after M5: ruff clean, `mypy app/` strict clean, backend **620 passed, 9 skipped**, web **39 passed**.
+
 ### Step 34 — Grow the course catalog through the authoring path
 
-- [ ] 34.1 Author-facing web portal: upload, validator report, preview as a student, submission status and reviewer notes (M3 ships the API only)
-- [ ] 34.2 New platform abilities when courses need them, added once for all courses (e.g. document-based writing feedback for APUSH, sandboxed code grading for CSA); never course-specific code
-- [ ] 34.3 Onboard further courses (APUSH first) as packages through review; each is evaluated before `active`
-- [ ] 34.4 Privacy-safe aggregate course metrics for authors (no individual student data)
-- [ ] 34.5 Verify existing courses' regression and evaluation cases still pass after each new ability
+- [x] 34.1 Author-facing web portal: upload, validator report, preview as a student, submission status and reviewer notes (M3 ships the API only)
+- [x] 34.2 New platform abilities when courses need them, added once for all courses (e.g. document-based writing feedback for APUSH, sandboxed code grading for CSA); never course-specific code
+- [x] 34.3 Onboard further courses (APUSH first) as packages through review; each is evaluated before `active`
+- [x] 34.4 Privacy-safe aggregate course metrics for authors (no individual student data)
+- [x] 34.5 Verify existing courses' regression and evaluation cases still pass after each new ability
+
+**Status:** ✅ Implemented 2026-11-04; 🟡 content unreviewed. **34.1** `web/author.html` + `web/js/portal/` (upload/replace drafts, validator report and evaluation results, submit, reviewer notes and history, student-view preview, metrics); new API `GET /api/authoring/packages/{c}/versions/{v}/preview` (also for reviewers) that never includes answer keys, expected answers, rubrics, the system prompt or the evaluation set. The portal cannot approve or activate. Tests: `tests/contract/test_author_portal.py`, `web/tests/portal.test.js`. **34.2** platform ability `source-analysis` (document-based writing graded against the question's `sourceMaterialIds`: sources fenced as untrusted content, per-criterion `documentsCited` checked against the question's sources, evidence still quoted from the student's own text; routing floor strong). Validator rules: sourced questions need the ability, the ability needs a sourced question, materials must exist, choice sets cannot have sources. No course-specific code. Sandboxed code grading (CSA) was not built: no course needs it yet. **34.3** APUSH 1.0.0 as an authored package (`content/authored/apush`): short answer, a DBQ-style question on two public-domain excerpts, and a source-analysis choice set; evaluation set 3 key-scored cases (pass) + 4 model-graded cases. The bundled planned placeholder was removed (as for Digital SAT); local seeding installs the package as **submitted**, so it reaches students only after a reviewer approves it (with `modelEvaluationAttested`) and activates it. The excerpts' wording must be checked against the originals at content review. Tests: `tests/contract/test_apush_course.py`. **34.4** `GET /api/authoring/courses/{c}/metrics`: distinct students, assessments by status and per-criterion averages, maintained exactly once per `assessment.completed` by the `course-metrics` consumer (the first production consumer); fewer than 5 students → `suppressed`; no student id anywhere in the aggregate. **34.5** `tests/unit/test_platform_abilities.py` re-validates every authored package and its key-scored cases and checks bundled courses after the ability change. Browser-checked 2026-11-04: sign-in, list, preview, metrics (no console errors); the upload and submit buttons were not exercised in the browser. Not done: a named content reviewer for APUSH, running its model-graded cases with a real model.
 
 ### Step 35 — Add admissions interviews and sourced planning
 
-- [ ] 35.1 Implement interview → student-confirmed facts → outline/feedback workflow
-- [ ] 35.2 Track school deadline sources with verification dates and uncertainty
-- [ ] 35.3 Keep authored essay text with student; no one-click ghostwriting
-- [ ] 35.4 Activity edits require student fact confirmation before saving
+- [x] 35.1 Implement interview → student-confirmed facts → outline/feedback workflow
+- [x] 35.2 Track school deadline sources with verification dates and uncertainty
+- [x] 35.3 Keep authored essay text with student; no one-click ghostwriting
+- [x] 35.4 Activity edits require student fact confirmation before saving
+
+**Status:** ✅ Implemented 2026-11-04 (API only), verified with a scripted model over the in-memory backend. Requires `entitlements.admissions` (403 `ADMISSIONS_ACCESS_REQUIRED`). **35.1** interview prompt set `content/admissions/interview-v1.json` (draft); each answer enqueues an `ADMISSIONS_FACTS` Run (session-less, `subjectId`), and the worker stores only proposals whose quote is found verbatim in the answer; the student confirms (optionally rewording) or rejects; only confirmed facts are given to the outline model, and outline points must cite them. **35.2** deadlines with an https source and the date the student last checked it, labeled `verified` (≤30 days) / `stale` / `unverified` / `unsourced` with an uncertainty note; not yet fed into the planner ("sourced planning" stops at tracking). **35.3** drafts are written only by the student; `ADMISSIONS_FEEDBACK` returns capped items (outline points ≤25 words, comments ≤40 words, ≤250 words total); over-long output is rejected as `MODEL_OUTPUT_INVALID`; drafts cannot change while a feedback run is active. **35.4** activities save only with `studentConfirmed: true` and confirmed facts (409 `FACTS_NOT_CONFIRMED`), re-checked on every edit. Tests: `tests/contract/test_admissions.py` (access, quoted proposals, confirm/reject finality, confirmed-only outline, ghostwriting rejection, own-draft feedback, activities, deadlines, isolation, idempotency, no synthetic admissions output under `mock`). Not done: student-facing admissions UI (the web panel is still the demo preview), a real-model evaluation of fact extraction and feedback, content review of the prompts.
 
 ### Step 36 — Add scoped parent summaries
 
-- [ ] 36.1 Separate parent identity with explicit student relationship
-- [ ] 36.2 Implement `summary:read` scope — excludes private chats, original answers, essay drafts
-- [ ] 36.3 Implement consent and revocation; verify on every access
-- [ ] 36.4 Test parent A/B isolation, revoked authorization, field-level projection
+- [x] 36.1 Separate parent identity with explicit student relationship
+- [x] 36.2 Implement `summary:read` scope — excludes private chats, original answers, essay drafts
+- [x] 36.3 Implement consent and revocation; verify on every access
+- [x] 36.4 Test parent A/B isolation, revoked authorization, field-level projection
+
+**Status:** ✅ Implemented 2026-11-04 (API only), verified over the in-memory backend. Parents are `parents/{uid}` accounts resolved to `ParentActor` (no student id). A student creates an invite (code shown once, stored hashed, 7-day expiry, `summary:read` only, at most 4 live links); the parent redeems it; the student can revoke. Every parent read re-checks the student-side link and scope in the same transaction before building a scoped `ActorContext.for_parent`; the parent's own index is never trusted alone. The summary is built field by field (courses, skill levels, prediction `unavailable`, this week's task counts, upcoming task titles) and excludes chats, answers, feedback, essays and admissions data. Deleting a student removes the parent index entries and invites. Tests: `tests/contract/test_parent_summaries.py` (A/B isolation, role separation, revocation incl. a stale index entry, single-use and expiring codes, idempotency, field-level projection, deletion). Not done: parent UI, parent account provisioning outside fixtures, and a policy decision on whether a minor's parent consent is also required.
 
 ### Step 37 — Calibrate mastery and exam predictions
 
-- [ ] 37.1 Compare mastery estimates against independent held-out responses
-- [ ] 37.2 Exam prediction requires representative coverage and independent outcomes
-- [ ] 37.3 Keep practice performance, self-reported records, and predictions distinct
-- [ ] 37.4 Without sufficient evidence, prediction stays `unavailable`
+- [x] 37.1 Compare mastery estimates against independent held-out responses
+- [x] 37.2 Exam prediction requires representative coverage and independent outcomes
+- [x] 37.3 Keep practice performance, self-reported records, and predictions distinct
+- [x] 37.4 Without sufficient evidence, prediction stays `unavailable`
+
+**Status:** ✅ Pipeline and gate implemented 2026-11-04; ❌ no calibration has been performed, because no real held-out responses or exam outcomes exist. `app/domain/calibration.py`: calibration uses only independent held-out responses (practice, self-reported and hint-assisted responses, and other courses, are counted and excluded), and requires ≥30 responses per mastery level, ≥20 students, ≥80% skill coverage and accuracy that rises with level; synthetic data is never evidence. `decide_prediction` is the only producer of prediction status (the twin reads it for every enrolled course) and returns `unavailable` on every path, with the first missing requirement as the reason — including when all evidence exists, because no validated score model exists. `scripts/run_calibration.py` writes a report and refuses identifying fields. Tests: `tests/unit/test_calibration.py`.
 
 ### Step 38 — Evaluate optional infrastructure
 
-- [ ] 38.1 Assess Jev, MCP adapters, Temporal, semantic indexes as needed
+- [x] 38.1 Assess Jev, MCP adapters, Temporal, semantic indexes as needed
 - [ ] 38.2 Verify actual vendor availability, interfaces, quality, and costs
-- [ ] 38.3 Confirm core workflows remain functional without optional dependencies
+- [x] 38.3 Confirm core workflows remain functional without optional dependencies
+
+**Status:** 🟡 Assessment written ([OPTIONAL_INFRASTRUCTURE.md](OPTIONAL_INFRASTRUCTURE.md)): none of the four is adopted, and each has an adoption trigger. 38.2 is deliberately not done: vendor availability, pricing and quality are only checked when a trigger is met, since today's figures would be stale by then. `tests/unit/test_optional_infrastructure.py` checks that no optional package is a runtime dependency and that the app plus a full learning loop run with those modules made unimportable.
 
 ---
 
@@ -1055,8 +1068,8 @@ Each extension is independently selected and verified. None are prerequisites fo
 | M1 Reliable foundation | 8–15 | Independent auth, Firestore repos, course enrollment, Task/Session/Run lifecycle, queue/outbox/worker, two-student isolation | Implemented; emulator + staging verification pending |
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; real-model evaluation, emulator and staging verification pending |
 | M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
-| M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 config only; 32 blocked; 33 not passed |
-| M5 Optional expansion | 34–38 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure) | Not started |
+| M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 deployed to staging 2026-11-03; 32 not yet run; 33 not passed |
+| M5 Optional expansion | 34–38 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure) | Implemented 2026-11-04 (in-memory, synthetic); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred |
 
 ## Superseded patterns
 

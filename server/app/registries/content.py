@@ -40,7 +40,10 @@ DEFAULT_CONTENT_ROOT = Path(__file__).resolve().parents[2] / "content"
 
 # The platform ability and tool catalogs (CLAUDE.md §3.5): a package selects from these;
 # a missing capability becomes a new platform ability, never course code.
-ABILITY_CATALOG = frozenset({"socratic-guidance", "rubric-assessment", "choice-scoring"})
+ABILITY_CATALOG = frozenset(
+    {"socratic-guidance", "rubric-assessment", "choice-scoring", "source-analysis"}
+)
+SOURCE_ANALYSIS = "source-analysis"
 TOOL_CATALOG = frozenset({"math-verify", "content-retrieval"})
 
 
@@ -221,7 +224,7 @@ def pack_issues(pack: Pack) -> list[PackageIssue]:
                     )
                 )
 
-    has_choice = has_free = False
+    has_choice = has_free = has_sourced = False
     for qid, q in sorted(pack.questions.items()):
         path = f"questions[{qid}]"
         if q.course_id != cid:
@@ -283,6 +286,27 @@ def pack_issues(pack: Pack) -> list[PackageIssue]:
                         f"question {qid}: pack cannot score items (needs choice-scoring)",
                     )
                 )
+        elif q.source_material_ids:
+            # Source-based writing is graded by source-analysis against these documents.
+            has_sourced = True
+            for mid in q.source_material_ids:
+                mat = pack.materials.get(mid)
+                if mat is None or mat.course_id != cid:
+                    issues.append(
+                        _issue(
+                            f"{path}.sourceMaterialIds",
+                            "unknown_material",
+                            f"question {qid}: unknown source material {mid}",
+                        )
+                    )
+            if SOURCE_ANALYSIS not in abilities:
+                issues.append(
+                    _issue(
+                        path,
+                        "ability_not_selected",
+                        f"question {qid}: source-based questions need source-analysis",
+                    )
+                )
         else:
             has_free = True
             if pack.authored and "rubric-assessment" not in abilities:
@@ -310,6 +334,14 @@ def pack_issues(pack: Pack) -> list[PackageIssue]:
                     "manifest.abilities",
                     "ability_without_data",
                     "rubric-assessment needs at least one free-response question",
+                )
+            )
+        if SOURCE_ANALYSIS in abilities and not has_sourced:
+            issues.append(
+                _issue(
+                    "manifest.abilities",
+                    "ability_without_data",
+                    "source-analysis needs at least one question with sourceMaterialIds",
                 )
             )
 

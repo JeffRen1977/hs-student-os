@@ -4,7 +4,8 @@ pinned skills, owner ids where the contract omits them) are dropped here."""
 from __future__ import annotations
 
 from app.domain.course_service import CourseAgent, EnrolledCourse
-from app.domain.ports.content import SubjectPackRegistry
+from app.domain.ports.content import QuestionContent, SubjectPackRegistry
+from app.domain.skills.source_analysis import sources_for
 from app.domain.types.assessment import Assessment
 from app.domain.types.course import AgentConfig, CourseCatalogEntry, CourseEnrollment
 from app.domain.types.event import DomainEvent
@@ -158,6 +159,20 @@ def task(x: Task) -> t.Task:
     )
 
 
+def _activity_sources(
+    packs: SubjectPackRegistry, x: Session, q: QuestionContent
+) -> list[s.ActivitySource] | None:
+    if not q.source_material_ids:
+        return None
+    found = sources_for(packs, x.course_id, q, x.context_version.pack) or ()
+    return [
+        s.ActivitySource(
+            material_id=m.material_id, title=m.title, text=m.text, source_ref=m.source_ref
+        )
+        for m in found
+    ]
+
+
 def session(x: Session, packs: SubjectPackRegistry | None = None) -> s.Session:
     activity = None
     if x.activity is not None and packs is not None:
@@ -177,6 +192,7 @@ def session(x: Session, packs: SubjectPackRegistry | None = None) -> s.Session:
                     )
                     for i in q.items
                 ] if q.items is not None else None,
+                sources=_activity_sources(packs, x, q),
             )  # fmt: skip
     return s.Session(
         activity=activity,
@@ -228,6 +244,7 @@ def run(x: Run) -> r.Run:
         kind=x.kind,
         submission_id=x.submission_id,
         message_id=x.message_id,
+        subject_id=x.subject_id,
         attempt_count=x.attempt_count,
         input_request=(
             r.InputRequest(

@@ -37,6 +37,15 @@ class ActivityItem(ApiModel):
     choices: list[ActivityChoice]
 
 
+class ActivitySource(ApiModel):
+    """A source document the student writes from (source-analysis questions)."""
+
+    material_id: OpaqueId
+    title: str
+    text: str
+    source_ref: str
+
+
 class SessionActivity(ApiModel):
     """The question this session works on, at the version pinned when it opened."""
 
@@ -46,6 +55,8 @@ class SessionActivity(ApiModel):
     prompt: str
     # Choice sets: answer one line per item, e.g. "1: B" (scored by key, not a model).
     items: list[ActivityItem] | None = None
+    # Source-based questions: the documents to read and cite, in the question's order.
+    sources: list[ActivitySource] | None = None
 
 
 class Session(ApiModel):

@@ -14,6 +14,9 @@ from app.domain.ports.content import TIER_ORDER, ModelTier
 SKILL_MINIMUM_TIERS: Mapping[str, ModelTier] = {
     "socratic-guidance": ModelTier.FAST,
     "rubric-assessment": ModelTier.STRONG,
+    "source-analysis": ModelTier.STRONG,
+    "admissions-facts": ModelTier.BALANCED,
+    "admissions-feedback": ModelTier.BALANCED,
 }
 
 

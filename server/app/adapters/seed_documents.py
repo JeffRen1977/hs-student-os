@@ -18,6 +18,7 @@ from app.adapters.firestore.package_repository import (
     version_path,
     version_to_doc,
 )
+from app.adapters.firestore.parent_repository import parent_path
 from app.domain.planning_schedule import PlanningSchedulePolicy
 from app.domain.types.package import (
     CourseState,
@@ -131,7 +132,8 @@ def build_platform_documents(
     now: datetime,
     authored_root: Path = DEFAULT_CONTENT_ROOT / "authored",
 ) -> dict[str, dict[str, Any]]:
-    """Platform members, and the seed packages installed as active.
+    """Platform members, and the seed packages (installed as active, or waiting in the
+    review queue as submitted).
 
     Each seed package must pass the same validator (and its evaluation set) as an upload;
     its audit trail says plainly that the approval is a local seed, not a review.
@@ -139,26 +141,35 @@ def build_platform_documents(
     docs: dict[str, dict[str, Any]] = {}
     for m in platform.members:
         docs[member_path(m.uid)] = {"uid": m.uid, "role": m.role, "orgId": m.org_id}
+    for parent in platform.parents:
+        docs[parent_path(parent.uid)] = {
+            "uid": parent.uid, "role": "parent", "displayName": parent.display_name,
+        }  # fmt: skip
     for seed in platform.seed_packages:
         raw = json.loads((authored_root / seed.path / "package.json").read_text("utf-8"))
         checked = validate_package(raw)
         if not checked.report.valid or not checked.report.evaluation.auto_all_passed:
             raise ValueError(f"seed package {seed.path} does not validate: {checked.report}")
         assert checked.course_id and checked.version
-        history = tuple(
-            StatusChange(from_status=a, to_status=b, actor_id=who, at=now, notes=note)
-            for a, b, who, note in (
-                (None, PackageStatus.DRAFT, seed.uploaded_by, "uploaded"),
-                (PackageStatus.DRAFT, PackageStatus.SUBMITTED, seed.uploaded_by, ""),
+        active = seed.status == "active"
+        steps = [
+            (None, PackageStatus.DRAFT, seed.uploaded_by, "uploaded"),
+            (PackageStatus.DRAFT, PackageStatus.SUBMITTED, seed.uploaded_by, ""),
+        ]
+        if active:
+            steps += [
                 (PackageStatus.SUBMITTED, PackageStatus.APPROVED, SEED_REVIEWER, SEED_NOTE),
                 (PackageStatus.APPROVED, PackageStatus.ACTIVE, SEED_REVIEWER, SEED_NOTE),
-            )
+            ]
+        history = tuple(
+            StatusChange(from_status=a, to_status=b, actor_id=who, at=now, notes=note)
+            for a, b, who, note in steps
         )
         version = PackageVersion(
             course_id=checked.course_id,
             version=checked.version,
             org_id=seed.org_id,
-            status=PackageStatus.ACTIVE,
+            status=PackageStatus.ACTIVE if active else PackageStatus.SUBMITTED,
             title=checked.title,
             package_json=checked.canonical_json,
             content_hash=checked.content_hash,
@@ -171,7 +182,9 @@ def build_platform_documents(
                 decision=PackageStatus.APPROVED,
                 decided_at=now,
                 notes=SEED_NOTE,
-            ),
+            )
+            if active
+            else None,
             history=history,
         )
         docs[version_path(version.course_id, version.version)] = version_to_doc(version)
@@ -179,8 +192,8 @@ def build_platform_documents(
             PackageCourse(
                 course_id=version.course_id,
                 org_id=seed.org_id,
-                state=CourseState.ACTIVE,
-                active_version=version.version,
+                state=CourseState.ACTIVE if active else CourseState.DRAFTING,
+                active_version=version.version if active else None,
                 created_at=now,
                 updated_at=now,
             )

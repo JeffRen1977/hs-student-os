@@ -10,7 +10,8 @@ Checks, in order:
 3. References: question → rubric, rubric/question/material → skill, starter task and
    evaluation case → question, answer checks and choice items → rubric criteria.
 4. Platform catalog: abilities and tools exist, and each selected ability has the data it
-   needs (`choice-scoring` ↔ choice sets, `rubric-assessment` ↔ free-response questions).
+   needs (`choice-scoring` ↔ choice sets, `rubric-assessment` ↔ free-response questions,
+   `source-analysis` ↔ questions with `sourceMaterialIds`, which must name course materials).
 5. System prompt: only the platform's template variables may appear.
 6. Evaluation set: cases on key-scored questions are run now, deterministically.
 """

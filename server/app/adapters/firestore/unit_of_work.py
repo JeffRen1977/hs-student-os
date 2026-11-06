@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
+from app.adapters.firestore.admissions_repository import FirestoreAdmissionsStore
 from app.adapters.firestore.assessment_repository import (
     FirestoreAssessmentStore,
     FirestoreMasteryStore,
@@ -10,12 +11,14 @@ from app.adapters.firestore.consumer_repository import (
     FirestoreConsumerOffsetStore,
     FirestoreReceiptStore,
 )
+from app.adapters.firestore.course_metrics_repository import FirestoreCourseMetricsStore
 from app.adapters.firestore.course_repository import FirestoreEnrollmentStore
 from app.adapters.firestore.documents import DocTxn, DocumentStore
 from app.adapters.firestore.event_repository import FirestoreEventStore
 from app.adapters.firestore.idempotency_repository import FirestoreIdempotencyStore
 from app.adapters.firestore.message_repository import FirestoreMessageStore
 from app.adapters.firestore.outbox_repository import FirestoreFileStore, FirestoreOutboxStore
+from app.adapters.firestore.parent_repository import FirestoreParentStore
 from app.adapters.firestore.plan_repository import FirestorePlanStore
 from app.adapters.firestore.reminder_repository import (
     FirestoreConsentStore,
@@ -55,6 +58,9 @@ class FirestoreTx:
         self.plans = FirestorePlanStore(txn)
         self.reminders = FirestoreReminderStore(txn)
         self.consents = FirestoreConsentStore(txn)
+        self.course_metrics = FirestoreCourseMetricsStore(txn)
+        self.parents = FirestoreParentStore(txn)
+        self.admissions = FirestoreAdmissionsStore(txn)
 
 
 class DocumentUnitOfWork:

@@ -28,6 +28,24 @@
       "path": "dsat",
       "orgId": "org_hsos_content",
       "uploadedBy": "author_hsos"
+    },
+    {
+      "path": "apush",
+      "orgId": "org_hsos_content",
+      "uploadedBy": "author_hsos",
+      "status": "submitted"
+    }
+  ],
+  "parents": [
+    {
+      "uid": "parent_alex",
+      "email": "parent.alex@example.test",
+      "displayName": "Alex's parent (synthetic)"
+    },
+    {
+      "uid": "parent_other",
+      "email": "parent.other@example.test",
+      "displayName": "Another parent (synthetic)"
     }
   ]
 }

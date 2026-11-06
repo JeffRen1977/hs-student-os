@@ -1,6 +1,6 @@
 # High School Student OS — API 契约 v0.3
 
-更新：2026-11-01：M3 改为课程平台，移除跨课程前置技能接口与事件，新增 `PRACTICE` 任务类型（§6.2）。2026-10-31：M2 实现补充：评估/掌握度/完成/事件流接口与字段（标注 “M2”，见 §1.4、§1.5、§2.6、§4、§8）。M1 实现补充：`COURSE_NOT_ENROLLED`、目录 `status`/`agent` 字段、消息资源、身份映射与 `date=today`（标注 “M1”）。2026-10-30 增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
+更新：2026-11-04：M5 扩展（§6.5）：作者门户预览与课程聚合指标、平台能力 `source-analysis`（Session `activity.sources`）、家长链接与摘要、申请工作区（新增 Run 类型 `ADMISSIONS_FACTS`/`ADMISSIONS_FEEDBACK` 与 `subjectId`）、预测门控；新增错误码 `PARENT_LINK_LIMIT`、`ADMISSIONS_ACCESS_REQUIRED`、`FACTS_NOT_CONFIRMED`。2026-11-01：M3 改为课程平台，移除跨课程前置技能接口与事件，新增 `PRACTICE` 任务类型（§6.2）。2026-10-31：M2 实现补充：评估/掌握度/完成/事件流接口与字段（标注 “M2”，见 §1.4、§1.5、§2.6、§4、§8）。M1 实现补充：`COURSE_NOT_ENROLLED`、目录 `status`/`agent` 字段、消息资源、身份映射与 `date=today`（标注 “M1”）。2026-10-30 增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
 
 ## 0. 通用约定
 
@@ -511,6 +511,54 @@ Run FAILED 的 `error.code`（面向学生，不含供应商消息）：`BUDGET_
 - **提醒**：每个学生、渠道、本地日最多一条摘要提醒（id = 去重键 `{localDate}.{channel}`），默认本地 16:00，避开安静时段；内容在发送时按当时的任务计算（已完成、跳过或改到别天的任务不计入；一个都不剩就不发）。接收者只有学生本人，没有家长通知。试点没有真实渠道：只有 `fake` 发送器，部署环境只发给指定的合成测试学生（`HSOS_REMINDER_TEST_RECIPIENTS`），生产环境拒绝 `fake`。
 - **内部路由**（worker，仅服务身份；Cloud Scheduler 调用）：`POST /internal/planning/schedule`、`/internal/reminders/deliver`、`/internal/ops/check`（返回 `{alerts[{alert, firing, observed, threshold}]}`）、`/internal/retention/events`。学生 token 一律 401。
 - **事件保留**：超过 `HSOS_EVENT_RETENTION_DAYS`（默认 180 天）的事件被清理并提高 `oldestRetainedSequence`；更早的游标返回 410（已有契约）。评估、掌握度、计划不受影响。
+
+## 6.5 M5 扩展（Steps 34–38，2026-11-04）
+
+M5 是试点后的可选扩展，各项单独验收（见 [STEP_BY_STEP_PLAN.md](STEP_BY_STEP_PLAN.md) M5）。所有 POST 仍需 Idempotency-Key，修改用 If-Match。
+
+### 6.5.1 作者门户与课程指标（Step 34.1、34.4）
+
+- `GET /api/authoring/packages/{courseId}/versions/{version}/preview`（本组织作者）、`GET /api/review/packages/{courseId}/versions/{version}/preview`（审核员）→ `PackagePreview`：`courseId`、`version`、`name`、`description`、`skills[{skillId,name}]`、`starterTasks[{questionId,title,taskType,mode,durationMin}]`、`questions[{questionId,version,topic,prompt,items?,sources?}]`。即学生看到的内容：**不含**答案键、`expectedAnswer`、rubric、systemPrompt、evaluationSet。报告有错误的版本返回 409 `PACKAGE_INVALID`；其他组织 404；学生 403。
+- `GET /api/authoring/courses/{courseId}/metrics`（本组织课程）→ `CourseMetricsView`：`courseId`、`suppressed`、`minimumCohort`（5）、`students`、`assessments`、`byStatus{accepted, insufficient_evidence}`、`criteria[{rubricId, criterionId, count, averageEarned, maxPoints}]`、`updatedAt`。不同学生少于 5 人时 `suppressed: true`，其余字段为 null。只有聚合数，从不含学生 id、作答、反馈或单条记录。内置课程（calc_bc）与其他组织课程 404。
+- 指标由平台消费者 `course-metrics`（订阅 `assessment.completed`）维护，凭消费回执保证每个事件只计一次；`HSOS_COURSE_METRICS_ENABLED`（默认 true）。
+- 作者门户页面：`web/author.html`（上传、校验报告、提交、审核意见与历史、学生视角预览、指标）。它只调用 `/api/authoring/*`，不能批准或激活。
+
+### 6.5.2 平台能力 `source-analysis`（Step 34.2）
+
+- 课程包题目新增可选字段 `sourceMaterialIds`（≤8，引用本课程 materials）：基于材料的写作题（如 DBQ）。选择题组不能带材料。校验器：带材料的题需要能力 `source-analysis`；选了该能力必须至少有一道带材料的题；材料不存在 → `unknown_material`。
+- Session `activity` 新增 `sources[{materialId, title, text, sourceRef}]`（按题目顺序）。
+- 评分：rubric 评分 + 材料（作为不可信内容隔离注入）。每个 criterion 输出 `documentsCited`，引用题目材料以外的文档 → 输出无效（重试后 `MODEL_OUTPUT_INVALID`，不写评估）。得分证据仍必须是学生作答的原文片段。路由下限：strong。
+- APUSH（`apush`）以作者包形式提供（`content/authored/apush`），本地种子状态为 **submitted**（待平台审核）；内置“planned”占位已移除。
+
+### 6.5.3 家长摘要（Step 36）
+
+家长是独立身份（`parents/{uid}`），不是学生，也不是平台成员；学生调用家长接口 403，家长调用学生接口 403。
+
+学生端：
+- `POST /api/parent-links` body `{scopes: ["summary:read"]}` → 201 `{linkId, status: "pending", scopes, createdAt, inviteExpiresAt, inviteCode}`。`inviteCode` 只返回一次（只存哈希；幂等重放时为 null），7 天有效。只能授予 `summary:read`；同时最多 4 个 pending/active 链接，否则 409 `PARENT_LINK_LIMIT`。
+- `GET /api/parent-links` → `{links: [...]}`，状态 `pending | active | revoked | expired`，含 `parentDisplayName`、`acceptedAt`、`revokedAt`。
+- `POST /api/parent-links/{linkId}/revoke` body `{}` → revoked（立即生效）。
+
+家长端：
+- `POST /api/parent/links/accept` body `{inviteCode}` → `{studentId, displayName, linkedAt}`。错误、已用或过期的码一律 404。
+- `GET /api/parent/students` → `{students: [{studentId, displayName, linkedAt}]}`（只含有效链接）。
+- `GET /api/parent/students/{studentId}/summary` → `ParentSummaryView`：`studentId`、`displayName`、`grade`、`courses[{courseId, name, skills[{skillId, level, independentEvidenceCount}], prediction: "unavailable"}]`、`week{start, end, planned, completed, skipped, upcoming[{courseId, title, scheduledDate, durationMin}]}`、`generatedAt`。**不含**聊天、作答、反馈、文书、申请事实、权限或事件。每次读取都在同一事务中重新校验学生侧链接与 scope；未链接、他人、已撤销 → 404。
+
+### 6.5.4 申请工作区（Step 35）
+
+需要后台授予 `entitlements.admissions`，否则 403 `ADMISSIONS_ACCESS_REQUIRED`。前缀 `/api/admissions`。
+
+- 访谈：`GET /interview/prompts` → `{promptSetVersion, prompts[{promptId, category, text}]}`；`POST /interview/answers` `{promptId, text}` → 202 回答 + `run{runId, status}`（`ADMISSIONS_FACTS` Run）；`GET /interview/answers`。
+- 事实：`GET /facts` → `{facts[{factId, text, category, status, source, answerId, quote, createdAt, decidedAt, version}]}`。模型只能**提议**（`status: proposed`, `source: interview`），每条必须附回答原文 `quote`，找不到原文的提议直接丢弃。`POST /facts` `{text, category}`：学生自己写的事实，直接 confirmed。`POST /facts/{id}/confirm` `{text?}`（可改写为自己的话）、`POST /facts/{id}/reject` `{}`；已决定的事实再决定 → 409 `INVALID_STATE_TRANSITION`。
+- 活动：`GET /activities`；`POST /activities`、`PATCH /activities/{id}`（If-Match）body `{name, role, description, hoursPerWeek, weeksPerYear, factIds, studentConfirmed}`。`studentConfirmed` 必须为 true，且引用的事实必须全部 confirmed，否则 409 `FACTS_NOT_CONFIRMED`。
+- 截止日期：`GET /deadlines`；`POST /deadlines`、`PATCH /deadlines/{id}`（If-Match）body `{school, kind, dueDate, sourceUrl?, sourceCheckedOn?, notes}`，`sourceUrl` 必须 `https://`。响应含 `daysLeft`、`verification`（`verified` 30 天内核对过 / `stale` / `unverified` / `unsourced`）与 `uncertainty` 说明。
+- 文书：`GET /essays`、`POST /essays` `{title, prompt}`、`GET /essays/{id}`、`PATCH /essays/{id}` `{draft}`（If-Match；反馈生成期间 409 `RUN_IN_PROGRESS`）。草稿只由学生撰写，服务端从不写或改写。
+- 提纲/反馈：`POST /essays/{id}/feedback` `{kind: "outline" | "feedback"}` → 202（`ADMISSIONS_FEEDBACK` Run；同一篇文书同时只有一个）。outline 需要至少一条 confirmed 事实（否则 409 `FACTS_NOT_CONFIRMED`），只把 confirmed 事实交给模型，每个要点 ≤25 词并引用 factId；feedback 需要非空草稿，条目为 strength / question / suggestion，每条 ≤40 词，总计 ≤250 词。超长（代写）或引用未确认事实 → `MODEL_OUTPUT_INVALID`，不保存。`GET /essays/{id}/feedback` → `{feedback[{feedbackId, essayId, essayVersion, kind, runId, items[{type, text, factIds}], createdAt, completedAt}]}`。
+- Run：`kind` 新增 `ADMISSIONS_FACTS`、`ADMISSIONS_FEEDBACK`（`sessionId` 为 null），`Run.subjectId` 指向回答或反馈请求。`HSOS_LLM_PROVIDER=mock` 时失败为 `MODEL_UNAVAILABLE`（没有合成的申请输出）。其他失败码：`ADMISSIONS_ACCESS_REQUIRED`、`ADMISSIONS_INPUT_NOT_FOUND`、`ESSAY_CHANGED`。
+
+### 6.5.5 预测门控（Step 37）
+
+`TwinSummary.predictionSummary` 的每个已注册课程都由预测门控计算，目前一律 `{status: "unavailable", reason}`。reason 依次为：`not_calibrated`、`synthetic_only`、`mastery_not_calibrated`、`insufficient_coverage`、`no_independent_exam_outcomes`、`prediction_model_not_validated`。练习表现、自报成绩与预测分开处理，前两者永远不能使预测可用。校准脚本见 `server/scripts/run_calibration.py`。
 
 ## 7. v0.1 → v0.2 迁移与验收
 

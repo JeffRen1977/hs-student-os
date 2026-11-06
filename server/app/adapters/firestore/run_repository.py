@@ -24,6 +24,7 @@ def run_to_doc(r: Run) -> Doc:
         "kind": r.kind.value,
         "submissionId": r.submission_id,
         "messageId": r.message_id,
+        "subjectId": r.subject_id,
         "attemptCount": r.attempt_count,
         "inputRequest": (
             {
@@ -65,6 +66,7 @@ def run_from_doc(d: Doc) -> Run:
         kind=RunKind(d["kind"]),
         submission_id=d.get("submissionId"),
         message_id=d.get("messageId"),
+        subject_id=d.get("subjectId"),
         attempt_count=int(d.get("attemptCount", 0)),
         input_request=(
             InputRequest(

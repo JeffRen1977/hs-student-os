@@ -22,7 +22,9 @@ def test_bundled_active_pack_is_calc_bc_only(registry) -> None:  # type: ignore[
     # package (content/authored/dsat, Step 27).
     assert registry.active_course_ids() == {"calc_bc"}
     assert not (DEFAULT_CONTENT_ROOT / "packs/dsat").exists()
-    for cid in ("apush", "physics_c"):
+    # APUSH followed the same path (content/authored/apush, Step 34.3).
+    assert not (DEFAULT_CONTENT_ROOT / "packs/apush").exists()
+    for cid in ("physics_c",):
         pack = registry.pack(cid)
         assert pack is not None
         assert pack.manifest.availability is Availability.PLANNED
@@ -132,6 +134,6 @@ def test_reviewed_status_requires_named_reviewer(tmp_path: Path) -> None:
 
 def test_active_pack_must_be_complete(tmp_path: Path) -> None:
     root = _copy_content(tmp_path)
-    _edit(root / "packs/apush/manifest.json", availability="active")
+    _edit(root / "packs/physics_c/manifest.json", availability="active")
     with pytest.raises(ContentError, match="active packs require"):
         load_content(root)

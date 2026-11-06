@@ -1,0 +1,13 @@
+{
+  "promptSetVersion": "interview-v1",
+  "source": {"type": "original", "author": "HS Student OS content team", "license": "Original work; internal use (draft, pending content review)"},
+  "review": {"status": "draft", "reviewer": null, "reviewedAt": null},
+  "prompts": [
+    {"promptId": "activities", "category": "activity", "text": "What do you spend time on outside of class, and what do you actually do there each week?"},
+    {"promptId": "proud", "category": "achievement", "text": "Tell me about something you made, fixed, organized or achieved that you are proud of. What was your part?"},
+    {"promptId": "challenge", "category": "experience", "text": "Describe a time something went wrong or was hard for you. What happened, and what did you do next?"},
+    {"promptId": "values", "category": "value", "text": "What do you care about enough to give up free time for? Give a specific example."},
+    {"promptId": "goals", "category": "goal", "text": "What do you want to study or do after high school, and what experiences led you there?"},
+    {"promptId": "background", "category": "background", "text": "Is there anything about your family, community or responsibilities at home that shapes how you spend your time?"}
+  ]
+}

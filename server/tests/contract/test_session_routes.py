@@ -49,8 +49,8 @@ async def test_request_cannot_override_course_or_agent(harness: Harness) -> None
 
 
 async def test_planned_course_is_409(harness: Harness) -> None:
-    harness.put_task(make_task("stu_alex", "task_apush", course_id="apush"))
-    response = await _start(harness, "stu_alex", "task_apush")
+    harness.put_task(make_task("stu_alex", "task_physics", course_id="physics_c"))
+    response = await _start(harness, "stu_alex", "task_physics")
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "COURSE_NOT_AVAILABLE"
 

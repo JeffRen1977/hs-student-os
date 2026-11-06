@@ -1,6 +1,6 @@
 # High School Student OS — 后端设计 v0.4
 
-更新：2026-10-30。增加课程注册数据模型（§3）、对话上下文装载策略（§5.4）、SubjectPack manifest 与 system prompt（§7.1）。采纳 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md)，替代 v0.2 的单文件 HTTP、JSON 生产存储、email 主键、内存 Session 和强制 Jev 依赖。本文件是目标设计，不是已实现能力清单。产品边界见 [HIGH_SCHOOL_STUDENT_OS.md](HIGH_SCHOOL_STUDENT_OS.md)，接口以 [API.md](API.md) v0.3 为准。
+更新：2026-11-04：M5 数据布局（§3）、家长身份与 summary:read（§2）、申请 Run 与平台能力（§7）。2026-10-30：增加课程注册数据模型（§3）、对话上下文装载策略（§5.4）、SubjectPack manifest 与 system prompt（§7.1）。采纳 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md)，替代 v0.2 的单文件 HTTP、JSON 生产存储、email 主键、内存 Session 和强制 Jev 依赖。本文件是目标设计，不是已实现能力清单。产品边界见 [HIGH_SCHOOL_STUDENT_OS.md](HIGH_SCHOOL_STUDENT_OS.md)，接口以 [API.md](API.md) v0.3 为准。
 
 ## 1. 形态与技术栈
 
@@ -48,7 +48,7 @@ flowchart TD
 - 学生可改 profile、goals、preferences 的叶字段白名单；`entitlements` 仅管理员配置，按 courseId 授予（`apCourses` / `courses`），课程类别不授予权限。学生勾选一门课程不等于获准使用。
 - 课程作者与平台审核员（Step 26）由 `platformMembers/{uid}` 解析为 `PlatformActor`（actorId、role、orgId、权限），它与 `ActorContext` 是不同类型、没有 studentId，因此无法传给任何学生存储或学习服务。作者只能访问本组织的课程包，其他组织的包返回 404。
 - Task、Session、Run、Submission、Assessment、事件、文件与检索均校验归属。跨学生 ID 查询返回 404，避免暴露存在性。
-- 家长不是学生会话的别名。后续 `summary:read` 授权只返回摘要投影，默认不含作答/对话/文书。API 校验授权关系，不能只靠前端隐藏。
+- 家长不是学生会话的别名（Step 36 已实现）。家长账号由 `parents/{uid}` 解析为 `ParentActor`（无 studentId）；学生创建邀请（只存邀请码哈希），家长兑换后链接生效，学生可随时撤销。每次读取都在同一事务里先校验学生侧链接（`students/{id}/parentLinks/{linkId}`，权威）再构造只带 `summary:read` 的 `ActorContext.for_parent`；家长索引 `parents/{uid}/children/{studentId}` 只用于列出，不作授权依据。摘要投影逐字段构造，不含作答/对话/反馈/文书/申请数据。
 - 服务端 Firestore Admin SDK 绕过客户端规则，故 API/worker 仍必须做归属检查；浏览器不直接读写权威学习数据。
 
 ## 3. 数据模型与持久化
@@ -81,6 +81,19 @@ packageCourses/{courseId}                         # Step 26：课程归属组织
 packageVersions/{courseId}@{version}              # 包内容（规范 JSON）、校验报告、审核决定、状态历史
 platformMembers/{uid}                             # 作者（含 orgId）或平台审核员
 platformMembers/{uid}/idempotency/{keyHash}       # 平台成员命令的幂等记录
+courseMetrics/{courseId}                          # M5 34.4：课程聚合指标（无学生数据）
+students/{studentId}/metricsMembership/{courseId} # 该学生已计入不同学生数的标记
+students/{studentId}/parentLinks/{linkId}         # M5 36：家长链接（权威）：scope、状态、邀请码哈希
+parentInvites/{codeHash}                          # 一次性邀请 → (studentId, linkId)；兑换后记录 redeemedBy
+parents/{uid}                                     # 家长账号（后台开通）
+parents/{uid}/children/{studentId}                # 家长索引（读取时仍复查学生侧链接）
+parents/{uid}/idempotency/{keyHash}               # 家长命令的幂等记录
+students/{studentId}/admissionsAnswers/{answerId}     # M5 35：访谈回答（学生原话）
+students/{studentId}/admissionsFacts/{factId}         # proposed / confirmed / rejected 事实
+students/{studentId}/admissionsActivities/{id}        # 只引用已确认事实的活动
+students/{studentId}/admissionsDeadlines/{id}         # 截止日期 + 来源 + 核对日期
+students/{studentId}/admissionsEssays/{essayId}       # 学生自己的文书草稿
+students/{studentId}/admissionsFeedback/{feedbackId}  # 每个文书版本的提纲/反馈条目
 ```
 
 M1 实现说明：仓储写在 `DocTxn` 接缝上（读穿透事务、写缓冲至提交，同一事务内可读到自己的缓冲写），生产后端为 Firestore SDK，测试/无 Java 本地开发使用内存后端（部署环境拒绝）。唯一性约束依赖文档而非查询：Task 文档的 `openSessionId` 保证一 Task 一 OPEN Session，Session 文档的 `activeRunId` 保证一 Session 一非终态 Run，`eventState/current` 保证事件序号连续，注册文档被 Session/命令事务读取以与取消注册互斥。
@@ -91,6 +104,8 @@ M3 实现说明：新增 `consumerReceipts/{consumer}:{eventId}:{target}`、`con
 
 Step 26 实现说明：课程包记录位于任何学生子树之外。运行时注册表由两部分组成：内置课程（`content/packs/`，Calc BC 与计划中的课程）和经审核的课程包（active、superseded、retired 版本）。`PackageContentSync` 重新校验并按内容哈希缓存后整体安装；激活/退役的实例立即刷新，其他实例（API 副本、worker）在副本超过 `HSOS_PACKAGE_REFRESH_SECONDS`（默认 30 秒）时于请求或投递前刷新。查找可指定版本：Session 固定的 `contextVersion.pack` 在新版本激活或课程退役后仍可加载，新 Session 使用 active 版本。
 
+M5 实现说明（2026-11-04）：Run 增加 `subjectId`，新 Run 类型 `ADMISSIONS_FACTS` / `ADMISSIONS_FEEDBACK` 与 PLANNING 一样没有 Session；worker 在租约事务中复查 `entitlements.admissions` 并读取输入，事务外调用模型，在带 fencing token 的提交事务中写入提议事实或反馈条目与 Run 终态。文书 `activeRunId` 保证同一文书同时只有一个反馈 Run，`finish_run` 在任何终态释放它。`courseMetrics` 由 `course-metrics` 消费者在学生自己的消费事务里更新（回执 + 标记 + 聚合同一事务）；它是一个热点文档，试点规模可接受，规模扩大后改为分片计数。删除学生时同时删除其家长索引项与邀请；聚合指标不含学生数据，保留不动。M5 新查询都只按单字段排序，不需要新的复合索引。
+
 按 studentId、状态、到期时间等实际查询建立索引。后台 outbox collection-group 查询仅服务身份可用；客户端不得用全局查询绕过学生边界。题目、rubric 与技能都属于各自的课程包，是独立版本化内容目录；课程之间不互相引用（2026-11-01 起不再有跨课程技能映射）。
 
 | 数据 | 规则 |
@@ -99,7 +114,7 @@ Step 26 实现说明：课程包记录位于任何学生子树之外。运行时
 | Submission | 不可变作答版本；修改建立新提交，引用之前版本 |
 | Assessment | 引用题目/rubric/提示/工具/模型/工作流版本；可重评为新版本 |
 | Mastery | 由 accepted assessment 投影；同一证据只应用一次，可从证据重建 |
-| Prediction | 与 mastery 分开；校准模型、评估数据、适用范围俱全后才开放 |
+| Prediction | 与 mastery 分开；校准模型、评估数据、适用范围俱全后才开放。M5 Step 37：`app/domain/calibration.py` 的预测门控是唯一产生预测状态的地方，目前一律 unavailable |
 | File | DB 存元数据和权限，正文在对象存储；有上传/校验状态 |
 | Run | 持久执行状态、尝试次数、租约/fencing token、使用量和输出引用 |
 | Event | per-student 单调 sequence、schemaVersion、因果引用和脱敏 payload |
@@ -177,7 +192,9 @@ ContextLoader 不加载其他课程的 Session 消息，也不加载其他课程
 
 ## 7. 内容、模型与工具
 
-Registry 加载版本化 manifest（agent、pack、skill），只启用已验证内容。第一方参考课程包 calc_bc；Digital SAT（dsat）是独立课程、M3 第二门课程候选（选择题按答案键评分）；Admissions 保持 planned。Run 固定 pack/skill/rubric/workflow 版本，升级不改变正在运行的行为。
+Registry 加载版本化 manifest（agent、pack、skill），只启用已验证内容。第一方参考课程包 calc_bc；Digital SAT（dsat）是独立课程、M3 第二门课程（选择题按答案键评分）；APUSH（apush）是 M5 以作者包形式上线的第三门课程（待审核）。申请工作区不是课程包，是平台功能（Step 35，需 `entitlements.admissions`）。Run 固定 pack/skill/rubric/workflow 版本，升级不改变正在运行的行为。
+
+M5 平台能力（Step 34.2）：能力目录为 `socratic-guidance`、`rubric-assessment`、`choice-scoring`、`source-analysis`。`source-analysis` 是 rubric 评分的扩展：题目的 `sourceMaterialIds` 指向课程材料，材料作为不可信内容（`<source_document>` 隔离）进入评分上下文；输出逐条 criterion 给出 `documentsCited`，引用题目材料之外的文档即输出无效；得分证据仍只能取自学生作答。路由下限 strong。申请技能 `admissions-facts` 与 `admissions-feedback` 由 worker 执行（下限 balanced），服务端校验：提议事实必须引用回答原文，提纲只能引用已确认事实，条目有字数上限（防止代写）。
 
 ### 7.1 SubjectPack manifest 与 system prompt
 
@@ -247,7 +264,7 @@ M3 实现说明：`POST /api/plans/replan` 建 PLANNING Run；worker 取得租�
 
 Cloud Scheduler 定期触发 dispatcher，查询 dueAt，按学生 IANA timezone 计算本地日期和下一次执行。`studentId + localDate + planningReason/sourceEvent` 做业务去重；覆盖夏令时、旅行改时区和并发结算。GET tasks 不隐式重新生成。
 
-提醒使用 outbox，按渠道/任务/时段去重，发送前再检查同意、撤销、安静时段与频控。首版无外部写工具，提醒是受控后台服务；不由模型任意发送消息。家长摘要为后续角色化能力。
+提醒使用 outbox，按渠道/任务/时段去重，发送前再检查同意、撤销、安静时段与频控。首版无外部写工具，提醒是受控后台服务；不由模型任意发送消息。家长摘要（Step 36）是只读投影，不触发提醒；提醒的接收者仍只有学生本人。
 
 M4 实现说明（Step 28）：`planState/current` 增加 `studentId`、`nextDueAt`（UTC）、`timezone`、`lastScheduledLocalDate`、`activeTrigger`。Cloud Scheduler 每 15 分钟调用 `/internal/planning/schedule`；扫描 `planState.nextDueAt <= now`（集合组查询），每个学生一个事务（`app/domain/planning_schedule.py`）重新检查：本地日已有定时计划 → 只推进 `nextDueAt`；有未结束的 PLANNING Run → 合并；否则建 PLANNING Run，id `run_sched_{YYYYMMDD}_{studentId}`（Cloud Tasks 任务名在队列内唯一，所以含 studentId）。停机后只为"今天"补一次。时间换算见 `app/domain/local_time.py`：不存在的本地时刻（春季跳时）取跳过后的时刻，重复的本地时刻（秋季回拨）取第一次，按本地日期去重保证只算一次。首次注册时开始计划，改时区时按新时区重算 `nextDueAt`。
 

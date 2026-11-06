@@ -38,7 +38,11 @@ python3 -m http.server 8000 -d web
 | `js/agents/dsat.js`、`js/agents/admissions.js` | 规划中功能的预览面板，仅在演示模式出现。 |
 | `js/features.js` | `Header`、`TodayTasks`、`TwinSummary`（预测与掌握度）、`EventFeed`（服务端事件）、`CatalogModal`（课程目录）、`ManifestModal`、`MobileTabs`。 |
 | `js/app.js` | 选择 provider → `bootstrap()` → 根据请求状态渲染 `StatusScreen` 或 `Workspace`。`AGENT_MODULES` 注册表。 |
+| `config.js` | 部署设置（`HS_API_BASE_URL`、`HS_FIREBASE_CONFIG`）。仓库里为空；`deploy/staging/deploy_web.sh` 只在托管构建中写入。 |
+| `author.html`、`js/portal/` | 作者门户（M5 Step 34.1）：上传/替换 draft、校验报告与评测结果、提交审核、审核意见与历史、学生视角预览、课程聚合指标。`portal-api.js` 是纯脚本（Node 可测，`tests/portal.test.js`）；本地登录只提供合成平台成员（`author_hsos`、`author_sample`、`reviewer_platform`）。门户不能批准或激活。 |
 | `tests/` | `node --test web/tests/`（无需 npm install）。 |
+
+作者门户：`make server-memory` + `make web`，打开 `http://localhost:8000/author.html`。申请工作区（Step 35）与家长摘要（Step 36）目前只有 API，没有学生/家长界面；`js/agents/admissions.js` 仍是演示面板。
 
 ## 数据接缝
 

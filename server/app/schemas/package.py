@@ -186,6 +186,83 @@ class PackageVersionList(ApiModel):
     versions: list[PackageVersionView]
 
 
+# ---- Author portal: student-view preview and aggregate metrics (Step 34) -------------------
+
+
+class PreviewChoice(ApiModel):
+    key: str
+    text: str
+
+
+class PreviewItem(ApiModel):
+    item_id: str
+    prompt: str
+    choices: list[PreviewChoice]  # never the answer key
+
+
+class PreviewSource(ApiModel):
+    material_id: str
+    title: str
+    text: str
+
+
+class PreviewQuestion(ApiModel):
+    question_id: str
+    version: str
+    topic: str
+    prompt: str
+    items: list[PreviewItem] | None = None
+    sources: list[PreviewSource] | None = None
+
+
+class PreviewSkill(ApiModel):
+    skill_id: str
+    name: str
+
+
+class PreviewStarterTask(ApiModel):
+    question_id: str
+    title: str
+    task_type: TaskType
+    mode: StudyMode
+    duration_min: int
+
+
+class PackagePreview(ApiModel):
+    """What a student would see of this version: no rubrics, expected answers, answer
+    keys, evaluation set or system prompt. Available for valid packages only."""
+
+    course_id: CourseId
+    version: SemVer
+    name: str
+    description: str
+    skills: list[PreviewSkill]
+    starter_tasks: list[PreviewStarterTask]
+    questions: list[PreviewQuestion]
+
+
+class CriterionMetricView(ApiModel):
+    rubric_id: str
+    criterion_id: str
+    count: int  # accepted assessments that scored this criterion
+    average_earned: float
+    max_points: float  # average possible per assessment
+
+
+class CourseMetricsView(ApiModel):
+    """Aggregates only. Below `minimumCohort` distinct students everything but the
+    threshold is withheld (`suppressed: true`)."""
+
+    course_id: CourseId
+    suppressed: bool
+    minimum_cohort: int
+    students: int | None = None
+    assessments: int | None = None
+    by_status: dict[str, int] | None = None
+    criteria: list[CriterionMetricView] | None = None
+    updated_at: UtcDatetime | None = None
+
+
 __all__ = [
     "MAX_PACKAGE_BYTES",
     "PACKAGE_SCHEMA_VERSION",

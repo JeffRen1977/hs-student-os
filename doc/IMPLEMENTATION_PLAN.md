@@ -1,6 +1,6 @@
 # High School Student OS — 实施计划 v3.0
 
-更新：2026-11-01（v3.0：M3 由“SAT 跨域验证”改为“课程平台”，取消跨课程映射，第三方以数据形式发布课程）。v2.0 更新于 2026-10-29。采纳 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md)，替代 v1.0 的 M0–M5 排期。目标设计见 [产品方案](HIGH_SCHOOL_STUDENT_OS.md)、[BACKEND.md](BACKEND.md) v0.3、[API.md](API.md) v0.2；逐步操作见 [STEP_BY_STEP_PLAN.md](STEP_BY_STEP_PLAN.md)。
+更新：2026-11-04（M5 状态见 §7）。2026-11-01（v3.0：M3 由“SAT 跨域验证”改为“课程平台”，取消跨课程映射，第三方以数据形式发布课程）。v2.0 更新于 2026-10-29。采纳 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md)，替代 v1.0 的 M0–M5 排期。目标设计见 [产品方案](HIGH_SCHOOL_STUDENT_OS.md)、[BACKEND.md](BACKEND.md) v0.3、[API.md](API.md) v0.2；逐步操作见 [STEP_BY_STEP_PLAN.md](STEP_BY_STEP_PLAN.md)。
 
 本次只更新文档，未验证或修改应用实现。此前关于 `web/` 已完成、`server/` 已有骨架的描述属于历史记录，M0 必须核对当前 checkout。下面的工作项均是待实施目标，不标记为已完成。
 
@@ -96,13 +96,13 @@ M0–M4 是本轮核心范围；M5 是按试点证据排序的后续工作，不
 
 ## 7. M5：按证据扩展
 
-以下不是同一上线包，每项单独选取和验收：
+以下不是同一上线包，每项单独选取和验收。2026-11-04 应项目所有者要求，在试点门槛通过之前实现（M3 的 22.3、23、24.2、25.4 仍未完成）；均只在内存存储与合成数据上验证，尚未部署到 staging，详见 [STEP_BY_STEP_PLAN.md](STEP_BY_STEP_PLAN.md) M5。
 
-- [ ] 作者门户（上传、校验报告、学生视角预览、审核状态）；APUSH 优先以课程包形式加入，随后 Physics C、CSA、AP Lang。新内容类型需要的工具/画布作为平台能力实现，供所有课程选用。
-- [ ] Admissions 访谈、大纲、活动事实确认与学校资料来源管线；不因内部 AP 估计自动调整选校分档。
-- [ ] 家长 summary:read 授权和撤销；默认不开放私有对话/文书；顾问协作另立权限。
-- [ ] 扩大 MCQ/FRQ/模考内容与覆盖后，用独立持出数据校准 mastery/考试预测；未过门槛不展示预测分或“官方式”评分。
-- [ ] 有明确收益再评估 Jev、MCP、Temporal、向量检索或额外模型。验证真实接口、成本、隐私和质量，无依赖时核心流程照常。
+- [x] 作者门户（上传、校验报告、学生视角预览、审核状态、聚合指标，`web/author.html`）；APUSH 以课程包形式加入（待平台审核，内容未审）。新增平台能力 `source-analysis`（基于材料的写作评分），供所有课程选用。Physics C、CSA、AP Lang 尚未开始。
+- [x] Admissions 访谈 → 学生确认事实 → 提纲/反馈（经 worker 的 Run），活动只引用已确认事实，截止日期带来源与核对日期；不代写；不因内部 AP 估计调整选校分档。仅 API，学生界面未做；截止日期尚未进入 Planner。
+- [x] 家长 summary:read 授权和撤销（学生创建邀请、家长兑换、每次读取复查）；不开放私有对话/作答/文书/申请数据。仅 API。顾问协作未做。
+- [x] 校准管线与预测门控已实现；没有真实持出数据，所以没有做任何校准，预测一律 unavailable。
+- [x] 评估 Jev、MCP、Temporal、向量检索：都不采用，见 [OPTIONAL_INFRASTRUCTURE.md](OPTIONAL_INFRASTRUCTURE.md)；无可选依赖时核心流程照常（有测试）。供应商核验推迟到触发条件满足时。
 
 ## 8. 内容与质量轨
 

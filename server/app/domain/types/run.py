@@ -33,6 +33,15 @@ class RunKind(StrEnum):
     ASSESS_SUBMISSION = "ASSESS_SUBMISSION"
     HINT = "HINT"  # reply to a student message; never independent evidence
     PLANNING = "PLANNING"  # student-scoped, may have no session
+    # Admissions (Step 35): student-scoped, no session. `subject_id` names the input.
+    ADMISSIONS_FACTS = "ADMISSIONS_FACTS"  # propose facts from one interview answer
+    ADMISSIONS_FEEDBACK = "ADMISSIONS_FEEDBACK"  # outline/feedback on one essay version
+
+
+SESSIONLESS_KINDS = frozenset(
+    {RunKind.PLANNING, RunKind.ADMISSIONS_FACTS, RunKind.ADMISSIONS_FEEDBACK}
+)
+ADMISSIONS_KINDS = frozenset({RunKind.ADMISSIONS_FACTS, RunKind.ADMISSIONS_FEEDBACK})
 
 
 class InputRequestKind(StrEnum):
@@ -79,12 +88,15 @@ class Run:
     lease_expires_at: datetime | None = None
     dispatch_generation: int = 1  # bumped whenever the run is re-queued for delivery
     usage_tokens: int = 0  # model tokens charged to this run, retries included
+    subject_id: str | None = None  # admissions runs: the answer or feedback request
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
     def __post_init__(self) -> None:
-        if self.session_id is None and self.kind is not RunKind.PLANNING:
-            raise ValueError("only PLANNING runs may omit session_id")
+        if self.session_id is None and self.kind not in SESSIONLESS_KINDS:
+            raise ValueError("only planning and admissions runs may omit session_id")
+        if self.kind in ADMISSIONS_KINDS and not self.subject_id:
+            raise ValueError("admissions runs name their subject")
 
     @property
     def is_terminal(self) -> bool:

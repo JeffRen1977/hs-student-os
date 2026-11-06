@@ -58,6 +58,28 @@ emulator hosts, mock providers, a local queue, memory storage, a local worker to
   `HSOS_RUN_REAL_LLM_SMOKE=1`.
 - The pilot is **text-only**: no file upload endpoints or UI yet.
 
+## Extensions (M5)
+
+Implemented 2026-11-04 over the in-memory backend with synthetic data (not yet on staging).
+
+- **Authoring** (Step 34): student-view preview `GET /api/authoring/packages/{c}/versions/{v}/preview`
+  and aggregate metrics `GET /api/authoring/courses/{c}/metrics` (suppressed below 5 students;
+  maintained by the `course-metrics` consumer, `HSOS_COURSE_METRICS_ENABLED`). Portal page:
+  `web/author.html` (sign in locally as `author_hsos`). New platform ability `source-analysis`
+  (questions with `sourceMaterialIds`). APUSH lives in `content/authored/apush` and is seeded as
+  *submitted*: a reviewer must approve (attesting the model-graded cases) and activate it.
+- **Admissions** (Step 35, needs `entitlements.admissions`): `/api/admissions/*` — interview
+  answers → `ADMISSIONS_FACTS` runs propose facts that quote the answer; students confirm;
+  `ADMISSIONS_FEEDBACK` runs return capped outline/feedback items; deadlines carry a source and
+  check date; activities cite confirmed facts only. Under `HSOS_LLM_PROVIDER=mock` these runs
+  fail with `MODEL_UNAVAILABLE` (no synthetic admissions output).
+- **Parents** (Step 36): synthetic `parent_alex` / `parent_other`. Students create invites
+  (`/api/parent-links`), parents redeem them and read `/api/parent/students/{id}/summary`.
+- **Predictions** (Step 37): `app/domain/calibration.py` is the only producer of prediction
+  status; it says `unavailable` everywhere. `scripts/run_calibration.py` checks held-out
+  responses (JSONL, no identifying fields) and writes a report.
+- **Optional infrastructure** (Step 38): none adopted; see `doc/OPTIONAL_INFRASTRUCTURE.md`.
+
 | Path | Contents |
 |---|---|
 | `app/schemas/` | Pydantic API contract (API.md v0.3), content and fixture schemas |

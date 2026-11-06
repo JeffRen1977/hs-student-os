@@ -19,11 +19,17 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.domain.context_loader import render_system_prompt
-from app.domain.ports.content import PackContent, QuestionContent, RubricContent
+from app.domain.ports.content import (
+    MaterialContent,
+    PackContent,
+    QuestionContent,
+    RubricContent,
+)
 from app.domain.ports.execution import ExecutionOutput, ExecutionRequest
 from app.domain.ports.llm import BudgetContext, Effort, LlmGateway, LlmMessage, LlmRequest, LlmRole
 from app.domain.ports.runtime import Clock, IdFactory
 from app.domain.ports.tools import ToolContext, ToolNotAllowedError, ToolRunner
+from app.domain.skills import source_analysis
 from app.domain.types.assessment import (
     AssessmentStatus,
     RubricResult,
@@ -61,29 +67,30 @@ wrote; do not credit steps that are not shown.
 Return only the JSON object."""
 
 
-def output_schema(rubric: RubricContent) -> dict[str, Any]:
+def output_schema(rubric: RubricContent, sources: Sequence[MaterialContent] = ()) -> dict[str, Any]:
+    criterion: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "criterionId": {"type": "string", "enum": [c.criterion_id for c in rubric.criteria]},
+            "earned": {"type": "integer"},
+            "assessable": {"type": "boolean"},
+            "evidenceQuotes": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["criterionId", "earned", "assessable", "evidenceQuotes"],
+        "additionalProperties": False,
+    }
+    if sources:  # source-analysis: which of the question's documents each criterion used
+        criterion["properties"]["documentsCited"] = {
+            "type": "array",
+            "items": {"type": "string", "enum": [m.material_id for m in sources]},
+        }
+        criterion["required"].append("documentsCited")
     return {
         "type": "object",
         "properties": {
             "status": {"type": "string", "enum": ["accepted", "insufficient_evidence"]},
             "statusReasons": {"type": "array", "items": {"type": "string"}},
-            "criteria": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "criterionId": {
-                            "type": "string",
-                            "enum": [c.criterion_id for c in rubric.criteria],
-                        },
-                        "earned": {"type": "integer"},
-                        "assessable": {"type": "boolean"},
-                        "evidenceQuotes": {"type": "array", "items": {"type": "string"}},
-                    },
-                    "required": ["criterionId", "earned", "assessable", "evidenceQuotes"],
-                    "additionalProperties": False,
-                },
-            },
+            "criteria": {"type": "array", "items": criterion},
             "finalExpression": {"type": "string"},
             "uncertainty": {"type": "string", "enum": ["low", "limited", "high"]},
             "uncertaintyReasons": {"type": "array", "items": {"type": "string"}},
@@ -117,7 +124,11 @@ class GradedAnswer:
     feedback: str
 
 
-def make_parser(rubric: RubricContent, submission: Submission) -> Any:
+def make_parser(
+    rubric: RubricContent, submission: Submission, source_ids: frozenset[str] = frozenset()
+) -> Any:
+    """`source_ids` (source-analysis): the documents a criterion may cite. Citing any
+    other document makes the whole output invalid."""
     answer = submission.answer.text
     limits = {c.criterion_id: c.max_points for c in rubric.criteria}
 
@@ -146,6 +157,10 @@ def make_parser(rubric: RubricContent, submission: Submission) -> Any:
             assessable = item["assessable"]
             if not isinstance(assessable, bool) or (earned and not assessable):
                 raise ValueError("unassessable criteria earn no points")
+            if source_ids:
+                cited = item["documentsCited"]
+                if not isinstance(cited, list) or not set(cited) <= source_ids:
+                    raise ValueError("cited a document that is not a source of this question")
             refs = [r for q in item["evidenceQuotes"] if isinstance(q, str) and (r := locate(q))]
             if earned > 0 and not refs:
                 raise ValueError("awarded points need evidence quoted from the answer")
@@ -252,7 +267,12 @@ async def run_rubric_assessment(
     question: QuestionContent,
     rubric: RubricContent,
     submission: Submission,
+    *,
+    sources: Sequence[MaterialContent] = (),
 ) -> ExecutionOutput:
+    """With `sources` this is the source-analysis ability: the documents are fenced into
+    the grader's context and every citation is checked against them."""
+    skill = source_analysis.SKILL if sources else SKILL
     assisted = assisted_reasons(submission)
     draft_base = {
         "submission_id": submission.submission_id,
@@ -289,12 +309,13 @@ async def run_rubric_assessment(
             f"This is attempt {submission.prior_attempt_count + 1} at this question, after "
             "feedback on an earlier attempt."
         )
-    system = "\n\n".join(
-        (render_system_prompt(pack, request), INSTRUCTIONS, rubric_block(question, rubric), *facts)
-    )
+    blocks = [render_system_prompt(pack, request), INSTRUCTIONS]
+    if sources:
+        blocks += [source_analysis.INSTRUCTIONS, source_analysis.sources_block(sources)]
+    system = "\n\n".join((*blocks, rubric_block(question, rubric), *facts))
     result = await gateway.generate(
         LlmRequest(
-            purpose=SKILL,
+            purpose=skill,
             pack_tier=pack.model_tier,
             workflow_version=pack.workflow_version,
             system=system,
@@ -306,7 +327,7 @@ async def run_rubric_assessment(
                     + fence_answer(submission.answer.text),
                 )
             ],
-            output_schema=output_schema(rubric),
+            output_schema=output_schema(rubric, sources),
             max_output_tokens=MAX_OUTPUT_TOKENS,
             effort=Effort.HIGH,
             budget=BudgetContext(
@@ -315,7 +336,7 @@ async def run_rubric_assessment(
                 run_id=request.run.run_id,
             ),
         ),
-        make_parser(rubric, submission),
+        make_parser(rubric, submission, frozenset(m.material_id for m in sources)),
     )
     graded: GradedAnswer = result.value
 
@@ -337,7 +358,7 @@ async def run_rubric_assessment(
                         student_id=submission.student_id,
                         course_id=pack.course_id,
                         run_id=request.run.run_id,
-                        skill=SKILL,
+                        skill=skill,
                         pack_tools=pack.tools,
                     ),
                 )

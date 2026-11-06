@@ -14,7 +14,13 @@ from fastapi import Depends, Request
 from app.api.request_id import get_request_id
 from app.bootstrap import Services, get_services
 from app.domain.errors import DomainError, ErrorCode
-from app.domain.types.actor import SERVICE_ACTOR_PREFIX, ActorContext, ActorRole, PlatformActor
+from app.domain.types.actor import (
+    SERVICE_ACTOR_PREFIX,
+    ActorContext,
+    ActorRole,
+    ParentActor,
+    PlatformActor,
+)
 
 FORBIDDEN_IDENTITY_HEADERS = ("x-user-email", "x-student-id", "x-user-id")
 FORBIDDEN_IDENTITY_PARAMS = ("studentId", "student_id", "email")
@@ -77,6 +83,22 @@ async def get_platform_actor(
     )
 
 
+async def get_parent_actor(
+    request: Request, services: Annotated[Services, Depends(get_services)]
+) -> tuple[ParentActor, str]:
+    """Parents (Step 36): a provisioned `parents/{uid}` account, never a student. Returns
+    the actor and the parent's display name. Students and platform members get 403."""
+    _reject_asserted_identity(request)
+    identity = await services.token_verifier.verify(_bearer_token(request))
+    if identity.uid.startswith(SERVICE_ACTOR_PREFIX):
+        raise DomainError(ErrorCode.UNAUTHENTICATED, "Invalid subject.")
+    name = await services.parent_directory.resolve(identity.uid)
+    if name is None:
+        raise DomainError(ErrorCode.FORBIDDEN, "This account is not a parent account.")
+    return ParentActor(actor_id=identity.uid, request_id=get_request_id(request)), name
+
+
 Actor = Annotated[ActorContext, Depends(get_actor)]
+ParentDep = Annotated[tuple[ParentActor, str], Depends(get_parent_actor)]
 Platform = Annotated[PlatformActor, Depends(get_platform_actor)]
 ServicesDep = Annotated[Services, Depends(get_services)]

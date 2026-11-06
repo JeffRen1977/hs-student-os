@@ -69,6 +69,8 @@ class QuestionContent:
     answer_check: AnswerCheck | None = None
     reviewed: bool = False
     items: Sequence[ChoiceItemContent] | None = None  # set → scored by key (choice-scoring)
+    # set → source-based writing, graded by source-analysis against these materials
+    source_material_ids: Sequence[str] = ()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

@@ -19,9 +19,12 @@ from app.api.dependencies.auth import Platform, ServicesDep
 from app.api.dependencies.commands import IdempotencyKeyHeader, command_key
 from app.api.responses import respond
 from app.api.routes.params import CoursePath
+from app.domain.errors import DomainError, ErrorCode
 from app.domain.package_service import ApproveInput
+from app.domain.types.course_metrics import MIN_COHORT, CourseMetrics
 from app.domain.types.package import PackageStatus, PackageVersion, ValidationReport
 from app.schemas import package as pk
+from app.schemas.package import CoursePackage
 
 authoring = APIRouter(prefix="/api/authoring", tags=["authoring"])
 review = APIRouter(prefix="/api/review", tags=["review"])
@@ -132,6 +135,110 @@ async def submit_package(
     cmd = command_key(request, idempotency_key, body)
     outcome = await services.packages.submit(actor, course_id, version, cmd)
     return respond(version_view(outcome.value), replayed=outcome.replayed)
+
+
+def preview_view(v: PackageVersion) -> pk.PackagePreview:
+    if not v.report.valid:
+        raise DomainError(ErrorCode.PACKAGE_INVALID, "Fix the validator errors to preview.")
+    pkg = CoursePackage.model_validate(json.loads(v.package_json))
+    materials = {m.material_id: m for m in pkg.materials}
+    return pk.PackagePreview(
+        course_id=pkg.manifest.course_id,
+        version=pkg.manifest.version,
+        name=pkg.manifest.name,
+        description=pkg.manifest.description,
+        skills=[pk.PreviewSkill(skill_id=s.skill_id, name=s.name) for s in pkg.skills],
+        starter_tasks=[
+            pk.PreviewStarterTask(
+                question_id=t.question_id,
+                title=t.title,
+                task_type=t.task_type,
+                mode=t.mode,
+                duration_min=t.duration_min,
+            )
+            for t in pkg.starter_tasks
+        ],
+        questions=[
+            pk.PreviewQuestion(
+                question_id=q.question_id,
+                version=q.version,
+                topic=q.topic,
+                prompt=q.prompt,
+                items=[
+                    pk.PreviewItem(
+                        item_id=i.item_id,
+                        prompt=i.prompt,
+                        choices=[pk.PreviewChoice(key=c.key, text=c.text) for c in i.choices],
+                    )
+                    for i in q.items
+                ]
+                if q.items is not None
+                else None,
+                sources=[
+                    pk.PreviewSource(
+                        material_id=mid, title=materials[mid].title, text=materials[mid].text
+                    )
+                    for mid in q.source_material_ids
+                ]
+                or None,
+            )
+            for q in pkg.questions
+        ],
+    )
+
+
+def metrics_view(m: CourseMetrics) -> pk.CourseMetricsView:
+    if m.suppressed:
+        return pk.CourseMetricsView(
+            course_id=m.course_id, suppressed=True, minimum_cohort=MIN_COHORT
+        )
+    criteria = []
+    for key, t in sorted(m.criteria.items()):
+        rubric_id, _, criterion_id = key.partition(":")
+        if t.count == 0:
+            continue
+        criteria.append(
+            pk.CriterionMetricView(
+                rubric_id=rubric_id,
+                criterion_id=criterion_id,
+                count=t.count,
+                average_earned=round(t.earned / t.count, 2),
+                max_points=round(t.possible / t.count, 2),
+            )
+        )
+    return pk.CourseMetricsView(
+        course_id=m.course_id,
+        suppressed=False,
+        minimum_cohort=MIN_COHORT,
+        students=m.students,
+        assessments=m.assessments,
+        by_status=dict(m.by_status),
+        criteria=criteria,
+        updated_at=m.updated_at,
+    )
+
+
+@authoring.get("/packages/{course_id}/versions/{version}/preview", response_model=pk.PackagePreview)
+async def preview_own_package(
+    course_id: CoursePath, version: VersionPath, actor: Platform, services: ServicesDep
+) -> JSONResponse:
+    v = await services.packages.get_own(actor, course_id, version)
+    return respond(preview_view(v))
+
+
+@authoring.get("/courses/{course_id}/metrics", response_model=pk.CourseMetricsView)
+async def course_metrics(
+    course_id: CoursePath, actor: Platform, services: ServicesDep
+) -> JSONResponse:
+    return respond(metrics_view(await services.packages.course_metrics(actor, course_id)))
+
+
+@review.get("/packages/{course_id}/versions/{version}/preview", response_model=pk.PackagePreview)
+async def preview_package_for_review(
+    course_id: CoursePath, version: VersionPath, actor: Platform, services: ServicesDep
+) -> JSONResponse:
+    v = await services.packages.get_for_review(actor, course_id, version)
+    return respond(preview_view(v))
 
 
 # ---- Platform review ---------------------------------------------------------------------------

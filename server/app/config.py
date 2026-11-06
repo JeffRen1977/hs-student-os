@@ -111,6 +111,8 @@ class Settings(BaseSettings):
     reminder_provider: ReminderProvider = ReminderProvider.DISABLED
     reminder_local_time: str = Field(default="16:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     reminder_weekly_cap: int = Field(default=5, ge=1, le=14)
+    # Step 34.4: aggregate course metrics for authors (an assessment.completed consumer).
+    course_metrics_enabled: bool = True
     reminder_test_recipients: list[str] = Field(default_factory=list)
 
     # Operations (Step 31). Deployed services log JSON (Cloud Logging) and emit metrics as

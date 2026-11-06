@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, Protocol
 
 from app.domain.types.common import IdempotencyRecord
+from app.domain.types.course_metrics import CourseMetrics
 from app.domain.types.package import (
     PackageCourse,
     PackageStatus,
@@ -74,6 +75,12 @@ class PlatformIdempotencyStore(Protocol):
     def save(self, actor_id: str, record: IdempotencyRecord) -> None: ...
 
 
+class CourseMetricsReader(Protocol):
+    """Aggregate metrics only (Step 34.4): no path from here reaches a student document."""
+
+    async def get(self, course_id: str) -> CourseMetrics | None: ...
+
+
 class PackageTx(Protocol):
     @property
     def courses(self) -> PackageCourseStore: ...
@@ -83,6 +90,9 @@ class PackageTx(Protocol):
 
     @property
     def idempotency(self) -> PlatformIdempotencyStore: ...
+
+    @property
+    def metrics(self) -> CourseMetricsReader: ...
 
 
 class PackageUnitOfWork(Protocol):

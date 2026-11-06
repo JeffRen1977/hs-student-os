@@ -1,6 +1,6 @@
 # 运维手册（M4：Steps 30–32）
 
-更新：2026-11-01。本文件记录部署方式、日志与指标、告警处置、备份恢复与删除，以及**哪些检查真正跑过**（Step 30.5）。只写进文档不算完成：除非下表标明"已运行"，否则该项仍未验证。
+更新：2026-11-05（provision.sh 重新运行，M5 代码部署到 staging，§5）。2026-11-04（记录 2026-11-03 首次真实 staging 部署与冒烟测试，§5）。2026-11-01。本文件记录部署方式、日志与指标、告警处置、备份恢复与删除，以及**哪些检查真正跑过**（Step 30.5）。只写进文档不算完成：除非下表标明"已运行"，否则该项仍未验证。
 
 ## 1. 部署形态（Step 30）
 
@@ -11,7 +11,7 @@
   - Firestore（native）+ `server/firestore.indexes.json`；每日托管备份，保留 14 天。
   - Cloud Tasks 队列 `runs`：最多 5 次、5 s–300 s 退避。
   - Cloud Scheduler（全部带 OIDC）：outbox 派发每分钟；恢复扫描、提醒、告警检查每 5 分钟；定时计划每 15 分钟；事件保留每天 03:30 UTC。
-  - Secret Manager：`anthropic-api-key`，只授权 worker 读取。值手工添加，不进仓库。
+  - Secret Manager：`<LLM_PROVIDER>-api-key`（默认 `anthropic-api-key`；staging 用 `LLM_PROVIDER=openai` → `openai-api-key`），只授权 worker 读取。值手工添加，不进仓库。
   - Storage：`-uploads`（文本试点暂不用）与 `-backups`（30 天后自动删除）。
   - 预算：设置 `BILLING_ACCOUNT` 时创建月度预算（默认 200 USD，50%/90% 提醒）。模型用量另有应用内 token 预算（每 Run / Session / 学生每天）。
 - 配置：`deploy/staging/api.env.yaml`、`worker.env.yaml`。`tests/unit/test_deploy_config.py` 验证它们加上脚本注入的变量能通过部署环境检查。
@@ -68,13 +68,17 @@ M4 发现：此前的默认租约 120 s 小于最坏模型调用时间 180 s。f
 | 镜像构建并以非 root 运行；两个应用可导入；不含 fixtures | ✅ 已运行（本机 Docker，2026-11-01） | `docker build server/`；生产配置缺项时启动被拒绝 |
 | 部署配置通过环境检查 | ✅ 已运行 | `tests/unit/test_deploy_config.py` |
 | provision.sh 语法与 dry run | ✅ 已运行 | `bash -n`；dry run 输出命令；`demo-*` 被拒绝 |
-| 真实部署到 staging | ❌ 未运行 | 没有 staging 项目和凭据；部署需要项目所有者执行 `APPLY=1` |
-| Cloud Tasks OIDC 端到端 | ❌ 未运行 | 需要 staging（仅有基于假对象的单元测试） |
-| Cloud Scheduler 作业与 `--ingress internal-and-cloud-load-balancing` 的组合 | ❌ 未运行 | 按文档 Scheduler/Tasks 视为内部流量，需在 staging 确认 |
+| 真实部署到 staging | ✅ 已运行（2026-11-03，项目 `hs-student-os`） | `provision.sh APPLY=1`：Firestore `nam5`（`FIRESTORE_LOCATION`），Cloud Run / Tasks / Scheduler 在 `us-central1`，OpenAI 密钥在 Secret Manager，$20 预算告警。镜像 `eb4667d-dirty-20261103b`（M5 之前的代码）。Web 部署到 Firebase Hosting（`deploy_web.sh`） |
+| provision.sh 重新运行（幂等）+ M5 后端部署 | ✅ 已运行（2026-11-05） | `PROJECT_ID=hs-student-os REGION=us-central1 FIRESTORE_LOCATION=nam5 LLM_PROVIDER=openai IMAGE_TAG=b22eb36-dirty-20261105 APPLY=1`：先 dry run 再执行。已存在的资源（数据库、密钥、桶、队列、仓库、6 个 Scheduler 作业、4 个日志指标、2 条告警策略）均跳过，未重复创建；IAM 绑定重新应用。Cloud Build 成功（1m25s），镜像 `b22eb36-dirty-20261105`（`b22eb36` 加未提交的 M5 改动）；`hsos-worker-00004-brn`、`hsos-api-00003-wsv` 各承接 100% 流量。部署后检查：`/api/health` 200、无 token 401、外部访问 worker 404。**未做**：Web 重新部署（Hosting 仍是 11-03 的前端）、新修订版上的提交 → worker → OpenAI 端到端 |
+| 冒烟测试（真实 Firebase Auth + Firestore + Cloud Tasks + worker + 模型） | ✅ 已运行（2026-11-03） | 合成学生密码登录；health、无 token 401、托管域名 CORS、worker 外部访问 404；Alex 列出课程与任务、建 Session、Beth 读 Alex 的 Session 404；提交 → Cloud Tasks → worker → OpenAI → 评估提交 16 s，占位答案正确判为 `insufficient_evidence`；事件序列完整 |
+| Cloud Tasks OIDC 端到端 | ✅ 已运行（2026-11-03） | 上面的提交经 Cloud Tasks 以 invoker 身份调用私有 worker 并完成 |
+| Cloud Scheduler 作业与 `--ingress internal-and-cloud-load-balancing` 的组合 | 🟡 作业已创建并启用 | 6 个作业 ENABLED；尚未查看它们的执行日志确认调用成功 |
+| 部署中发现并修复的问题 | ✅ | 缺 7 个 Firestore 复合索引（内存存储与模拟器都不检查索引，只有真实 Firestore 会报 `FailedPrecondition`）；API 无密钥时 OpenAI SDK 构造即失败（改为首次调用时创建）；provision.sh 三处问题（worker 首次部署前需要自身 URL、桶“已拥有”提示未识别、告警策略需要 gcloud alpha，改用 REST）。已加 `server/.gcloudignore`，确保 `.env` 不会上传 |
 | 跨实例恢复、SSE 跨实例重连、Cloud Run 超时 | ❌ 未运行 | Step 32.3–32.4 |
-| Firestore 模拟器测试（含新增备份测试） | ❌ 未运行 | 本机没有 Java |
+| Firestore 模拟器测试（含新增备份测试） | ❌ 未运行 | 本机现已安装 Java（2026-11-03），但 `make test-emulator` 还没有运行 |
 | 托管备份恢复演练 | ❌ 未运行 | 需要 staging |
-| 告警策略实际触发 | ❌ 未运行 | 模拟测试已通过；需在 staging 制造一次积压确认通知送达 |
+| 告警策略实际触发 | ❌ 未运行 | 两条策略已创建并启用；需在 staging 制造一次积压确认通知送达 |
+| 已知风险 | ⚠️ | 2026-11-03 开启邮箱登录时，Identity Toolkit 返回的密码哈希 `signerKey` 被打印进一次会话记录（未提交到仓库）。项目只有合成用户；将其视为仅测试用项目，引入真实用户前先评估轮换方式 |
 
 ### Step 32 清单（staging 部署后执行）
 

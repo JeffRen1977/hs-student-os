@@ -98,7 +98,7 @@ def test_enrollments_are_active_entitled_courses(seeds: list[SeedStudent]) -> No
 
 def test_selected_planned_course_is_not_treated_as_active() -> None:
     content = load_content()
-    assert "apush" in content.packs and "apush" not in content.active_course_ids()
+    assert "physics_c" in content.packs and "physics_c" not in content.active_course_ids()
 
 
 def test_seed_documents_are_scoped_per_student(seeds: list[SeedStudent]) -> None:

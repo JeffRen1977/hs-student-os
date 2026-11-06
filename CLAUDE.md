@@ -140,13 +140,17 @@ INFRASTRUCTURE (Google Cloud)
 | **LLM Gateway** | Provider abstraction, static routing, usage budgets, retry logic | `app/adapters/llm/` |
 | **Course Package Registry** | Loads validated, approved course packages (skills, questions, rubrics, requirements, criteria); pins versions per Run | `app/registries/` |
 | **Package Validator & Publishing** | Validates submitted packages; author → platform reviewer → active workflow; retire/version | `app/domain/`, `app/registries/` |
-| **Skill Executor** | Platform ability catalog: Socratic guidance, rubric assessment, choice (answer-key) scoring, diagnostic — selected and configured by each package | `app/domain/skills/` |
+| **Skill Executor** | Platform ability catalog: Socratic guidance, rubric assessment, choice (answer-key) scoring, source analysis (writing from provided documents), diagnostic (planned) — selected and configured by each package | `app/domain/skills/` |
 | **Tool Registry** | Math verification, content retrieval, OCR (whitelisted per skill) | `app/registries/` |
 | **Assessment Service** | Validates evidence, atomic commit of assessment + mastery + events | `app/domain/` |
 | **Event Feed** | Per-student monotonic sequence, SSE stream + polling fallback | `app/api/routes/`, `app/adapters/firestore/` |
 | **Domain Event Consumers** | React to events with the course's own follow-up rules (e.g. repeated errors → in-course diagnostic → practice); never across courses | `app/workers/consumers/` |
 | **Planner Service** | Ranks tasks from all enrolled courses by deadline/evidence/budget, incremental replan, explains changes | `app/domain/` |
 | **Reminder Service** | Opt-in notifications with consent, quiet hours, frequency caps | `app/domain/` |
+| **Course Metrics Consumer** | Aggregate per-course counts for authors (no student data; suppressed below 5 students) | `app/workers/consumers/` |
+| **Parent Service** | Student-granted, revocable `summary:read` links; summary projection re-checked on every read | `app/domain/` |
+| **Admissions Service** | Interview → proposed facts → student confirmation → outline/feedback Runs; sourced deadlines; no ghostwriting | `app/domain/` |
+| **Prediction Gate** | Calibration checks against held-out responses; the only producer of prediction status (all `unavailable` today) | `app/domain/calibration.py` |
 | **Outbox Dispatcher** | Scans outbox, dispatches to Cloud Tasks, reconciles missed entries | `app/workers/` |
 
 ### Data flow — a single learning interaction

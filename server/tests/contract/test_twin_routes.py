@@ -133,7 +133,7 @@ async def test_entitlements_are_read_only(harness: Harness) -> None:
 async def test_selecting_a_course_grants_nothing(harness: Harness) -> None:
     response = await harness.client.patch(
         "/api/twin",
-        json={"preferences": {"selectedCourses": ["calc_bc", "apush", "dsat"]}},
+        json={"preferences": {"selectedCourses": ["calc_bc", "physics_c", "dsat"]}},
         headers={**harness.auth("stu_beth"), "If-Match": '"1"'},
     )
     assert response.status_code == 200

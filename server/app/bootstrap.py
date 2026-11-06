@@ -24,6 +24,7 @@ from app.adapters.firestore.package_repository import (
     DocumentPackageUnitOfWork,
     FirestorePlatformDirectory,
 )
+from app.adapters.firestore.parent_repository import FirestoreParentDirectory
 from app.adapters.firestore.unit_of_work import DocumentUnitOfWork
 from app.adapters.llm.gateway import Gateway
 from app.adapters.llm.provider import LlmProvider as LlmProviderAdapter
@@ -40,6 +41,8 @@ from app.config import (
     Settings,
     StorageProvider,
 )
+from app.domain.admissions_runs import AdmissionsRunner
+from app.domain.admissions_service import AdmissionsService
 from app.domain.assessment_service import AssessmentService
 from app.domain.budget import BudgetLedger, BudgetLimits
 from app.domain.command_service import CommandService
@@ -50,6 +53,7 @@ from app.domain.local_time import parse_hhmm
 from app.domain.mastery_service import MasteryService
 from app.domain.ops_monitor import AlertThresholds, OpsMonitor
 from app.domain.package_service import PackageService
+from app.domain.parent_service import ParentService
 from app.domain.planner_service import PlannerService
 from app.domain.planning_schedule import PlanningSchedulePolicy
 from app.domain.ports.catalog import CourseCatalog
@@ -59,7 +63,12 @@ from app.domain.ports.identity import TokenVerifier
 from app.domain.ports.metrics import Metrics
 from app.domain.ports.notifications import ReminderSender
 from app.domain.ports.packages import PlatformDirectory
-from app.domain.ports.repositories import IdentityDirectory, OperationsStore, UnitOfWork
+from app.domain.ports.repositories import (
+    IdentityDirectory,
+    OperationsStore,
+    ParentDirectory,
+    UnitOfWork,
+)
 from app.domain.ports.runtime import Clock, IdFactory
 from app.domain.recovery import RecoveryService
 from app.domain.reminder_service import ReminderPolicy, ReminderService
@@ -69,6 +78,7 @@ from app.domain.session_service import SessionService
 from app.domain.skill_executor import SkillExecutor
 from app.domain.task_service import TaskService
 from app.domain.twin_service import TwinService
+from app.registries.admissions_content import load_prompt_set
 from app.registries.content import ContentRegistry, load_content
 from app.registries.course_catalog import RegistryCourseCatalog
 from app.registries.package_sync import PackageContentSync
@@ -97,6 +107,9 @@ class Services:
     operations: OperationsStore
     identities: IdentityDirectory
     platform_members: PlatformDirectory
+    parent_directory: ParentDirectory
+    parents: ParentService
+    admissions: AdmissionsService
     content: ContentRegistry
     content_sync: PackageContentSync
     packages: PackageService
@@ -237,32 +250,35 @@ def real_llm_provider(settings: Settings) -> LlmProviderAdapter:
     raise ConfigError(f"HSOS_LLM_PROVIDER={settings.llm_provider.value} is not a real provider")
 
 
-def _executor(
-    settings: Settings,
-    provider: LlmProviderAdapter | None,
-    packs: SubjectPackRegistry,
-    ledger: BudgetLedger,
-    clock: Clock,
-    ids: IdFactory,
-) -> RunExecutor:
-    """`mock` → labeled synthetic replies, never assessments. A real provider (or an injected
-    test provider) → the skill runtime behind the budgeted gateway."""
+def _gateway(
+    settings: Settings, provider: LlmProviderAdapter | None, ledger: BudgetLedger
+) -> Gateway | None:
+    """The budgeted model gateway, or None under `mock` (no model: never grading)."""
     if provider is None:
         if settings.llm_provider is LlmProvider.MOCK:
-            # Key-scored SAT items still run for real; everything needing a model is the
-            # labeled synthetic fallback.
-            return SkillExecutor(
-                None, packs, ToolRegistry([MathVerifyTool()]), clock, ids,
-                fallback=SyntheticExecutor(),
-            )  # fmt: skip
+            return None
         provider = real_llm_provider(settings)
-    gateway = Gateway(
+    return Gateway(
         provider,
         model_router(settings),
         ledger,
         max_attempts=settings.llm_max_attempts,
         timeout_seconds=settings.llm_timeout_seconds,
     )
+
+
+def _executor(
+    gateway: Gateway | None, packs: SubjectPackRegistry, clock: Clock, ids: IdFactory
+) -> RunExecutor:
+    """`mock` → labeled synthetic replies, never assessments. A real provider (or an injected
+    test provider) → the skill runtime behind the budgeted gateway."""
+    if gateway is None:
+        # Key-scored SAT items still run for real; everything needing a model is the
+        # labeled synthetic fallback.
+        return SkillExecutor(
+            None, packs, ToolRegistry([MathVerifyTool()]), clock, ids,
+            fallback=SyntheticExecutor(),
+        )  # fmt: skip
     return SkillExecutor(gateway, packs, ToolRegistry([MathVerifyTool()]), clock, ids)
 
 
@@ -282,9 +298,14 @@ def build_services(
     reminder_sender_override: ReminderSender | None = None,
     metrics: Metrics | None = None,
 ) -> Services:
-    """`consumers`: the course-internal event consumers to run. None is registered in
-    production yet (course follow-up rules arrive with Step 24.2); tests pass their own."""
+    """`consumers`: event consumers to run in addition to the platform's own. The platform
+    registers the course-metrics consumer (Step 34.4) unless disabled; course follow-up
+    rules arrive with Step 24.2. Tests pass their own."""
     store = store or _store(settings)
+    if settings.course_metrics_enabled:
+        from app.workers.consumers.course_metrics import CourseMetricsConsumer
+
+        consumers = (*consumers, CourseMetricsConsumer())
     if metrics is None:
         from app.adapters.observability import LogMetrics
 
@@ -332,10 +353,12 @@ def build_services(
     planning_scheduler = PlanningScheduler(uow, operations, clock, ids, schedule)
     queue = queue or _queue(settings)
     dispatcher = OutboxDispatcher(uow, operations, queue, clock, metrics)
+    gateway = _gateway(settings, llm_provider, ledger)
+    prompt_set = load_prompt_set()
     run_execution = RunExecutionService(
         uow,
         catalog,
-        executor or _executor(settings, llm_provider, packs, ledger, clock, ids),
+        executor or _executor(gateway, packs, clock, ids),
         clock,
         ids,
         worker_id=worker_id or f"worker-{socket.gethostname()}-{ids.new('w')}",
@@ -344,6 +367,7 @@ def build_services(
         assessments=assessments,
         planner=planner,
         metrics=metrics,
+        admissions=AdmissionsRunner(gateway, prompt_set.by_id, ids),
     )
     consumer_runner = ConsumerRunner(uow, consumers, clock)
     deliveries = DeliveryRouter(run_execution, consumer_runner, content_sync.ensure_fresh)
@@ -369,6 +393,9 @@ def build_services(
         operations=operations,
         identities=FirestoreIdentityDirectory(store),
         platform_members=FirestorePlatformDirectory(store),
+        parent_directory=FirestoreParentDirectory(store),
+        parents=ParentService(uow, catalog, clock, ids),
+        admissions=AdmissionsService(uow, prompt_set, clock, ids),
         content=content,
         content_sync=content_sync,
         packages=PackageService(

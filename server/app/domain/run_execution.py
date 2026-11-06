@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 
 from app.domain.access import is_enrolled, is_entitled
+from app.domain.admissions_runs import AdmissionsJob, AdmissionsRunner
 from app.domain.assessment_service import AssessmentRejectedError, AssessmentService
 from app.domain.errors import ErrorCode
 from app.domain.planner_service import PlannerService
@@ -40,7 +41,7 @@ from app.domain.types.common import PageRequest
 from app.domain.types.event import EventType
 from app.domain.types.message import Message, MessageRole
 from app.domain.types.outbox import Delivery
-from app.domain.types.run import Run, RunError, RunKind, RunResult, RunStatus
+from app.domain.types.run import ADMISSIONS_KINDS, Run, RunError, RunKind, RunResult, RunStatus
 from app.domain.types.session import Session, SessionStatus
 from app.domain.types.student import Student
 
@@ -59,7 +60,8 @@ class ProcessResult(StrEnum):
 @dataclass(frozen=True, slots=True, kw_only=True)
 class LeaseGrant:
     token: int
-    request: ExecutionRequest | None  # None for PLANNING runs: no model, no session
+    request: ExecutionRequest | None  # None for PLANNING and admissions runs: no session
+    admissions: AdmissionsJob | None = None  # set for admissions runs (Step 35)
 
 
 class RunExecutionService:
@@ -77,8 +79,10 @@ class RunExecutionService:
         assessments: AssessmentService | None = None,
         planner: PlannerService | None = None,
         metrics: Metrics | None = None,
+        admissions: AdmissionsRunner | None = None,
     ) -> None:
         self._uow = uow
+        self._admissions = admissions
         self._metrics: Metrics = metrics or NullMetrics()
         self._assessments = assessments
         self._planner = planner
@@ -102,6 +106,10 @@ class RunExecutionService:
         acquired = await self.acquire(actor, run_id)
         if isinstance(acquired, ProcessResult):
             return acquired
+        if acquired.admissions is not None:
+            return await self._process_admissions(
+                actor, run_id, acquired.token, acquired.admissions
+            )
         if acquired.request is None:
             return await self._process_planning(actor, run_id, acquired.token)
         started = time.monotonic()
@@ -153,6 +161,8 @@ class RunExecutionService:
                 return ProcessResult.DONE
             if run.kind is RunKind.PLANNING:
                 return await self._lease_planning(tx, actor, run, now)
+            if run.kind in ADMISSIONS_KINDS:
+                return await self._lease_admissions(tx, actor, run, now)
             if run.session_id is None:
                 await self._fail_in_tx(tx, actor, run, "UNSUPPORTED_RUN_KIND", now)
                 return ProcessResult.DONE
@@ -257,6 +267,86 @@ class RunExecutionService:
                 now=now,
             )
         return LeaseGrant(token=token, request=None)
+
+    async def _lease_admissions(
+        self, tx: Tx, actor: ActorContext, run: Run, now: datetime
+    ) -> LeaseGrant | ProcessResult:
+        if self._admissions is None:
+            await self._fail_in_tx(tx, actor, run, "UNSUPPORTED_RUN_KIND", now)
+            return ProcessResult.DONE
+        if run.attempt_count >= self._max_attempts:
+            await self._fail_in_tx(tx, actor, run, "RUN_ATTEMPTS_EXHAUSTED", now)
+            return ProcessResult.DONE
+        job = await self._admissions.load(tx, actor, run)
+        if isinstance(job, str):
+            await self._fail_in_tx(tx, actor, run, job, now)
+            return ProcessResult.DONE
+        token = run.lease_fencing_token + 1
+        leased = dataclasses.replace(
+            run,
+            status=RunStatus.RUNNING,
+            attempt_count=run.attempt_count + 1,
+            lease_fencing_token=token,
+            lease_owner=self._worker_id,
+            lease_expires_at=now + self._lease,
+            updated_at=now,
+        )
+        tx.runs.save(actor, leased)
+        if run.status is RunStatus.QUEUED:
+            await tx.events.append(
+                actor,
+                EventDraft(
+                    type=EventType.RUN_STARTED,
+                    causation_id=run.run_id,
+                    run_id=run.run_id,
+                    payload={"kind": run.kind.value},
+                ),
+                event_id=self._ids.new("evt"),
+                now=now,
+            )
+        return LeaseGrant(
+            token=token, request=None, admissions=dataclasses.replace(job, run=leased)
+        )
+
+    async def _process_admissions(
+        self, actor: ActorContext, run_id: str, token: int, job: AdmissionsJob
+    ) -> ProcessResult:
+        """Model call outside any transaction; the result lands only if this worker still
+        holds the newest lease (fencing token), together with the Run's terminal state."""
+        runner = self._admissions
+        assert runner is not None
+        try:
+            output = await runner.execute(job)
+        except RetryableExecutionError:
+            return await self._after_retryable_error(actor, run_id, token)
+        except ExecutionFailure as exc:
+            await self.fail(actor, run_id, token, exc.code, False)
+            return ProcessResult.DONE
+        except Exception as exc:
+            logger.exception(
+                "run_execution_error", extra={"runId": run_id, "error": type(exc).__name__}
+            )
+            await self.fail(actor, run_id, token, "EXECUTION_FAILED", False)
+            return ProcessResult.DONE
+
+        async def body(tx: Tx) -> bool:
+            run = await self._current_if_ours(tx, actor, run_id, token)
+            if run is None:
+                return False
+            now = self._clock.now()
+            if run.cancel_requested:
+                await finish_run(tx, actor, run, RunStatus.CANCELLED, now=now, ids=self._ids)
+                return True
+            await runner.commit(tx, actor, run, output, now)
+            await finish_run(
+                tx, actor, dataclasses.replace(run, usage_tokens=output.usage_tokens),
+                RunStatus.SUCCEEDED, now=now, ids=self._ids, result=RunResult(),
+            )  # fmt: skip
+            return True
+
+        await self._uow.transaction(body)
+        self._metrics.count("run.committed", kind=job.run.kind.value)
+        return ProcessResult.DONE
 
     async def _process_planning(
         self, actor: ActorContext, run_id: str, token: int

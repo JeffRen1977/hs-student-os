@@ -22,7 +22,7 @@ from app.domain.ports.execution import (
 from app.domain.ports.llm import LlmGateway
 from app.domain.ports.runtime import Clock, IdFactory
 from app.domain.ports.tools import ToolRunner
-from app.domain.skills import choice_scoring, rubric_assessment, socratic_guidance
+from app.domain.skills import choice_scoring, rubric_assessment, socratic_guidance, source_analysis
 from app.domain.types.run import RunKind
 
 
@@ -85,10 +85,6 @@ class SkillExecutor:
             )
 
         if request.run.kind is RunKind.ASSESS_SUBMISSION:
-            choice_set = choice_scoring.is_choice_set(question)
-            needed = choice_scoring.SKILL if choice_set else rubric_assessment.SKILL
-            if needed not in session.agent_skills:
-                raise ExecutionFailure("SKILL_NOT_ENABLED")
             submission = request.submission
             if submission is None:
                 raise ExecutionFailure("SUBMISSION_NOT_FOUND")
@@ -98,6 +94,14 @@ class SkillExecutor:
                 )
             if question is None or question.version != submission.question_version:
                 raise ExecutionFailure("CONTENT_VERSION_CHANGED")
+            if choice_scoring.is_choice_set(question):
+                needed = choice_scoring.SKILL
+            elif question.source_material_ids:
+                needed = source_analysis.SKILL
+            else:
+                needed = rubric_assessment.SKILL
+            if needed not in session.agent_skills:
+                raise ExecutionFailure("SKILL_NOT_ENABLED")
             rubric = self._registry.rubric(
                 session.course_id, question.rubric_id, question.rubric_version, pinned
             )
@@ -105,10 +109,15 @@ class SkillExecutor:
                 raise ExecutionFailure("COURSE_CONTENT_UNAVAILABLE")
             if choice_scoring.is_choice_set(question):
                 return choice_scoring.score_choice_set(pack, question, rubric, submission)
+            sources = source_analysis.sources_for(
+                self._registry, session.course_id, question, pinned
+            )
+            if sources is None:
+                raise ExecutionFailure("COURSE_CONTENT_UNAVAILABLE")
             assert self._gateway is not None
             return await rubric_assessment.run_rubric_assessment(
                 self._gateway, self._tools, self._clock, self._ids,
-                pack, request, question, rubric, submission,
+                pack, request, question, rubric, submission, sources=sources,
             )  # fmt: skip
 
         raise ExecutionFailure("UNSUPPORTED_RUN_KIND")

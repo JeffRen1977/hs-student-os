@@ -91,6 +91,14 @@ async def finish_run(
                     state, active_run_id=None, active_trigger=None, version=state.version + 1
                 ),
             )
+    if run.kind is RunKind.ADMISSIONS_FEEDBACK and run.subject_id is not None:
+        # Free the essay's run slot whatever the outcome, so the student can edit again.
+        feedback = await tx.admissions.get_feedback(actor, run.subject_id)
+        essay = await tx.admissions.get_essay(actor, feedback.essay_id) if feedback else None
+        if essay is not None and essay.active_run_id == run.run_id:
+            tx.admissions.save_essay(
+                actor, dataclasses.replace(essay, active_run_id=None, updated_at=now)
+            )
     payload: dict[str, object] = {"kind": run.kind.value}
     if error is not None:
         payload |= {"errorCode": error.code, "retryable": error.retryable}

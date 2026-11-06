@@ -15,11 +15,13 @@ from app.adapters.observability import configure_logging, install_request_metric
 from app.api.errors import install_error_handlers
 from app.api.request_id import install_request_id
 from app.api.routes import (
+    admissions,
     assessments,
     courses,
     events,
     health,
     packages,
+    parents,
     plans,
     runs,
     sessions,
@@ -94,9 +96,10 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
             expose_headers=["ETag", "X-Request-Id", "Idempotency-Replayed"],
         )
     for module in (
-        health, twin, courses, tasks, sessions, runs, assessments, events, plans,
+        health, twin, courses, tasks, sessions, runs, assessments, events, plans, parents,
     ):  # fmt: skip
         app.include_router(module.router)
+    app.include_router(admissions.router)
     app.include_router(packages.authoring)
     app.include_router(packages.review)
     return app

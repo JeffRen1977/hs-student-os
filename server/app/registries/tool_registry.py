@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 SKILL_TOOL_WHITELIST: Mapping[str, frozenset[str]] = {
     "rubric-assessment": frozenset({"math-verify"}),
     "socratic-guidance": frozenset(),
+    "source-analysis": frozenset(),
 }
 
 

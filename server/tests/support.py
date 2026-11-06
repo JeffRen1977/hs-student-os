@@ -229,7 +229,7 @@ def harness_settings(monkeypatch: pytest.MonkeyPatch, **overrides: Any) -> Setti
         gcp_project_id=PROJECT,
         storage_provider=StorageProvider.MEMORY,
         local_worker_enabled=False,
-        **overrides,
+        **{"course_metrics_enabled": False, **overrides},
     )
 
 
