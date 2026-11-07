@@ -59,8 +59,8 @@ flowchart LR
     LLM(["Model provider<br/>OpenAI or Anthropic"])
 
     Provider -- HTTPS --> Auth
-    Provider -. sign-in .-> FBAuth
-    Auth -. verify token .-> FBAuth
+    Provider -. "sign-in" .-> FBAuth
+    Auth -. "verify token" .-> FBAuth
     Domain -- "one transaction:<br/>command + Run + idempotency + outbox" --> FS
     Feed --> FS
     Dispatch --> FS
@@ -68,7 +68,7 @@ flowchart LR
     Sched -- OIDC --> Dispatch
     Sched -- OIDC --> Planner
     Gateway --> LLM
-    SM -. key .-> Gateway
+    SM -. "key" .-> Gateway
     Assess -- "one transaction:<br/>assessment + mastery + Run state + events + outbox" --> FS
     Planner --> FS
 ```
@@ -126,11 +126,11 @@ sequenceDiagram
     W->>W: load pinned package version, rubric, student context
     W->>M: skill prompt (rubric assessment / Socratic hint)
     M-->>W: structured draft
-    W->>W: validate against rubric; math verification tool
+    W->>W: validate against rubric, run math verification tool
     W->>F: transaction (only if token still ours):<br/>Assessment + mastery + Run SUCCEEDED + events + outbox
     F-->>A: new events (per-student monotonic sequence)
     A-->>S: SSE: run.started, assessment.completed, mastery.updated, run.completed
-    Note over W,F: Follow-up consumers and the planner react to events<br/>inside the same course; the plan spans all enrolled courses
+    Note over W,F: Follow-up consumers and the planner react to events<br/>inside the same course, and the plan spans all enrolled courses
 ```
 
 If a worker dies mid-run, its lease expires and the Scheduler-driven recovery job re-queues the
