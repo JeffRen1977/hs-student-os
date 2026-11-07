@@ -116,6 +116,7 @@ def build_pack(pkg: CoursePackage) -> tuple[Pack, list[PackageIssue]]:
         skills=SkillCatalog(course_id=m.course_id, version=m.version, skills=pkg.skills),
         system_prompt=pkg.system_prompt,
         starter_tasks=list(pkg.starter_tasks),
+        practice_sequence=list(pkg.practice_sequence),
         evaluation_set=list(pkg.evaluation_set),
         authored=True,
     )

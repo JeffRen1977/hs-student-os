@@ -96,11 +96,18 @@ class CourseDefinition:
     agent: AgentConfig
     skills: Sequence[str] = ()  # platform abilities the package selected
     starter_tasks: Sequence[StarterTaskSpec] = ()
+    # Offered in order after the starter tasks (practice top-up, BACKEND.md §9).
+    practice_sequence: Sequence[StarterTaskSpec] = ()
     skill_names: Mapping[str, str] = field(default_factory=dict)  # skillId → display name
 
     @property
     def is_active(self) -> bool:
         return self.availability is Availability.ACTIVE
+
+    @property
+    def practice_order(self) -> tuple[StarterTaskSpec, ...]:
+        """Starter tasks, then the practice sequence: the order sets are offered in."""
+        return (*self.starter_tasks, *self.practice_sequence)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

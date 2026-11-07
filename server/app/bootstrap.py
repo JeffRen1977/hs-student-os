@@ -333,7 +333,7 @@ def build_services(
         ),
     )
     publisher = EventPublisher(frozenset().union(*(c.subscribes for c in consumers)))
-    assessments = AssessmentService(uow, packs, clock, ids, publisher)
+    assessments = AssessmentService(uow, packs, clock, ids, publisher, catalog=catalog)
     operations = FirestoreOperationsStore(store)
     schedule = PlanningSchedulePolicy(local_time=parse_hhmm(settings.planning_local_time))
     sender = reminder_sender_override or reminder_sender(settings)
@@ -349,7 +349,7 @@ def build_services(
         ),
         metrics,
     )
-    planner = PlannerService(uow, packs, clock, ids, reminders=reminders)
+    planner = PlannerService(uow, packs, clock, ids, reminders=reminders, catalog=catalog)
     planning_scheduler = PlanningScheduler(uow, operations, clock, ids, schedule)
     queue = queue or _queue(settings)
     dispatcher = OutboxDispatcher(uow, operations, queue, clock, metrics)

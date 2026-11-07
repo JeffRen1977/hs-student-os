@@ -103,6 +103,8 @@
 
 Task 状态：PLANNED、IN_PROGRESS、COMPLETED、SKIPPED。学生不能直接 PATCH 为 COMPLETED；完成由 Session 完成规则决定。
 
+`reason.code`：`INITIAL_PRACTICE`（注册时的课程起始任务）、`NEXT_PRACTICE`（2026-11-07：按课程包 `practiceSequence` 自动补充的下一组练习，见 COURSE_PACKAGE.md）、`STUDENT_SCHEDULED`、`REVIEW_DUE`。`reason.explanation` 由服务端写，说明为什么出现这个任务。
+
 ### 1.4 Session 与 Run
 
 ```json
@@ -472,6 +474,8 @@ Run FAILED 的 `error.code`（面向学生，不含供应商消息）：`BUDGET_
 **独立课程与选择题**：Digital SAT（`dsat`）是一门独立课程，也是 M3 第二门课程的候选。新增通用 Task 类型 `PRACTICE`（技能练习，如选择题组）。课程包选用 `choice-scoring` 能力后，选择题 Session 的 `activity` 包含 `items[{itemId, prompt, choices[{key,text}]}]`，**不含答案键**。作答仍走 `POST /api/sessions/{id}/submissions`，`answer.text` 每题一行（如 `1: B`）。服务端按答案键评分（`provenance.modelVersion = rule:choice-scoring-v1`，不调用模型），无法读出每题一个选项时为 `insufficient_evidence`。rubric 得分从不换算成考试分数。
 
 **事件**：`plan.updated` payload：`planId`、`changedTaskIds`、`reason`（`replan`）。课程内后续规则（Step 24.2）引入新的事件或原因值时，先在本节补充契约。
+
+**练习补充（2026-11-07）**：计划运行或完成 Session 时，平台按课程包的练习顺序新建 reason 为 `NEXT_PRACTICE` 的任务（规则见 COURSE_PACKAGE.md `practiceSequence`）。不新增事件类型：计划运行中新建的任务出现在同一 `plan.updated` 的计划条目里；完成 Session 时新建的任务通过 `GET /api/tasks` 可见（`session.completed` 之后客户端刷新任务列表）。
 
 **计划**：
 

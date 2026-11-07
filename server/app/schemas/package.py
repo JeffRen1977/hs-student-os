@@ -97,6 +97,8 @@ class CoursePackage(ApiModel):
     questions: list[Question] = Field(min_length=1, max_length=500)
     materials: list[Material] = Field(default_factory=list, max_length=200)
     starter_tasks: list[StarterTask] = Field(default_factory=list, max_length=20)
+    # Offered in order after the starter tasks by the practice top-up rule (BACKEND.md §9).
+    practice_sequence: list[StarterTask] = Field(default_factory=list, max_length=200)
     evaluation_set: list[EvaluationCase] = Field(min_length=1, max_length=200)
 
 
@@ -238,6 +240,7 @@ class PackagePreview(ApiModel):
     description: str
     skills: list[PreviewSkill]
     starter_tasks: list[PreviewStarterTask]
+    practice_sequence: list[PreviewStarterTask] = Field(default_factory=list)
     questions: list[PreviewQuestion]
 
 

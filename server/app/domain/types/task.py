@@ -17,6 +17,7 @@ class TaskStatus(StrEnum):
 
 class TaskReasonCode(StrEnum):
     INITIAL_PRACTICE = "INITIAL_PRACTICE"
+    NEXT_PRACTICE = "NEXT_PRACTICE"  # the next set in the course's practice sequence
     STUDENT_SCHEDULED = "STUDENT_SCHEDULED"
     REVIEW_DUE = "REVIEW_DUE"
 

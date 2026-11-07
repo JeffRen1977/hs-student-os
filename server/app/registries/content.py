@@ -72,6 +72,7 @@ class Pack:
     system_prompt: str | None = None
     materials: dict[str, Material] = field(default_factory=dict)
     starter_tasks: list[StarterTask] = field(default_factory=list)
+    practice_sequence: list[StarterTask] = field(default_factory=list)
     evaluation_set: list[EvaluationCase] = field(default_factory=list)
     authored: bool = False  # True when the pack came from a reviewed course package
 
@@ -96,6 +97,7 @@ class Pack:
             system_prompt=self.system_prompt,
             materials=self.materials,
             starter_tasks=self.starter_tasks,
+            practice_sequence=self.practice_sequence,
             evaluation_set=self.evaluation_set,
             authored=self.authored,
         )
@@ -360,8 +362,10 @@ def pack_issues(pack: Pack) -> list[PackageIssue]:
             )
 
     seen_starters: set[str] = set()
-    for i, st in enumerate(pack.starter_tasks):
-        path = f"starterTasks[{i}]"
+    sequence = [("starterTasks", i, st) for i, st in enumerate(pack.starter_tasks)]
+    sequence += [("practiceSequence", i, st) for i, st in enumerate(pack.practice_sequence)]
+    for field_name, i, st in sequence:
+        path = f"{field_name}[{i}]"
         if st.question_id not in pack.questions:
             issues.append(
                 _issue(
@@ -370,7 +374,11 @@ def pack_issues(pack: Pack) -> list[PackageIssue]:
             )
         if st.question_id in seen_starters:
             issues.append(
-                _issue(f"{path}.questionId", "duplicate", "one starter task per question")
+                _issue(
+                    f"{path}.questionId",
+                    "duplicate",
+                    "a question appears once in starterTasks and practiceSequence",
+                )
             )
         seen_starters.add(st.question_id)
         if st.task_type not in m.supported_task_types:

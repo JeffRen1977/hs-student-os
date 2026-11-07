@@ -24,7 +24,7 @@ from app.domain.package_service import ApproveInput
 from app.domain.types.course_metrics import MIN_COHORT, CourseMetrics
 from app.domain.types.package import PackageStatus, PackageVersion, ValidationReport
 from app.schemas import package as pk
-from app.schemas.package import CoursePackage
+from app.schemas.package import CoursePackage, StarterTask
 
 authoring = APIRouter(prefix="/api/authoring", tags=["authoring"])
 review = APIRouter(prefix="/api/review", tags=["review"])
@@ -137,6 +137,16 @@ async def submit_package(
     return respond(version_view(outcome.value), replayed=outcome.replayed)
 
 
+def _preview_task(t: StarterTask) -> pk.PreviewStarterTask:
+    return pk.PreviewStarterTask(
+        question_id=t.question_id,
+        title=t.title,
+        task_type=t.task_type,
+        mode=t.mode,
+        duration_min=t.duration_min,
+    )
+
+
 def preview_view(v: PackageVersion) -> pk.PackagePreview:
     if not v.report.valid:
         raise DomainError(ErrorCode.PACKAGE_INVALID, "Fix the validator errors to preview.")
@@ -148,16 +158,8 @@ def preview_view(v: PackageVersion) -> pk.PackagePreview:
         name=pkg.manifest.name,
         description=pkg.manifest.description,
         skills=[pk.PreviewSkill(skill_id=s.skill_id, name=s.name) for s in pkg.skills],
-        starter_tasks=[
-            pk.PreviewStarterTask(
-                question_id=t.question_id,
-                title=t.title,
-                task_type=t.task_type,
-                mode=t.mode,
-                duration_min=t.duration_min,
-            )
-            for t in pkg.starter_tasks
-        ],
+        starter_tasks=[_preview_task(t) for t in pkg.starter_tasks],
+        practice_sequence=[_preview_task(t) for t in pkg.practice_sequence],
         questions=[
             pk.PreviewQuestion(
                 question_id=q.question_id,

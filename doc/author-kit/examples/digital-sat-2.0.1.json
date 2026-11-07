@@ -2,7 +2,7 @@
   "schemaVersion": "course-package/v1",
   "manifest": {
     "courseId": "dsat",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "name": "Digital SAT",
     "description": "Digital SAT practice across both sections, Reading and Writing and Math: short multiple-choice sets on all 29 Digital SAT skills, scored by answer key, with Socratic hints. Original content. No SAT score predictions.",
     "category": "SAT",
@@ -2578,6 +2578,78 @@
       "mode": "ADAPTIVE",
       "title": "Math: algebra, set 1",
       "durationMin": 20
+    }
+  ],
+  "practiceSequence": [
+    {
+      "questionId": "q_dsat_craft_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Reading and Writing: craft and structure, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_adv_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: advanced math, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_expr_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Reading and Writing: expression of ideas, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_psda_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: problem-solving and data analysis, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_conv_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Reading and Writing: Standard English conventions, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_geo_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: geometry and trigonometry, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_equiv_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: equivalent expressions, practice set 1",
+      "durationMin": 15
+    },
+    {
+      "questionId": "q_dsat_nonlin_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: nonlinear functions, practice set 1",
+      "durationMin": 15
+    },
+    {
+      "questionId": "q_dsat_equiv_002",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: equivalent expressions, practice set 2",
+      "durationMin": 15
+    },
+    {
+      "questionId": "q_dsat_nonlin_002",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: nonlinear functions, practice set 2",
+      "durationMin": 15
     }
   ],
   "evaluationSet": [

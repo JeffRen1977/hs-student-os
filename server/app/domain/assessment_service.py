@@ -22,9 +22,11 @@ from app.domain.commands import CommandKey, Outcome, find_replay, remember
 from app.domain.errors import DomainError, ErrorCode
 from app.domain.events import EventPublisher
 from app.domain.mastery_service import apply_assessment
+from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.content import QuestionContent, RubricContent, SubjectPackRegistry
 from app.domain.ports.repositories import EventDraft, Tx, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
+from app.domain.practice_queue import top_up_practice
 from app.domain.session_service import SESSION_RESOURCE, get_owned_session
 from app.domain.types.actor import ActorContext, Permission
 from app.domain.types.assessment import (
@@ -164,8 +166,11 @@ class AssessmentService:
         clock: Clock,
         ids: IdFactory,
         publisher: EventPublisher,
+        catalog: CourseCatalog | None = None,
     ) -> None:
+        """`catalog`: enables the practice top-up when a session completes."""
         self._uow = uow
+        self._catalog = catalog
         self._registry = registry
         self._clock = clock
         self._ids = ids
@@ -374,16 +379,21 @@ class AssessmentService:
                 ensure_transition(
                     TASK_TRANSITIONS, task.status, TaskStatus.COMPLETED, entity="Task"
                 )
-                tx.tasks.save(
-                    actor,
-                    dataclasses.replace(
-                        task,
-                        status=TaskStatus.COMPLETED,
-                        open_session_id=None,
-                        version=task.version + 1,
-                    ),
-                    now=now,
+                task = dataclasses.replace(
+                    task,
+                    status=TaskStatus.COMPLETED,
+                    open_session_id=None,
+                    version=task.version + 1,
                 )
+                tx.tasks.save(actor, task, now=now)
+            if task is not None and self._catalog is not None:
+                # The next set in this course's practice order, in the same transaction.
+                student = await tx.students.get(actor)
+                if student is not None:
+                    await top_up_practice(
+                        tx, actor, catalog=self._catalog, packs=self._registry, ids=self._ids,
+                        student=student, course_ids=[task.course_id], now=now, known=[task],
+                    )  # fmt: skip
             await tx.events.append(
                 actor,
                 EventDraft(

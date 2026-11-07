@@ -26,7 +26,8 @@ starting point.
 | `rubrics` | yes | 1–500 | |
 | `questions` | yes | 1–500 | |
 | `materials` | no | up to 200 | Only for writing from sources |
-| `starterTasks` | no | up to 20 | |
+| `starterTasks` | no | up to 20 | Sets a student gets on first joining the course |
+| `practiceSequence` | no | up to 200 | Sets offered next, in order (see below) |
 | `evaluationSet` | yes | 1–200 cases | |
 
 The whole file may be at most **900 KB**.
@@ -173,6 +174,21 @@ reviewer sign off each item before launch.
 | `mode` | yes | listed in `manifest.supportedModes` | |
 | `title` | yes | 1–120 characters | Shown in the student's task list |
 | `durationMin` | yes | 5–120 | Estimated minutes |
+
+## `practiceSequence[]` (the order of further practice)
+
+Same fields and rules as `starterTasks[]`. Your course's **practice order** is the starter tasks
+followed by the practice sequence; each question may appear in it only once (`duplicate`).
+
+How the platform uses it: whenever a student has fewer than **2 unfinished sets** in your course
+(for example, right after completing one, or at the daily planning pass), it gives them the next
+sets in this order that they have never had, until they have 2 again. A set a student completed
+or skipped is never offered again. When you publish a new version, students who were already
+enrolled receive its sets that they have not had yet, in the new order. With no practice
+sequence, students get only the starter tasks.
+
+Tip: alternate topics or sections (as the Digital SAT example alternates Reading and Writing
+with Math), and put any sets you add in a new version where you want students to meet them.
 
 ## `evaluationSet[]`
 

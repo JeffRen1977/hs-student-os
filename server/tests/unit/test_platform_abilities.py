@@ -12,7 +12,12 @@ import pytest
 from app.registries.content import ABILITY_CATALOG, DEFAULT_CONTENT_ROOT, load_content, pack_issues
 from app.registries.package_validator import validate_package
 
-AUTHORED = sorted(p.parent.name for p in (DEFAULT_CONTENT_ROOT / "authored").glob("*/package.json"))
+# Every authored package file, including later versions kept beside the seeded one
+# (e.g. dsat/package-2.0.1.json).
+AUTHORED = sorted(
+    str(p.relative_to(DEFAULT_CONTENT_ROOT / "authored"))
+    for p in (DEFAULT_CONTENT_ROOT / "authored").glob("*/package*.json")
+)
 APUSH = json.loads((DEFAULT_CONTENT_ROOT / "authored/apush/package.json").read_text())
 
 
@@ -35,11 +40,15 @@ def test_source_analysis_is_a_platform_ability() -> None:
     assert "source-analysis" in ABILITY_CATALOG
 
 
-@pytest.mark.parametrize("course", AUTHORED)
+def test_later_package_versions_are_covered() -> None:
+    assert {"dsat/package-2.0.0.json", "dsat/package-2.0.1.json"} <= set(AUTHORED)
+
+
+@pytest.mark.parametrize("package_file", AUTHORED)
 def test_every_authored_course_still_validates_and_passes_its_key_scored_cases(
-    course: str,
+    package_file: str,
 ) -> None:
-    raw = json.loads((DEFAULT_CONTENT_ROOT / f"authored/{course}/package.json").read_text())
+    raw = json.loads((DEFAULT_CONTENT_ROOT / "authored" / package_file).read_text())
     report = validate_package(raw).report
     assert report.valid, report.errors
     assert report.evaluation.auto_all_passed and not report.evaluation.failures

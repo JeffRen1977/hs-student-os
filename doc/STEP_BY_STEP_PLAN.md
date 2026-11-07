@@ -15,7 +15,7 @@ The product is a **course platform with one shared runtime**: third parties add 
 | M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator suite passed 2026-11-05 |
 | M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. **Steps 26–27 implemented 2026-11-01** (package contract v1 + validator, author/reviewer roles, review gate, version pinning, retire; Digital SAT rebuilt as an authored package; course-driven frontend). Not started: ability catalog contract (23), course-internal follow-up rules (24.2), package-sourced deadlines (25.4), re-expressing Calc BC as a package (22.3). |
 | M4 Proactive planning and pilot | 28–33 | **Steps 28, 29, 31 implemented 2026-11-01; verified over the in-memory backend** (scheduled planning, student controls + opt-in reminders, structured logs/metrics/alerts, backup/restore/delete, event retention). **Step 30 deployed to staging 2026-11-03** (project `hs-student-os`; real Firebase Auth + Firestore + Cloud Tasks + worker + model smoke test passed, see [OPERATIONS.md](OPERATIONS.md) §5; the deployed image predates M5). **Step 32** now unblocked, not yet run. **Step 33 gate recorded as not passed** ([PILOT_GATE.md](PILOT_GATE.md)). |
-| M5 Optional expansion | 34–40 | **Steps 34–38 implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. 39 (author import from PDF and photos) and 40 (conversational authoring agent): planned 2026-11-07, not started. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
+| M5 Optional expansion | 34–43 | **Steps 34–38 implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. 39 (author import from PDF and photos), 40 (conversational authoring agent), 41 (reviewer screen), 42 (admin course-access tool) and 43 (review assistant agent; workflow and skills to be defined by reviewers): planned 2026-11-07, not started. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
 
 Last local verification (`make check`, 2026-11-01, after M4 Steps 28–31): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **561 passed, 9 skipped** (8 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **34 passed**. Docker image built and smoke-checked locally. Browser check over `make server-memory` + `make web`: Beth locked a task date, turned reminders off, and skipped a task with a reason; no console errors.
 
@@ -807,10 +807,11 @@ Decisions behind this milestone:
 - [ ] 25.5 Fair split across courses when the week is full, explained to the student
 - [x] 25.6 Tests: full week defers, conflicting deadlines, locks preserved, conservative without evidence, concurrent replans consistent, crash at commit leaves nothing
 - [ ] 25.7 Tests for multi-course balancing and package-sourced deadlines
+- [x] 25.8 Practice top-up (2026-11-07): packages may declare a `practiceSequence`; in every planning commit and when a session completes, each enrolled student is kept at 2 unfinished tasks per course with the next sets in the package's order they have never had (reason `NEXT_PRACTICE`); students enrolled before an upgrade receive the new version's sets. `app/domain/practice_queue.py`; tests `tests/contract/test_practice_sequence.py`
 
 **Verify:** Planning is incremental, respects time budgets and student choices, and explains every placement.
 
-**Status: 🟡 core implemented (M3).** Not built: package-sourced deadlines (no due dates are set by any flow yet) and cross-course balancing. The `confirmed_prerequisite` priority was removed (Step 22.4); priorities are now deadline > evidence gap > practice.
+**Status: 🟡 core implemented (M3); practice top-up (25.8) added 2026-11-07, verified locally (633 tests, emulator 8/8) and on staging with Digital SAT 2.0.1 ([OPERATIONS.md](OPERATIONS.md) §5).** Found on staging: students only ever received a course's starter tasks, so 10 of Digital SAT 2.0.0's 12 sets reached no one. Known: an in-progress task dated before today is not listed in the 7-day plan. Not built: package-sourced deadlines (no due dates are set by any flow yet) and cross-course balancing. The `confirmed_prerequisite` priority was removed (Step 22.4); priorities are now deadline > evidence gap > practice.
 
 ---
 
@@ -1007,7 +1008,7 @@ Decisions behind this milestone:
 
 ---
 
-## M5 — Optional Expansion After Pilot Evidence (Steps 34–40)
+## M5 — Optional Expansion After Pilot Evidence (Steps 34–43)
 
 Each extension is independently selected and verified. None are prerequisites for the pilot.
 
@@ -1021,7 +1022,7 @@ Each extension is independently selected and verified. None are prerequisites fo
 - [x] 34.4 Privacy-safe aggregate course metrics for authors (no individual student data)
 - [x] 34.5 Verify existing courses' regression and evaluation cases still pass after each new ability
 
-**Status:** ✅ Implemented 2026-11-04; 🟡 content unreviewed. **34.1** `web/author.html` + `web/js/portal/` (upload/replace drafts, validator report and evaluation results, submit, reviewer notes and history, student-view preview, metrics); new API `GET /api/authoring/packages/{c}/versions/{v}/preview` (also for reviewers) that never includes answer keys, expected answers, rubrics, the system prompt or the evaluation set. The portal cannot approve or activate. Tests: `tests/contract/test_author_portal.py`, `web/tests/portal.test.js`. **34.2** platform ability `source-analysis` (document-based writing graded against the question's `sourceMaterialIds`: sources fenced as untrusted content, per-criterion `documentsCited` checked against the question's sources, evidence still quoted from the student's own text; routing floor strong). Validator rules: sourced questions need the ability, the ability needs a sourced question, materials must exist, choice sets cannot have sources. No course-specific code. Sandboxed code grading (CSA) was not built: no course needs it yet. **34.3** APUSH 1.0.0 as an authored package (`content/authored/apush`): short answer, a DBQ-style question on two public-domain excerpts, and a source-analysis choice set; evaluation set 3 key-scored cases (pass) + 4 model-graded cases. The bundled planned placeholder was removed (as for Digital SAT); local seeding installs the package as **submitted**, so it reaches students only after a reviewer approves it (with `modelEvaluationAttested`) and activates it. The excerpts' wording must be checked against the originals at content review. Tests: `tests/contract/test_apush_course.py`. **34.4** `GET /api/authoring/courses/{c}/metrics`: distinct students, assessments by status and per-criterion averages, maintained exactly once per `assessment.completed` by the `course-metrics` consumer (the first production consumer); fewer than 5 students → `suppressed`; no student id anywhere in the aggregate. **34.5** `tests/unit/test_platform_abilities.py` re-validates every authored package and its key-scored cases and checks bundled courses after the ability change. Browser-checked 2026-11-04: sign-in, list, preview, metrics (no console errors); the upload and submit buttons were not exercised in the browser. Not done: a named content reviewer for APUSH, running its model-graded cases with a real model.
+**Status:** ✅ Implemented 2026-11-04; 🟡 content unreviewed. **2026-11-07:** Digital SAT 2.0.0 (29 skills, 8 new sets) and 2.0.1 (adds `practiceSequence`) published through the gate on staging; fixed on staging: the hint tutor now sees a choice set's items and choices (never answer keys or the expected answer), test `test_hints_see_the_items_but_never_the_answer_key`. End-to-end example: [examples/DIGITAL_SAT_WALKTHROUGH.md](examples/DIGITAL_SAT_WALKTHROUGH.md). **34.1** `web/author.html` + `web/js/portal/` (upload/replace drafts, validator report and evaluation results, submit, reviewer notes and history, student-view preview, metrics); new API `GET /api/authoring/packages/{c}/versions/{v}/preview` (also for reviewers) that never includes answer keys, expected answers, rubrics, the system prompt or the evaluation set. The portal cannot approve or activate. Tests: `tests/contract/test_author_portal.py`, `web/tests/portal.test.js`. **34.2** platform ability `source-analysis` (document-based writing graded against the question's `sourceMaterialIds`: sources fenced as untrusted content, per-criterion `documentsCited` checked against the question's sources, evidence still quoted from the student's own text; routing floor strong). Validator rules: sourced questions need the ability, the ability needs a sourced question, materials must exist, choice sets cannot have sources. No course-specific code. Sandboxed code grading (CSA) was not built: no course needs it yet. **34.3** APUSH 1.0.0 as an authored package (`content/authored/apush`): short answer, a DBQ-style question on two public-domain excerpts, and a source-analysis choice set; evaluation set 3 key-scored cases (pass) + 4 model-graded cases. The bundled planned placeholder was removed (as for Digital SAT); local seeding installs the package as **submitted**, so it reaches students only after a reviewer approves it (with `modelEvaluationAttested`) and activates it. The excerpts' wording must be checked against the originals at content review. Tests: `tests/contract/test_apush_course.py`. **34.4** `GET /api/authoring/courses/{c}/metrics`: distinct students, assessments by status and per-criterion averages, maintained exactly once per `assessment.completed` by the `course-metrics` consumer (the first production consumer); fewer than 5 students → `suppressed`; no student id anywhere in the aggregate. **34.5** `tests/unit/test_platform_abilities.py` re-validates every authored package and its key-scored cases and checks bundled courses after the ability change. Browser-checked 2026-11-04: sign-in, list, preview, metrics (no console errors); the upload and submit buttons were not exercised in the browser. Not done: a named content reviewer for APUSH, running its model-graded cases with a real model.
 
 ### Step 35 — Add admissions interviews and sourced planning
 
@@ -1115,6 +1116,57 @@ Conversation stages (the author can move between them at any time): course basic
 
 **Status:** ⏳ Planned 2026-11-07; not started.
 
+### Step 41 — Reviewer screen in the portal (future)
+
+**Goal:** Platform reviewers review, approve, reject, activate and retire course packages in a web screen instead of API calls. Found while publishing Digital SAT 2.0.0 on staging (2026-11-07): every reviewer action was a `curl` call with a hand-obtained ID token.
+
+- [ ] 41.1 Reuse the existing review API (`GET /api/review/packages`, version detail, preview, `approve`, `reject`, `activate`, `retire`); no new authority. Only the `platform_reviewer` role sees the screen; authors and students get 403 from the API as today
+- [ ] 41.2 Review queue: submitted versions with course, version, organization, submitted-at, and a flag when the course already has an active version (upgrade)
+- [ ] 41.3 Version view: validator report and evaluation results; status history; the student preview; the full content with answer keys, rubrics, sources and review status per item; for upgrades, a comparison with the active version (added, removed and changed questions and skills, with a warning when a question or skill ID still used by existing tasks or mastery is removed)
+- [ ] 41.4 Decisions: approve with the license attestation (and the model-evaluation attestation when the package has model-graded cases), reject with required notes, activate an approved version, retire a course with notes; each action asks for confirmation, sends an Idempotency-Key, and shows the server's error (`REVIEW_REQUIREMENTS_NOT_MET`, `INVALID_STATE_TRANSITION`) in plain language
+- [ ] 41.5 A per-item checklist the reviewer can work through (answer key, single defensible answer, skill tag, source and license); kept in the reviewer's browser only, not stored as review evidence
+- [ ] 41.6 Tests: role gating, every action through the existing endpoints, error display, the upgrade comparison on Digital SAT 1.0.0 → 2.0.0, no answer keys or review data on author or student screens
+
+**Verify:** A reviewer takes a submitted package from the queue to active (and another to rejected) entirely in the browser, and the version history matches the actions taken.
+
+**Status:** ⏳ Planned 2026-11-07; not started.
+
+### Step 42 — Admin tool for student course access (future)
+
+**Goal:** Platform admins grant and revoke a student's access to courses with an audited tool instead of editing `students/{id}/access/current` in Firestore by hand. Found on staging (2026-11-07): giving a student access to Digital SAT required a direct database write. Entitlements stay platform-managed (CLAUDE.md §1.4); authors and students can never change them.
+
+- [ ] 42.1 Contract first: admin endpoints to read a student's access, and to grant or revoke one `courseId` (`apCourses` for AP courses, `courses` for others) with a reason; Idempotency-Key required; API.md updated before handlers
+- [ ] 42.2 Authorization: the existing `admin` role (`ActorRole.ADMIN`) gets an explicit `entitlements:manage` permission; platform admins are platform members like reviewers, with no student record; every other role gets 403; unknown students 404
+- [ ] 42.3 Atomic write of the access record and an audit entry (who, when, student, course, grant or revoke, reason) in one transaction; the student's events show a filtered `access.changed` notice without the admin's identity or reason
+- [ ] 42.4 Revocation semantics: the student keeps their records (sessions, assessments, mastery) readable; new enrollments, sessions and submissions return `COURSE_ACCESS_REQUIRED`; open sessions can still be abandoned; a Run already queued is re-checked at execution (as today)
+- [ ] 42.5 Admin screen: find a student by ID, see current access and enrollments, grant or revoke with a reason, see the audit history; no access to the student's answers or chats
+- [ ] 42.6 Bulk grant for a class or pilot cohort (list of student IDs, one course), each grant audited individually, partial failures reported per student
+- [ ] 42.7 Tests: role gating (author, reviewer, student, parent all 403), idempotency, grant then enroll, revoke blocks new work but keeps records, audit entry written in the same transaction (crash leaves neither), bulk partial failure, isolation (one student's change never touches another)
+
+**Verify:** An admin grants Beth Digital SAT access in the tool, she enrolls; the admin revokes it, she can no longer start a session but still sees her past results; the audit history shows both changes with reasons.
+
+**Status:** ⏳ Planned 2026-11-07; not started. Until then, access is changed by a direct Firestore edit recorded in OPERATIONS.md.
+
+### Step 43 — Review assistant agent (future; workflow and skills to be defined by reviewers)
+
+**Goal:** Platform reviewers use an agent to help review submitted course packages: it prepares findings, the reviewer decides. **The review workflow and the agent's skills are to be defined by the platform reviewers later**; this step only records the intent and the rules any design must keep.
+
+**To be defined by reviewers (open):**
+- The review workflow: which checks the agent runs, in what order, and what the reviewer must look at personally.
+- The agent's skills (for example, re-solving answer keys, checking that each item has one defensible answer, checking skill tags, spotting likely copyrighted or official test material, reading the upgrade comparison from Step 41, summarizing rubric clarity), each defined as a platform ability with its own evaluation set.
+- What a finding looks like (severity, the item and field it refers to, evidence) and how the reviewer records agreeing or disagreeing with it.
+
+**Rules any design must keep:**
+- The agent advises; it never approves, rejects, activates or retires, and never makes the license or model-evaluation attestations. Those stay explicit reviewer actions through the existing endpoints.
+- Findings are stored with the version as advisory notes, labeled as agent output, with the model and skill version that produced them; they are never presented as the reviewer's own conclusion.
+- Package text is content, not instructions: an author cannot steer the review agent through question text, passages or the system prompt.
+- It runs on the shared runtime (worker Run through the LLM gateway, usage budgets, no external calls inside transactions), with read-only tools: the package, the validator, the preview, the Step 41 comparison and `math-verify`. No access to student data or to other organizations' drafts.
+- Its own quality is measured offline on annotated packages with known problems (missed issues and false alarms) before reviewers rely on it.
+
+**Relationship to other steps:** builds on the reviewer screen (Step 41), where findings would appear beside each item; mirrors the authoring agent (Step 40) on the author side.
+
+**Status:** ⏳ Intent recorded 2026-11-07; workflow and skills to be defined by reviewers; not started.
+
 ---
 
 ## Delivery Map
@@ -1126,7 +1178,7 @@ Conversation stages (the author can move between them at any time): course basic
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; emulator run 2026-11-05; real-model evaluation review and Step 32 pending |
 | M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
 | M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 deployed to staging 2026-11-03; 32 not yet run; 33 not passed |
-| M5 Optional expansion | 34–40 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent) | 34–38 implemented 2026-11-04 (in-memory, synthetic); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39 and 40 planned, not started |
+| M5 Optional expansion | 34–43 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course-access tool, review assistant agent) | 34–38 implemented 2026-11-04 (in-memory, synthetic); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39–43 planned, not started |
 
 ## Superseded patterns
 

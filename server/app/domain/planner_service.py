@@ -31,6 +31,7 @@ from zoneinfo import ZoneInfo
 
 from app.domain.commands import CommandKey, Outcome, find_replay, remember
 from app.domain.errors import DomainError, ErrorCode
+from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.content import SubjectPackRegistry
 from app.domain.ports.repositories import EventDraft, TaskQuery, Tx, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
@@ -246,8 +247,11 @@ class PlannerService:
         clock: Clock,
         ids: IdFactory,
         reminders: ReminderService | None = None,
+        catalog: CourseCatalog | None = None,
     ) -> None:
+        """`catalog`: enables the practice top-up in every planning commit."""
         self._uow = uow
+        self._catalog = catalog
         self._packs = packs
         self._clock = clock
         self._ids = ids
@@ -305,11 +309,16 @@ class PlannerService:
 
     # ---- Worker (inside the PLANNING run's commit transaction) -------------------------
 
-    async def planning_input(self, tx: Tx, actor: ActorContext, student: Student) -> PlanningInput:
+    async def planning_input(
+        self, tx: Tx, actor: ActorContext, student: Student, created: Sequence[Task] = ()
+    ) -> PlanningInput:
+        """`created`: tasks written earlier in this transaction, which queries cannot see."""
         enrolled = sorted(
             e.course_id for e in await tx.enrollments.list(actor, status=EnrollmentStatus.ACTIVE)
         )
-        tasks = await all_tasks(tx, actor, enrolled)
+        queried = await all_tasks(tx, actor, enrolled)
+        seen = {t.task_id for t in queried}
+        tasks = [*queried, *(t for t in created if t.task_id not in seen)]
         question_skills: dict[str, Sequence[str]] = {}
         names: dict[str, str] = {}
         for course_id in enrolled:
@@ -336,7 +345,20 @@ class PlannerService:
         student = await tx.students.get(actor)
         if student is None:
             raise DomainError(ErrorCode.NOT_FOUND, "Student not found.")
-        inp = await self.planning_input(tx, actor, student)
+        created: list[Task] = []
+        if self._catalog is not None:
+            # Imported here: practice_queue uses this module's placement helpers.
+            from app.domain.practice_queue import top_up_practice
+
+            enrolled = [
+                e.course_id
+                for e in await tx.enrollments.list(actor, status=EnrollmentStatus.ACTIVE)
+            ]
+            created = await top_up_practice(
+                tx, actor, catalog=self._catalog, packs=self._packs, ids=self._ids,
+                student=student, course_ids=enrolled, now=now,
+            )  # fmt: skip
+        inp = await self.planning_input(tx, actor, student, created)
         entries = build_plan(inp)
         state = await tx.plans.get_state(actor)
         trigger = (

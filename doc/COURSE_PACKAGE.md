@@ -16,6 +16,7 @@
   "questions": [ /* Question：自由作答、带 items 的选择题组，或带 sourceMaterialIds 的基于材料写作题 */ ],
   "materials": [ /* 可选，审核过的参考材料 */ ],
   "starterTasks": [{"questionId": "…", "taskType": "PRACTICE", "mode": "ADAPTIVE", "title": "…", "durationMin": 15}],
+  "practiceSequence": [ /* 可选，与 starterTasks 同结构：起始任务之后按顺序提供的练习 */ ],
   "evaluationSet": [{"caseId": "…", "questionId": "…", "answerText": "1: A\n2: C", "expectedStatus": "accepted", "expectedEarned": {"item-1": 1, "item-2": 0}}]
 }
 ```
@@ -27,6 +28,8 @@
 **基于材料的写作题**（`source-analysis`）：题目带 `sourceMaterialIds`（≤8，指向本包 `materials`），如 DBQ、基于给定段落的论证。学生在 Session `activity.sources` 中看到这些材料。评分时材料作为不可信内容隔离注入；评分器对每个 criterion 给出所用材料 `documentsCited`，引用题目材料之外的文档 → 输出无效；得分证据只能引自学生作答。这个能力不属于任何一门课：任何课程包都可以选用。
 
 **starterTasks**：学生首次注册且该课程尚无任务时，在注册事务中创建这些 PLANNED 任务（reason `INITIAL_PRACTICE`），放在最早有空余时间的日期。重新注册不会重复创建。
+
+**practiceSequence**（可选，≤200，2026-11-07）：与 starterTasks 同结构。课程的**练习顺序** = starterTasks 后接 practiceSequence；一道题在两者中最多出现一次（`duplicate`），校验与 starterTasks 相同（`unknown_question`、`unsupported_task_type`、`unsupported_mode`）。平台规则“练习补充”（BACKEND.md §9）按这个顺序给学生分配下一组：学生在该课程的未完成任务（PLANNED/IN_PROGRESS）少于 2 个时，按顺序挑选该学生**从未有过任务**的题目新建任务（reason `NEXT_PRACTICE`），直到未完成任务为 2 个或顺序用完。在完成 Session 时（只针对该课程）和每次计划运行时（定时与学生重排，所有已注册课程）执行；课程未激活、已退役、学生没有权限或未注册时不分配。已完成、跳过的任务对应的题目不会再次分配。新版本激活后，之前注册的学生在下一次补充时得到新版本顺序中尚未分配过的题目。没有 practiceSequence 的课程只有起始任务（行为不变）。
 
 **evaluationSet**：每条用例给出一份作答和预期结果（`expectedEarned` 需列出该题 rubric 的每个 criterion）。选择题用例在上传时由平台按答案键确定性运行；需要模型评分的用例计入 `modelCases`，由审核员在批准时声明已运行。
 

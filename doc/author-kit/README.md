@@ -9,7 +9,7 @@ happens before students can see it.
 | `README.md` (this guide) | The steps, from first draft to a published course |
 | [`FIELD_REFERENCE.md`](FIELD_REFERENCE.md) | Every field and rule, and what each validator error means |
 | [`templates/blank-package.json`](templates/blank-package.json) | The smallest valid package; start here |
-| [`examples/digital-sat-2.0.0.json`](examples/digital-sat-2.0.0.json) | A complete course: Digital SAT, 29 skills, 12 practice sets |
+| [`examples/digital-sat-2.0.1.json`](examples/digital-sat-2.0.1.json) | A complete course: Digital SAT, 29 skills, 12 practice sets |
 
 ## 1. How it works
 
@@ -67,7 +67,9 @@ Your package will be refused at review if it breaks any of these.
    item tests. This is how answering an item updates the right skill.
 6. **Write the tutor's instructions** (`systemPrompt`): how the tutor should teach your course.
    You may use only three placeholders: `{{studentName}}`, `{{currentMode}}`, `{{masteryContext}}`.
-7. **Choose starter tasks**: the sets a student gets when they first join your course.
+7. **Choose starter tasks and the practice order**: `starterTasks` are the sets a student gets
+   when they first join; `practiceSequence` lists the sets offered next, in order. Each time a
+   student is down to fewer than 2 unfinished sets, they get the next ones they have not had.
 8. **Write test cases** (`evaluationSet`). For every multiple-choice set, at least:
    all answers correct, one answer wrong, and an answer that cannot be read. These run
    automatically when you upload.
@@ -118,8 +120,8 @@ Keep these unchanged between versions:
 - **Question IDs of existing sets.** Students may have those sets planned; removing a set they
   are scheduled to do makes that task unavailable. To change a set, give it a new `version`.
 
-Currently, students who joined before an update do not automatically receive the new sets. Only
-new students get starter tasks from the new version.
+Students who joined before an update receive the new version's sets they have not had yet,
+in the new version's practice order, as they finish their current sets.
 
 ## 7. After publication
 

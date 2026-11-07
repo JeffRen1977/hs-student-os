@@ -260,7 +260,7 @@ M3 实现说明：`EventPublisher` 追加事件；若有已注册的消费者订
 
 Planner v1 按期限、证据不足的技能、学生偏好和每周小时分配所有已注册课程的任务。每个候选有来源与可解释规则版本；保留进行中、已完成和学生锁定安排。
 
-M3 实现说明：`POST /api/plans/replan` 建 PLANNING Run；worker 取得租约后在**一个提交事务**中读取状态、计算计划（planner-rules-v1，纯函数，不调用模型）、写回改期的任务（version+1）、计划文档、`plan.updated` 与 Run 终态。提交失败时租约过期后由恢复扫描重试。计划不新建任务；将来课程内消费者新建的任务用同一容量规则（`place_new_task`）放在本周最早有空的一天，否则顺延到下周。时区按学生 IANA timezone 计算"今天"。
+M3 实现说明：`POST /api/plans/replan` 建 PLANNING Run；worker 取得租约后在**一个提交事务**中读取状态、计算计划（planner-rules-v1，纯函数，不调用模型）、写回改期的任务（version+1）、计划文档、`plan.updated` 与 Run 终态。提交失败时租约过期后由恢复扫描重试。计划只通过“练习补充”规则新建任务（2026-11-07，`app/domain/practice_queue.py`）：同一提交事务中，先按课程包的练习顺序（starterTasks + practiceSequence）为每门已注册、已激活且有权限的课程补足到 2 个未完成任务（只选学生从未有过任务的题目，reason `NEXT_PRACTICE`），再把新任务和现有任务一起排进计划。完成 Session 的事务对该课程执行同一规则。新任务用同一容量规则（`place_new_task`）放在本周最早有空的一天，否则顺延到下周。事务内的查询看不到本事务刚写入的任务，所以补充规则把新建与已改动的任务显式传给计划计算，不再重新查询。时区按学生 IANA timezone 计算"今天"。
 
 Cloud Scheduler 定期触发 dispatcher，查询 dueAt，按学生 IANA timezone 计算本地日期和下一次执行。`studentId + localDate + planningReason/sourceEvent` 做业务去重；覆盖夏令时、旅行改时区和并发结算。GET tasks 不隐式重新生成。
 

@@ -4,8 +4,9 @@
 > [author kit](author-kit/README.md) instead (author guide, field reference, blank template, and
 > example). This guide adds what authors do not need: the reviewer's approve/activate steps, the
 > local walkthrough, and platform limits. The kit's example
-> (`author-kit/examples/digital-sat-2.0.0.json`) is a copy of
-> `server/content/authored/dsat/package-2.0.0.json`; copy it again whenever that file changes.
+> (`author-kit/examples/digital-sat-2.0.1.json`) is a copy of
+> `server/content/authored/dsat/package-2.0.1.json`; copy it again whenever that file changes.
+> The end-to-end example across every role is in [examples/DIGITAL_SAT_WALKTHROUGH.md](examples/DIGITAL_SAT_WALKTHROUGH.md).
 
 This guide shows how a course is published on High School Student OS. It uses
 **Digital SAT 2.0.0** ([`server/content/authored/dsat/package-2.0.0.json`](../server/content/authored/dsat/package-2.0.0.json))
@@ -153,6 +154,14 @@ scores.
 
 Created once, when a student first enrolls and has no tasks in the course.
 
+### 3.6a Practice order (`practiceSequence`, added in 2.0.1)
+
+Same shape as `starterTasks`. The course's practice order is the starter tasks followed by the
+practice sequence. The platform keeps each enrolled student at 2 unfinished sets per course: when
+a session completes, and in every planning pass, it gives the next sets in this order the student
+has never had (task reason `NEXT_PRACTICE`). Digital SAT 2.0.1 lists the other ten sets,
+alternating Reading and Writing with Math, then the four 1.0.0 sets.
+
 ### 3.7 Evaluation set
 
 Every package needs one. For a choice set, write at least these three cases. They run
@@ -187,10 +196,9 @@ automatically at upload, and approval is blocked unless all pass.
 - To change an existing question, give it a new `version` rather than reusing the old one.
 - Sessions already open stay on the version they started with (their content and answer key).
   New sessions use the active version.
-- **Known platform limit:** starter tasks are created only on first enrollment, and the planner
-  does not create tasks for content added in a new version. Students who were already enrolled
-  in 1.0.0 do not get tasks for the 8 new sets yet. This needs a platform ability (for example,
-  in-course follow-up rules, Step 24.2); it is not something a package can do.
+- **New sets reach students already enrolled** through the practice order (section 3.6a): as
+  they finish their current sets, they get the new version's sets they have not had. Before
+  2026-11-07 they did not (starter tasks only), which is why 2.0.0 was followed by 2.0.1.
 
 ## 5. Publishing locally (walkthrough)
 
@@ -271,7 +279,6 @@ Same steps against the deployed services (see [README](../README.md) §4):
 These need platform abilities first; a package cannot add them:
 
 - Timed, full-length tests with adaptive module routing.
-- Tasks for new content for students who were already enrolled (section 4).
 - In-course follow-up rules (repeated errors → diagnostic → practice), Step 24.2.
 - Course requirements such as official test dates.
 - Importing questions from PDFs or photos. Today the package file is written directly; an import
@@ -280,6 +287,10 @@ These need platform abilities first; a package cannot add them:
 - Figures and formatted math in items (prompts and choices are plain text).
 - Building a package by conversation with an authoring agent: planned as Step 40 in
   [STEP_BY_STEP_PLAN.md](STEP_BY_STEP_PLAN.md).
+- A reviewer screen (today the reviewer uses the API, as in §5) and an admin tool for granting
+  students course access (today a direct Firestore edit): planned as Steps 41 and 42.
+- A review assistant agent that prepares findings for the reviewer (the reviewer still decides);
+  its workflow and skills are to be defined by reviewers: Step 43.
 - Student-produced-response (grid-in) math items. The platform can already grade free responses
   with `rubric-assessment` + `math-verify` (see Calculus BC), but this example uses multiple
   choice only.

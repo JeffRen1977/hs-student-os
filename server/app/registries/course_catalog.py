@@ -17,6 +17,17 @@ from app.domain.types.course import (
     StarterTaskSpec,
 )
 from app.registries.content import ContentRegistry, Pack
+from app.schemas.package import StarterTask
+
+
+def _spec(s: StarterTask) -> StarterTaskSpec:
+    return StarterTaskSpec(
+        question_id=s.question_id,
+        task_type=s.task_type,
+        mode=s.mode,
+        title=s.title,
+        duration_min=s.duration_min,
+    )
 
 
 def course_definition(pack: Pack) -> CourseDefinition:
@@ -36,16 +47,8 @@ def course_definition(pack: Pack) -> CourseDefinition:
             description=m.description,
         ),
         skills=tuple(m.skills),
-        starter_tasks=tuple(
-            StarterTaskSpec(
-                question_id=s.question_id,
-                task_type=s.task_type,
-                mode=s.mode,
-                title=s.title,
-                duration_min=s.duration_min,
-            )
-            for s in pack.starter_tasks
-        ),
+        starter_tasks=tuple(_spec(s) for s in pack.starter_tasks),
+        practice_sequence=tuple(_spec(s) for s in pack.practice_sequence),
         skill_names={s.skill_id: s.name for s in pack.skills.skills} if pack.skills else {},
     )
 

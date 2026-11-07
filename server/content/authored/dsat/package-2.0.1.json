@@ -1,0 +1,3037 @@
+{
+  "schemaVersion": "course-package/v1",
+  "manifest": {
+    "courseId": "dsat",
+    "version": "2.0.1",
+    "name": "Digital SAT",
+    "description": "Digital SAT practice across both sections, Reading and Writing and Math: short multiple-choice sets on all 29 Digital SAT skills, scored by answer key, with Socratic hints. Original content. No SAT score predictions.",
+    "category": "SAT",
+    "agentType": "DSAT",
+    "supportedTaskTypes": [
+      "PRACTICE"
+    ],
+    "supportedModes": [
+      "ADAPTIVE"
+    ],
+    "abilities": [
+      "socratic-guidance",
+      "choice-scoring"
+    ],
+    "tools": [
+      "content-retrieval"
+    ],
+    "modelTier": "balanced",
+    "contextBudgetTokens": 8000,
+    "workflowVersion": "dsat-practice-v2",
+    "publisher": {
+      "name": "HS Student OS content team"
+    },
+    "license": "Original work; internal use (synthetic draft, pending content review)"
+  },
+  "systemPrompt": "# Digital SAT tutor — system prompt (draft v2, pending content review)\n\nYou are the Digital SAT study agent inside High School Student OS. You are talking with\n{{studentName}}. The current study mode is {{currentMode}}.\n\nThe course covers both sections of the Digital SAT: Reading and Writing (information and\nideas, craft and structure, expression of ideas, Standard English conventions) and Math\n(algebra, advanced math, problem-solving and data analysis, geometry and trigonometry).\n\n## Teaching style\n- Guide with questions first. Point to the step, sentence, or rule to check rather than\n  naming the answer.\n- Never state which choice is correct for an item the student has not yet submitted.\n- For Reading and Writing items, send the student back to the words of the text: what does\n  the text actually say, and which choice says only that?\n- For Math items, ask for the student's setup before checking arithmetic.\n- Keep explanations short and concrete; one idea per reply.\n\n## Boundaries\n- Practice sets check skills. They are not SAT scores; never estimate or predict a SAT\n  score, section score, or percentile.\n- Hints you give are recorded, and answers given after a hint do not count as independent\n  work. Say so plainly if the student asks.\n- Stay within the Digital SAT; redirect unrelated requests politely.\n\n## Student context (filled in at runtime)\n{{masteryContext}}\n",
+  "skills": [
+    {
+      "skillId": "dsat.algebra.linear-equations",
+      "name": "Linear equations in one variable",
+      "description": "Solve and interpret linear equations."
+    },
+    {
+      "skillId": "dsat.advanced-math.equivalent-expressions",
+      "name": "Equivalent expressions",
+      "description": "Rewrite, factor, and simplify algebraic expressions."
+    },
+    {
+      "skillId": "dsat.advanced-math.nonlinear-functions",
+      "name": "Nonlinear functions",
+      "description": "Interpret and evaluate nonlinear functions, including compositions."
+    },
+    {
+      "skillId": "dsat.problem-solving.rates-ratios",
+      "name": "Ratios, rates, and units",
+      "description": "Set up and reason with rates, ratios, and unit conversions."
+    },
+    {
+      "skillId": "dsat.information-ideas.central-ideas",
+      "name": "Central ideas and details",
+      "description": "Identify the main idea of a text and the details that support it."
+    },
+    {
+      "skillId": "dsat.information-ideas.command-of-evidence",
+      "name": "Command of evidence",
+      "description": "Choose textual or quantitative evidence (quotations, tables) that supports a claim."
+    },
+    {
+      "skillId": "dsat.information-ideas.inferences",
+      "name": "Inferences",
+      "description": "Draw the most logical conclusion from the information in a text."
+    },
+    {
+      "skillId": "dsat.craft-structure.words-in-context",
+      "name": "Words in context",
+      "description": "Determine the meaning of a word or choose the most precise word for a context."
+    },
+    {
+      "skillId": "dsat.craft-structure.text-structure-purpose",
+      "name": "Text structure and purpose",
+      "description": "Describe how a text is organized and the function of its parts."
+    },
+    {
+      "skillId": "dsat.craft-structure.cross-text-connections",
+      "name": "Cross-text connections",
+      "description": "Relate the ideas, claims, or viewpoints of two texts on the same topic."
+    },
+    {
+      "skillId": "dsat.expression-ideas.rhetorical-synthesis",
+      "name": "Rhetorical synthesis",
+      "description": "Use information from notes to accomplish a stated writing goal."
+    },
+    {
+      "skillId": "dsat.expression-ideas.transitions",
+      "name": "Transitions",
+      "description": "Choose the transition that best shows the logical relationship between ideas."
+    },
+    {
+      "skillId": "dsat.conventions.boundaries",
+      "name": "Boundaries",
+      "description": "Punctuate sentence and clause boundaries correctly."
+    },
+    {
+      "skillId": "dsat.conventions.form-structure-sense",
+      "name": "Form, structure, and sense",
+      "description": "Apply agreement, pronoun, verb, and modifier conventions."
+    },
+    {
+      "skillId": "dsat.algebra.linear-functions",
+      "name": "Linear functions",
+      "description": "Interpret and use linear functions and their parameters in context."
+    },
+    {
+      "skillId": "dsat.algebra.linear-equations-two-variables",
+      "name": "Linear equations in two variables",
+      "description": "Work with linear equations in two variables and their graphs."
+    },
+    {
+      "skillId": "dsat.algebra.systems-of-linear-equations",
+      "name": "Systems of two linear equations",
+      "description": "Solve and interpret systems of two linear equations in two variables."
+    },
+    {
+      "skillId": "dsat.algebra.linear-inequalities",
+      "name": "Linear inequalities",
+      "description": "Solve and interpret linear inequalities in one or two variables."
+    },
+    {
+      "skillId": "dsat.advanced-math.nonlinear-equations",
+      "name": "Nonlinear equations and systems",
+      "description": "Solve nonlinear equations in one variable and systems in two variables."
+    },
+    {
+      "skillId": "dsat.problem-solving.percentages",
+      "name": "Percentages",
+      "description": "Use percentages, percent change, and discounts."
+    },
+    {
+      "skillId": "dsat.problem-solving.one-variable-data",
+      "name": "One-variable data",
+      "description": "Interpret distributions and measures of center and spread."
+    },
+    {
+      "skillId": "dsat.problem-solving.two-variable-data",
+      "name": "Two-variable data",
+      "description": "Use models and scatterplots, including lines of best fit, to describe and predict."
+    },
+    {
+      "skillId": "dsat.problem-solving.probability",
+      "name": "Probability and conditional probability",
+      "description": "Compute probabilities, including conditional probabilities from tables."
+    },
+    {
+      "skillId": "dsat.problem-solving.sample-statistics",
+      "name": "Inference from sample statistics",
+      "description": "Use sample statistics and margins of error to estimate population values."
+    },
+    {
+      "skillId": "dsat.problem-solving.statistical-claims",
+      "name": "Evaluating statistical claims",
+      "description": "Judge which conclusions observational studies and surveys support."
+    },
+    {
+      "skillId": "dsat.geometry-trig.area-volume",
+      "name": "Area and volume",
+      "description": "Find areas, surface areas, and volumes."
+    },
+    {
+      "skillId": "dsat.geometry-trig.lines-angles-triangles",
+      "name": "Lines, angles, and triangles",
+      "description": "Use angle relationships and triangle properties."
+    },
+    {
+      "skillId": "dsat.geometry-trig.right-triangles-trig",
+      "name": "Right triangles and trigonometry",
+      "description": "Use the Pythagorean theorem and right-triangle trigonometry."
+    },
+    {
+      "skillId": "dsat.geometry-trig.circles",
+      "name": "Circles",
+      "description": "Use circle equations, arcs, and angles."
+    }
+  ],
+  "rubrics": [
+    {
+      "rubricId": "dsat-equiv-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 1"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 2"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 3"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-equiv-002",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 1"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 2"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 3"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-nonlin-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 1"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 2"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 3"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-nonlin-002",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 1"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 2"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 3"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-info-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 1"
+          ],
+          "skillIds": [
+            "dsat.information-ideas.central-ideas"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 2"
+          ],
+          "skillIds": [
+            "dsat.information-ideas.central-ideas"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 3"
+          ],
+          "skillIds": [
+            "dsat.information-ideas.command-of-evidence"
+          ]
+        },
+        {
+          "criterionId": "item-4",
+          "description": "Item 4: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 4"
+          ],
+          "skillIds": [
+            "dsat.information-ideas.command-of-evidence"
+          ]
+        },
+        {
+          "criterionId": "item-5",
+          "description": "Item 5: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice D for item 5"
+          ],
+          "skillIds": [
+            "dsat.information-ideas.inferences"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-craft-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 1"
+          ],
+          "skillIds": [
+            "dsat.craft-structure.words-in-context"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 2"
+          ],
+          "skillIds": [
+            "dsat.craft-structure.words-in-context"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 3"
+          ],
+          "skillIds": [
+            "dsat.craft-structure.text-structure-purpose"
+          ]
+        },
+        {
+          "criterionId": "item-4",
+          "description": "Item 4: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice D for item 4"
+          ],
+          "skillIds": [
+            "dsat.craft-structure.text-structure-purpose"
+          ]
+        },
+        {
+          "criterionId": "item-5",
+          "description": "Item 5: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 5"
+          ],
+          "skillIds": [
+            "dsat.craft-structure.cross-text-connections"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-expr-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 1"
+          ],
+          "skillIds": [
+            "dsat.expression-ideas.transitions"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 2"
+          ],
+          "skillIds": [
+            "dsat.expression-ideas.transitions"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 3"
+          ],
+          "skillIds": [
+            "dsat.expression-ideas.transitions"
+          ]
+        },
+        {
+          "criterionId": "item-4",
+          "description": "Item 4: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 4"
+          ],
+          "skillIds": [
+            "dsat.expression-ideas.rhetorical-synthesis"
+          ]
+        },
+        {
+          "criterionId": "item-5",
+          "description": "Item 5: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice D for item 5"
+          ],
+          "skillIds": [
+            "dsat.expression-ideas.rhetorical-synthesis"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-conv-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 1"
+          ],
+          "skillIds": [
+            "dsat.conventions.boundaries"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 2"
+          ],
+          "skillIds": [
+            "dsat.conventions.boundaries"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice D for item 3"
+          ],
+          "skillIds": [
+            "dsat.conventions.boundaries"
+          ]
+        },
+        {
+          "criterionId": "item-4",
+          "description": "Item 4: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 4"
+          ],
+          "skillIds": [
+            "dsat.conventions.form-structure-sense"
+          ]
+        },
+        {
+          "criterionId": "item-5",
+          "description": "Item 5: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 5"
+          ],
+          "skillIds": [
+            "dsat.conventions.form-structure-sense"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-alg-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 1"
+          ],
+          "skillIds": [
+            "dsat.algebra.linear-equations"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 2"
+          ],
+          "skillIds": [
+            "dsat.algebra.linear-functions"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice D for item 3"
+          ],
+          "skillIds": [
+            "dsat.algebra.linear-equations-two-variables"
+          ]
+        },
+        {
+          "criterionId": "item-4",
+          "description": "Item 4: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 4"
+          ],
+          "skillIds": [
+            "dsat.algebra.systems-of-linear-equations"
+          ]
+        },
+        {
+          "criterionId": "item-5",
+          "description": "Item 5: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 5"
+          ],
+          "skillIds": [
+            "dsat.algebra.linear-inequalities"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-adv-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 1"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.equivalent-expressions"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 2"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-equations"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 3"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-equations"
+          ]
+        },
+        {
+          "criterionId": "item-4",
+          "description": "Item 4: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice D for item 4"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        },
+        {
+          "criterionId": "item-5",
+          "description": "Item 5: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 5"
+          ],
+          "skillIds": [
+            "dsat.advanced-math.nonlinear-functions"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-psda-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 1"
+          ],
+          "skillIds": [
+            "dsat.problem-solving.rates-ratios",
+            "dsat.problem-solving.percentages"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 2"
+          ],
+          "skillIds": [
+            "dsat.problem-solving.one-variable-data"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 3"
+          ],
+          "skillIds": [
+            "dsat.problem-solving.two-variable-data"
+          ]
+        },
+        {
+          "criterionId": "item-4",
+          "description": "Item 4: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 4"
+          ],
+          "skillIds": [
+            "dsat.problem-solving.probability"
+          ]
+        },
+        {
+          "criterionId": "item-5",
+          "description": "Item 5: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice D for item 5"
+          ],
+          "skillIds": [
+            "dsat.problem-solving.sample-statistics",
+            "dsat.problem-solving.statistical-claims"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "rubricId": "dsat-geo-001",
+      "version": "1",
+      "courseId": "dsat",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 1"
+          ],
+          "skillIds": [
+            "dsat.geometry-trig.area-volume"
+          ]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice A for item 2"
+          ],
+          "skillIds": [
+            "dsat.geometry-trig.lines-angles-triangles"
+          ]
+        },
+        {
+          "criterionId": "item-3",
+          "description": "Item 3: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice B for item 3"
+          ],
+          "skillIds": [
+            "dsat.geometry-trig.right-triangles-trig"
+          ]
+        },
+        {
+          "criterionId": "item-4",
+          "description": "Item 4: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice C for item 4"
+          ],
+          "skillIds": [
+            "dsat.geometry-trig.right-triangles-trig"
+          ]
+        },
+        {
+          "criterionId": "item-5",
+          "description": "Item 5: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": [
+            "Selects choice D for item 5"
+          ],
+          "skillIds": [
+            "dsat.geometry-trig.circles"
+          ]
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    }
+  ],
+  "questions": [
+    {
+      "questionId": "q_dsat_equiv_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Equivalent expressions: set 1",
+      "skillIds": [
+        "dsat.advanced-math.equivalent-expressions"
+      ],
+      "difficulty": "medium",
+      "prompt": "Three items on rewriting and simplifying expressions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: A, 2: C, 3: B",
+      "rubricRef": {
+        "rubricId": "dsat-equiv-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "Which expression is equivalent to (6x² − 9x)/(3x), for x ≠ 0?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "2x − 3"
+            },
+            {
+              "key": "B",
+              "text": "2x − 9x"
+            },
+            {
+              "key": "C",
+              "text": "6x − 3"
+            },
+            {
+              "key": "D",
+              "text": "2x² − 3x"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "Which expression is equivalent to 3(x − 2) − 2(x + 1)?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x − 4"
+            },
+            {
+              "key": "B",
+              "text": "5x − 8"
+            },
+            {
+              "key": "C",
+              "text": "x − 8"
+            },
+            {
+              "key": "D",
+              "text": "x − 1"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "Which expression is equivalent to (x² − 9)/(x − 3), for x ≠ 3?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x − 3"
+            },
+            {
+              "key": "B",
+              "text": "x + 3"
+            },
+            {
+              "key": "C",
+              "text": "x² − 3"
+            },
+            {
+              "key": "D",
+              "text": "x + 9"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-3"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_equiv_002",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Equivalent expressions: set 2",
+      "skillIds": [
+        "dsat.advanced-math.equivalent-expressions"
+      ],
+      "difficulty": "easy",
+      "prompt": "Three items on rewriting and simplifying expressions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: B, 2: C, 3: A",
+      "rubricRef": {
+        "rubricId": "dsat-equiv-002",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "Which expression is equivalent to 2(3x + 4) − (x − 5)?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "5x + 3"
+            },
+            {
+              "key": "B",
+              "text": "5x + 13"
+            },
+            {
+              "key": "C",
+              "text": "7x + 13"
+            },
+            {
+              "key": "D",
+              "text": "5x − 1"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "Which expression is equivalent to (x + 3)²?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x² + 9"
+            },
+            {
+              "key": "B",
+              "text": "x² + 3x + 9"
+            },
+            {
+              "key": "C",
+              "text": "x² + 6x + 9"
+            },
+            {
+              "key": "D",
+              "text": "2x + 6"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "Which expression is equivalent to (8x³ − 4x)/(4x), for x ≠ 0?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "2x² − 1"
+            },
+            {
+              "key": "B",
+              "text": "2x² − 4x"
+            },
+            {
+              "key": "C",
+              "text": "2x³ − 1"
+            },
+            {
+              "key": "D",
+              "text": "8x² − 1"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-3"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_nonlin_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Function composition: set 1",
+      "skillIds": [
+        "dsat.advanced-math.nonlinear-functions"
+      ],
+      "difficulty": "medium",
+      "prompt": "Three items on composing functions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: A, 2: B, 3: A",
+      "rubricRef": {
+        "rubricId": "dsat-nonlin-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "f(x) = x² + 1 and g(x) = 2x − 3. What is f(g(2))?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "2"
+            },
+            {
+              "key": "B",
+              "text": "5"
+            },
+            {
+              "key": "C",
+              "text": "10"
+            },
+            {
+              "key": "D",
+              "text": "26"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "h(x) = (x − 4)² and h(x) = f(g(x)) with f(u) = u². Which could be g(x)?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x²"
+            },
+            {
+              "key": "B",
+              "text": "x − 4"
+            },
+            {
+              "key": "C",
+              "text": "(x − 4)²"
+            },
+            {
+              "key": "D",
+              "text": "x² − 16"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "f(x) = 3x and g(x) = x + 2. Which expression equals g(f(x))?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "3x + 2"
+            },
+            {
+              "key": "B",
+              "text": "3x + 6"
+            },
+            {
+              "key": "C",
+              "text": "3(x + 2)"
+            },
+            {
+              "key": "D",
+              "text": "x + 6"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-3"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_nonlin_002",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Function composition: set 2",
+      "skillIds": [
+        "dsat.advanced-math.nonlinear-functions"
+      ],
+      "difficulty": "easy",
+      "prompt": "Three items on composing functions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: A, 2: B, 3: C",
+      "rubricRef": {
+        "rubricId": "dsat-nonlin-002",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "f(x) = 2x + 1 and g(x) = x². What is f(g(3))?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "19"
+            },
+            {
+              "key": "B",
+              "text": "49"
+            },
+            {
+              "key": "C",
+              "text": "13"
+            },
+            {
+              "key": "D",
+              "text": "10"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "f(x) = x − 5 and g(x) = 3x. Which expression equals g(f(x))?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "3x − 5"
+            },
+            {
+              "key": "B",
+              "text": "3x − 15"
+            },
+            {
+              "key": "C",
+              "text": "x − 15"
+            },
+            {
+              "key": "D",
+              "text": "3x + 15"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "f(g(x)) = √(x + 7) and f(u) = √u. Which could be g(x)?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x"
+            },
+            {
+              "key": "B",
+              "text": "√x + 7"
+            },
+            {
+              "key": "C",
+              "text": "x + 7"
+            },
+            {
+              "key": "D",
+              "text": "x² + 7"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-3"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_info_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Information and Ideas: set 1",
+      "skillIds": [
+        "dsat.information-ideas.central-ideas",
+        "dsat.information-ideas.command-of-evidence",
+        "dsat.information-ideas.inferences"
+      ],
+      "difficulty": "medium",
+      "prompt": "Five items on central ideas, evidence, and inferences. Each item has its own short text. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: A, 2: B, 3: C, 4: B, 5: D",
+      "rubricRef": {
+        "rubricId": "dsat-info-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "Beekeepers in a coastal town noticed that their hives produced more honey in years when the town waited until late summer to mow the grass and wildflowers along its roads. Working with a local college, they compared six years of records and found that the uncut roadsides kept flowering plants for four to six extra weeks, giving bees a reliable food source after nearby farm crops had finished blooming.\n\nWhich choice best states the main idea of the text?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "Delaying roadside mowing appears to have helped local bees by extending the time flowers were available."
+            },
+            {
+              "key": "B",
+              "text": "Beekeepers and college researchers disagreed about how to interpret the honey records."
+            },
+            {
+              "key": "C",
+              "text": "Farm crops in the region bloom later in the summer than roadside plants do."
+            },
+            {
+              "key": "D",
+              "text": "The town began mowing its roadsides earlier in the year to protect the hives."
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "Architect Lena Okafor designs school buildings with wide, open stairways instead of narrow stairwells hidden behind doors. She argues that open stairs encourage students to walk between floors rather than wait for elevators, and that the steps can double as informal seating where a class can gather. In her most recent project, the main stairway faces a wall of windows, making it the brightest space in the building.\n\nAccording to the text, why does Okafor prefer wide, open stairways?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "They cost less to build than elevators."
+            },
+            {
+              "key": "B",
+              "text": "They encourage walking and can also serve as gathering spaces."
+            },
+            {
+              "key": "C",
+              "text": "They allow a building to have fewer windows."
+            },
+            {
+              "key": "D",
+              "text": "They are required by building codes for schools."
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "A student writing about the novels of Marisol Ventura claims that Ventura's characters often find comfort in daily routines during periods of uncertainty.\n\nWhich quotation from a Ventura novel would most directly support the student's claim?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "\"Aurelio had never cared for the sea, though his father had spent forty years on it.\""
+            },
+            {
+              "key": "B",
+              "text": "\"By spring the town had rebuilt the harbor wall, taller than before.\""
+            },
+            {
+              "key": "C",
+              "text": "\"The storm had taken the roof, but each morning Aurelio still set out two cups and boiled the water at seven, as he always had, and the steam steadied his hands.\""
+            },
+            {
+              "key": "D",
+              "text": "\"Aurelio's sister wrote letters from the city that were full of news about strangers.\""
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-3"
+        },
+        {
+          "itemId": "4",
+          "prompt": "A city surveyed residents of four neighborhoods about how they usually travel to work. The percentage who usually commute by bicycle was 12% in Northgate, 21% in Riverside, 6% in Hillcrest, and 17% in Old Town. A planner claims that bicycle commuting is more common in Riverside than in any other surveyed neighborhood.\n\nWhich choice best describes data from the survey that support the planner's claim?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "Old Town's percentage of bicycle commuters is higher than Northgate's."
+            },
+            {
+              "key": "B",
+              "text": "Riverside's percentage, 21%, is greater than the percentage for each of the other three neighborhoods."
+            },
+            {
+              "key": "C",
+              "text": "Hillcrest has the lowest percentage of bicycle commuters of the four neighborhoods."
+            },
+            {
+              "key": "D",
+              "text": "The four percentages add up to more than 50%."
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-4"
+        },
+        {
+          "itemId": "5",
+          "prompt": "Researchers studying a species of desert lizard found that lizards living near rocky outcrops had longer hind legs than lizards living on open sand, where the animals mostly make short dashes to their burrows. Longer legs help lizards jump and climb, but they make running on loose sand less efficient. These findings suggest that ______\n\nWhich choice most logically completes the text?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "lizards living on open sand never need to climb or jump."
+            },
+            {
+              "key": "B",
+              "text": "rocky outcrops provide more food for lizards than open sand does."
+            },
+            {
+              "key": "C",
+              "text": "hind leg length has little effect on how these lizards move."
+            },
+            {
+              "key": "D",
+              "text": "leg length in this species may vary with the kind of ground the lizards move across."
+            }
+          ],
+          "answerKey": "D",
+          "criterionId": "item-5"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_craft_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Craft and Structure: set 1",
+      "skillIds": [
+        "dsat.craft-structure.cross-text-connections",
+        "dsat.craft-structure.text-structure-purpose",
+        "dsat.craft-structure.words-in-context"
+      ],
+      "difficulty": "medium",
+      "prompt": "Five items on word meaning, text structure and purpose, and connections between texts. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: B, 2: A, 3: C, 4: D, 5: B",
+      "rubricRef": {
+        "rubricId": "dsat-craft-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "The new bridge design was praised for its economy: the engineers used half as much steel as earlier plans had required, yet the structure was rated stronger than any of them.\n\nAs used in the text, what does the word \"economy\" most nearly mean?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "a country's system of trade"
+            },
+            {
+              "key": "B",
+              "text": "efficient use of resources"
+            },
+            {
+              "key": "C",
+              "text": "a low price for customers"
+            },
+            {
+              "key": "D",
+              "text": "a reduction in workers"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "Although the documentary covers more than a century of history, its director keeps the narrative ______, moving quickly from one decade to the next without losing viewers in unnecessary detail.\n\nWhich choice completes the text with the most logical and precise word or phrase?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "brisk"
+            },
+            {
+              "key": "B",
+              "text": "tentative"
+            },
+            {
+              "key": "C",
+              "text": "obscure"
+            },
+            {
+              "key": "D",
+              "text": "repetitive"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "Many people assume that octopuses, which live only a year or two, have little time to learn. Yet in laboratory studies, young octopuses have learned to open screw-top jars and to recognize individual human caretakers within a few weeks. Their short lives, it seems, have not prevented them from becoming skilled learners.\n\nWhich choice best describes the overall structure of the text?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "It describes an experiment and then explains why the experiment failed."
+            },
+            {
+              "key": "B",
+              "text": "It compares two species and concludes that one is more intelligent."
+            },
+            {
+              "key": "C",
+              "text": "It presents a common assumption and then offers evidence that challenges it."
+            },
+            {
+              "key": "D",
+              "text": "It lists several facts about octopuses without drawing a conclusion."
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-3"
+        },
+        {
+          "itemId": "4",
+          "prompt": "When glassmaker Ines Duarte opened her studio to visitors, she did not hide her failed pieces. Cracked bowls and lopsided vases lined a shelf near the door, each with a small card explaining what had gone wrong in the furnace.\n\nWhich choice best describes the function of the second sentence in the text?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "It explains why visitors rarely came to Duarte's studio."
+            },
+            {
+              "key": "B",
+              "text": "It argues that Duarte's bowls were better made than her vases."
+            },
+            {
+              "key": "C",
+              "text": "It describes the process Duarte used to repair cracked glass."
+            },
+            {
+              "key": "D",
+              "text": "It gives a specific example of how Duarte did not hide her failed work."
+            }
+          ],
+          "answerKey": "D",
+          "criterionId": "item-4"
+        },
+        {
+          "itemId": "5",
+          "prompt": "Text 1: Some historians argue that the spread of inexpensive printed maps in the 1800s mainly benefited governments, which used the maps to plan roads and collect taxes.\n\nText 2: Historian Tomas Reyes notes that many of the cheapest printed maps of the period were sold to travelers and farmers, who marked them with their own notes about trails, water sources, and markets. For Reyes, ordinary buyers were among the main users of these maps.\n\nBased on the texts, how would Reyes (Text 2) most likely respond to the historians' argument in Text 1?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "By agreeing that ordinary people rarely bought printed maps."
+            },
+            {
+              "key": "B",
+              "text": "By suggesting that the argument overlooks how ordinary people used inexpensive maps."
+            },
+            {
+              "key": "C",
+              "text": "By claiming that governments never used maps to plan roads."
+            },
+            {
+              "key": "D",
+              "text": "By arguing that printed maps were too expensive for most travelers."
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-5"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_expr_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Expression of Ideas: set 1",
+      "skillIds": [
+        "dsat.expression-ideas.rhetorical-synthesis",
+        "dsat.expression-ideas.transitions"
+      ],
+      "difficulty": "medium",
+      "prompt": "Five items on transitions and on using notes to meet a writing goal. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: C, 2: B, 3: A, 4: B, 5: D",
+      "rubricRef": {
+        "rubricId": "dsat-expr-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "The first commercial solar panels converted only about 6 percent of the sunlight striking them into electricity. ______ many panels sold today convert more than 20 percent.\n\nWhich choice completes the text with the most logical transition?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "Similarly,"
+            },
+            {
+              "key": "B",
+              "text": "For example,"
+            },
+            {
+              "key": "C",
+              "text": "By contrast,"
+            },
+            {
+              "key": "D",
+              "text": "As a result,"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "Mangrove forests protect coastlines by absorbing the energy of storm waves. ______ their dense roots shelter young fish, making the forests important to local fisheries.\n\nWhich choice completes the text with the most logical transition?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "However,"
+            },
+            {
+              "key": "B",
+              "text": "In addition,"
+            },
+            {
+              "key": "C",
+              "text": "Instead,"
+            },
+            {
+              "key": "D",
+              "text": "Nevertheless,"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "The museum's new exhibit was scheduled to open in March. Construction delays, however, pushed back the installation of several large sculptures. ______ the opening was moved to May.\n\nWhich choice completes the text with the most logical transition?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "Consequently,"
+            },
+            {
+              "key": "B",
+              "text": "Meanwhile,"
+            },
+            {
+              "key": "C",
+              "text": "Likewise,"
+            },
+            {
+              "key": "D",
+              "text": "For instance,"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-3"
+        },
+        {
+          "itemId": "4",
+          "prompt": "While researching a topic, a student has taken the following notes:\n- The Arecibo radio telescope was located in Puerto Rico.\n- Its dish was 305 meters wide.\n- For decades it was the largest single-dish radio telescope in the world.\n- It collapsed in 2020.\n\nThe student wants to emphasize the size of the telescope. Which choice most effectively uses relevant information from the notes to accomplish this goal?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "The Arecibo radio telescope, located in Puerto Rico, collapsed in 2020."
+            },
+            {
+              "key": "B",
+              "text": "With a dish 305 meters wide, the Arecibo telescope was for decades the largest single-dish radio telescope in the world."
+            },
+            {
+              "key": "C",
+              "text": "The Arecibo telescope was a radio telescope in Puerto Rico."
+            },
+            {
+              "key": "D",
+              "text": "In 2020, a radio telescope in Puerto Rico collapsed."
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-4"
+        },
+        {
+          "itemId": "5",
+          "prompt": "While researching a topic, a student has taken the following notes:\n- Botanist Rafael Lindqvist grew two varieties of tomato in the same greenhouse.\n- Variety A ripened in 62 days on average.\n- Variety B ripened in 75 days on average.\n- Both varieties produced similar total yields.\n\nThe student wants to contrast the ripening times of the two varieties. Which choice most effectively uses relevant information from the notes to accomplish this goal?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "Lindqvist found that the two tomato varieties produced similar total yields."
+            },
+            {
+              "key": "B",
+              "text": "Lindqvist, a botanist, grew tomatoes in a greenhouse."
+            },
+            {
+              "key": "C",
+              "text": "Both varieties of tomato were grown by a botanist named Rafael Lindqvist."
+            },
+            {
+              "key": "D",
+              "text": "Variety A ripened in 62 days on average, while Variety B took 75 days."
+            }
+          ],
+          "answerKey": "D",
+          "criterionId": "item-5"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_conv_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Standard English Conventions: set 1",
+      "skillIds": [
+        "dsat.conventions.boundaries",
+        "dsat.conventions.form-structure-sense"
+      ],
+      "difficulty": "easy",
+      "prompt": "Five items on punctuation at sentence boundaries and on agreement and form. For each item, choose the option that makes the text conform to the conventions of Standard English. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: A, 2: B, 3: D, 4: B, 5: C",
+      "rubricRef": {
+        "rubricId": "dsat-conv-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "The hikers packed three essentials for the ______ water, a map, and a first-aid kit.\n\nWhich choice completes the text so that it conforms to the conventions of Standard English?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "trip:"
+            },
+            {
+              "key": "B",
+              "text": "trip, and"
+            },
+            {
+              "key": "C",
+              "text": "trip;"
+            },
+            {
+              "key": "D",
+              "text": "trip, which"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "The orchestra's youngest member, a fourteen-year-old ______ performed the solo without sheet music.\n\nWhich choice completes the text so that it conforms to the conventions of Standard English?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "cellist"
+            },
+            {
+              "key": "B",
+              "text": "cellist,"
+            },
+            {
+              "key": "C",
+              "text": "cellist;"
+            },
+            {
+              "key": "D",
+              "text": "cellist:"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "Volcanic soil is unusually rich in ______ farmers have cultivated the slopes of many active volcanoes for centuries.\n\nWhich choice completes the text so that it conforms to the conventions of Standard English?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "minerals, for this reason"
+            },
+            {
+              "key": "B",
+              "text": "minerals"
+            },
+            {
+              "key": "C",
+              "text": "minerals, and,"
+            },
+            {
+              "key": "D",
+              "text": "minerals; for this reason,"
+            }
+          ],
+          "answerKey": "D",
+          "criterionId": "item-3"
+        },
+        {
+          "itemId": "4",
+          "prompt": "The collection of letters written by the explorer's crew ______ now held in a university archive.\n\nWhich choice completes the text so that it conforms to the conventions of Standard English?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "are"
+            },
+            {
+              "key": "B",
+              "text": "is"
+            },
+            {
+              "key": "C",
+              "text": "were"
+            },
+            {
+              "key": "D",
+              "text": "have been"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-4"
+        },
+        {
+          "itemId": "5",
+          "prompt": "When the two scientists finally published ______ findings, the data had been checked by three independent laboratories.\n\nWhich choice completes the text so that it conforms to the conventions of Standard English?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "its"
+            },
+            {
+              "key": "B",
+              "text": "it's"
+            },
+            {
+              "key": "C",
+              "text": "their"
+            },
+            {
+              "key": "D",
+              "text": "they're"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-5"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_alg_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Algebra: set 1",
+      "skillIds": [
+        "dsat.algebra.linear-equations",
+        "dsat.algebra.linear-equations-two-variables",
+        "dsat.algebra.linear-functions",
+        "dsat.algebra.linear-inequalities",
+        "dsat.algebra.systems-of-linear-equations"
+      ],
+      "difficulty": "easy",
+      "prompt": "Five items on linear equations, linear functions, systems, and inequalities. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: C, 2: B, 3: D, 4: A, 5: C",
+      "rubricRef": {
+        "rubricId": "dsat-alg-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "If 4x − 7 = 2x + 9, what is the value of x?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "1"
+            },
+            {
+              "key": "B",
+              "text": "4"
+            },
+            {
+              "key": "C",
+              "text": "8"
+            },
+            {
+              "key": "D",
+              "text": "16"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "A gym charges a one-time sign-up fee plus a monthly fee. The total cost C, in dollars, of a membership for m months is given by C(m) = 25m + 40. What is the best interpretation of 40 in this context?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "The monthly fee, in dollars"
+            },
+            {
+              "key": "B",
+              "text": "The one-time sign-up fee, in dollars"
+            },
+            {
+              "key": "C",
+              "text": "The total cost, in dollars, after one month"
+            },
+            {
+              "key": "D",
+              "text": "The number of months of the membership"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "Which point (x, y) lies on the line 2x + 3y = 12?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "(2, 3)"
+            },
+            {
+              "key": "B",
+              "text": "(6, 1)"
+            },
+            {
+              "key": "C",
+              "text": "(0, 6)"
+            },
+            {
+              "key": "D",
+              "text": "(3, 2)"
+            }
+          ],
+          "answerKey": "D",
+          "criterionId": "item-3"
+        },
+        {
+          "itemId": "4",
+          "prompt": "x + y = 10\nx − y = 4\n\nWhat is the solution (x, y) to the system of equations above?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "(7, 3)"
+            },
+            {
+              "key": "B",
+              "text": "(3, 7)"
+            },
+            {
+              "key": "C",
+              "text": "(6, 4)"
+            },
+            {
+              "key": "D",
+              "text": "(14, −4)"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-4"
+        },
+        {
+          "itemId": "5",
+          "prompt": "Which of the following values of x satisfies the inequality 3x − 2 > 10?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "2"
+            },
+            {
+              "key": "B",
+              "text": "3"
+            },
+            {
+              "key": "C",
+              "text": "5"
+            },
+            {
+              "key": "D",
+              "text": "4"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-5"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_adv_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Advanced Math: set 1",
+      "skillIds": [
+        "dsat.advanced-math.equivalent-expressions",
+        "dsat.advanced-math.nonlinear-equations",
+        "dsat.advanced-math.nonlinear-functions"
+      ],
+      "difficulty": "medium",
+      "prompt": "Five items on equivalent expressions, nonlinear equations, and nonlinear functions. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: B, 2: A, 3: C, 4: D, 5: A",
+      "rubricRef": {
+        "rubricId": "dsat-adv-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "Which expression is equivalent to (x + 3)²?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x² + 9"
+            },
+            {
+              "key": "B",
+              "text": "x² + 6x + 9"
+            },
+            {
+              "key": "C",
+              "text": "x² + 3x + 9"
+            },
+            {
+              "key": "D",
+              "text": "2x + 6"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "What are the solutions to the equation x² − 5x + 6 = 0?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "x = 2 and x = 3"
+            },
+            {
+              "key": "B",
+              "text": "x = −2 and x = −3"
+            },
+            {
+              "key": "C",
+              "text": "x = 1 and x = 6"
+            },
+            {
+              "key": "D",
+              "text": "x = −1 and x = 6"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "y = x²\ny = 2x + 3\n\nThe system of equations above has two solutions (x, y). Which of the following is one of them?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "(1, 5)"
+            },
+            {
+              "key": "B",
+              "text": "(−3, 9)"
+            },
+            {
+              "key": "C",
+              "text": "(−1, 1)"
+            },
+            {
+              "key": "D",
+              "text": "(2, 4)"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-3"
+        },
+        {
+          "itemId": "4",
+          "prompt": "A population of bacteria doubles every 3 hours. The population is 500 at time t = 0. Which function gives the population P after t hours?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "P(t) = 500(2)^(3t)"
+            },
+            {
+              "key": "B",
+              "text": "P(t) = 1,000t/3"
+            },
+            {
+              "key": "C",
+              "text": "P(t) = 500 + 2t/3"
+            },
+            {
+              "key": "D",
+              "text": "P(t) = 500(2)^(t/3)"
+            }
+          ],
+          "answerKey": "D",
+          "criterionId": "item-4"
+        },
+        {
+          "itemId": "5",
+          "prompt": "The function g is defined by g(x) = (x − 4)² + 1. What is the minimum value of g(x)?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "1"
+            },
+            {
+              "key": "B",
+              "text": "−4"
+            },
+            {
+              "key": "C",
+              "text": "4"
+            },
+            {
+              "key": "D",
+              "text": "17"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-5"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_psda_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Problem-Solving and Data Analysis: set 1",
+      "skillIds": [
+        "dsat.problem-solving.one-variable-data",
+        "dsat.problem-solving.percentages",
+        "dsat.problem-solving.probability",
+        "dsat.problem-solving.rates-ratios",
+        "dsat.problem-solving.sample-statistics",
+        "dsat.problem-solving.statistical-claims",
+        "dsat.problem-solving.two-variable-data"
+      ],
+      "difficulty": "medium",
+      "prompt": "Five items on rates, percentages, data, probability, and conclusions from samples. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: B, 2: C, 3: A, 4: B, 5: D",
+      "rubricRef": {
+        "rubricId": "dsat-psda-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "A store sells 3 notebooks for $4.50. During a sale, the price of each notebook is reduced by 20%. What is the sale price of one notebook?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "$0.90"
+            },
+            {
+              "key": "B",
+              "text": "$1.20"
+            },
+            {
+              "key": "C",
+              "text": "$1.30"
+            },
+            {
+              "key": "D",
+              "text": "$3.60"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "Five students read 4, 7, 7, 9, and 13 books over the summer. What is the mean number of books read by these students?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "7"
+            },
+            {
+              "key": "B",
+              "text": "9"
+            },
+            {
+              "key": "C",
+              "text": "8"
+            },
+            {
+              "key": "D",
+              "text": "40"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "For a group of houses, the line of best fit relating the price y, in thousands of dollars, to the floor area x, in hundreds of square feet, is y = 15x + 60. Based on this model, what is the predicted price of a house with a floor area of 2,000 square feet?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "$360,000"
+            },
+            {
+              "key": "B",
+              "text": "$300,000"
+            },
+            {
+              "key": "C",
+              "text": "$90,000"
+            },
+            {
+              "key": "D",
+              "text": "$30,060,000"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-3"
+        },
+        {
+          "itemId": "4",
+          "prompt": "A survey of 200 students recorded whether each student plays a sport and whether each plays a musical instrument: 30 students play both, 70 play a sport but no instrument, 40 play an instrument but no sport, and 60 play neither. If one student who plays a sport is selected at random, what is the probability that this student also plays an instrument?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "0.15"
+            },
+            {
+              "key": "B",
+              "text": "0.30"
+            },
+            {
+              "key": "C",
+              "text": "0.43"
+            },
+            {
+              "key": "D",
+              "text": "0.50"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-4"
+        },
+        {
+          "itemId": "5",
+          "prompt": "A researcher selected 400 adults at random from a city and asked whether they support building a new public library. Of those surveyed, 58% said yes. The margin of error for this estimate is 5 percentage points. Which conclusion is best supported by these results?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "Exactly 58% of all adults in the city support building the library."
+            },
+            {
+              "key": "B",
+              "text": "At least 63% of adults in the country support building new libraries."
+            },
+            {
+              "key": "C",
+              "text": "The survey proves that most adults in the city will vote for the library."
+            },
+            {
+              "key": "D",
+              "text": "It is plausible that between 53% and 63% of all adults in the city support building the library."
+            }
+          ],
+          "answerKey": "D",
+          "criterionId": "item-5"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "questionId": "q_dsat_geo_001",
+      "version": "1",
+      "courseId": "dsat",
+      "topic": "Geometry and Trigonometry: set 1",
+      "skillIds": [
+        "dsat.geometry-trig.area-volume",
+        "dsat.geometry-trig.circles",
+        "dsat.geometry-trig.lines-angles-triangles",
+        "dsat.geometry-trig.right-triangles-trig"
+      ],
+      "difficulty": "easy",
+      "prompt": "Five items on volume, angles, right triangles, trigonometry, and circles. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: C, 2: A, 3: B, 4: C, 5: D",
+      "rubricRef": {
+        "rubricId": "dsat-geo-001",
+        "version": "1"
+      },
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "A rectangular box has a length of 6 centimeters, a width of 4 centimeters, and a height of 5 centimeters. What is the volume of the box, in cubic centimeters?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "15"
+            },
+            {
+              "key": "B",
+              "text": "60"
+            },
+            {
+              "key": "C",
+              "text": "120"
+            },
+            {
+              "key": "D",
+              "text": "148"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "Two angles of a triangle measure 47° and 68°. What is the measure of the third angle?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "65°"
+            },
+            {
+              "key": "B",
+              "text": "75°"
+            },
+            {
+              "key": "C",
+              "text": "115°"
+            },
+            {
+              "key": "D",
+              "text": "133°"
+            }
+          ],
+          "answerKey": "A",
+          "criterionId": "item-2"
+        },
+        {
+          "itemId": "3",
+          "prompt": "A right triangle has legs of length 9 and 12. What is the length of the hypotenuse?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "10.5"
+            },
+            {
+              "key": "B",
+              "text": "15"
+            },
+            {
+              "key": "C",
+              "text": "21"
+            },
+            {
+              "key": "D",
+              "text": "225"
+            }
+          ],
+          "answerKey": "B",
+          "criterionId": "item-3"
+        },
+        {
+          "itemId": "4",
+          "prompt": "In right triangle ABC, angle C is the right angle, AC = 8, BC = 6, and AB = 10. What is the value of sin A?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "3/4"
+            },
+            {
+              "key": "B",
+              "text": "4/5"
+            },
+            {
+              "key": "C",
+              "text": "3/5"
+            },
+            {
+              "key": "D",
+              "text": "4/3"
+            }
+          ],
+          "answerKey": "C",
+          "criterionId": "item-4"
+        },
+        {
+          "itemId": "5",
+          "prompt": "A circle in the xy-plane has the equation (x − 2)² + (y + 3)² = 16. What is the radius of the circle?",
+          "choices": [
+            {
+              "key": "A",
+              "text": "2"
+            },
+            {
+              "key": "B",
+              "text": "3"
+            },
+            {
+              "key": "C",
+              "text": "16"
+            },
+            {
+              "key": "D",
+              "text": "4"
+            }
+          ],
+          "answerKey": "D",
+          "criterionId": "item-5"
+        }
+      ],
+      "source": {
+        "type": "original",
+        "author": "HS Student OS content team",
+        "license": "Original work; internal use (synthetic draft)"
+      },
+      "review": {
+        "status": "draft",
+        "reviewer": null,
+        "reviewedAt": null
+      }
+    }
+  ],
+  "materials": [],
+  "starterTasks": [
+    {
+      "questionId": "q_dsat_info_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Reading and Writing: information and ideas, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_alg_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: algebra, set 1",
+      "durationMin": 20
+    }
+  ],
+  "practiceSequence": [
+    {
+      "questionId": "q_dsat_craft_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Reading and Writing: craft and structure, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_adv_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: advanced math, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_expr_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Reading and Writing: expression of ideas, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_psda_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: problem-solving and data analysis, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_conv_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Reading and Writing: Standard English conventions, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_geo_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: geometry and trigonometry, set 1",
+      "durationMin": 20
+    },
+    {
+      "questionId": "q_dsat_equiv_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: equivalent expressions, practice set 1",
+      "durationMin": 15
+    },
+    {
+      "questionId": "q_dsat_nonlin_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: nonlinear functions, practice set 1",
+      "durationMin": 15
+    },
+    {
+      "questionId": "q_dsat_equiv_002",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: equivalent expressions, practice set 2",
+      "durationMin": 15
+    },
+    {
+      "questionId": "q_dsat_nonlin_002",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Math: nonlinear functions, practice set 2",
+      "durationMin": 15
+    }
+  ],
+  "evaluationSet": [
+    {
+      "caseId": "equiv-001-all-correct",
+      "questionId": "q_dsat_equiv_001",
+      "answerText": "1: A\n2: C\n3: B",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "equiv-001-one-wrong",
+      "questionId": "q_dsat_equiv_001",
+      "answerText": "1) B\n2) c\n3) b",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "equiv-001-unreadable",
+      "questionId": "q_dsat_equiv_001",
+      "answerText": "I think the first one is A, not sure about the rest.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "equiv-002-all-correct",
+      "questionId": "q_dsat_equiv_002",
+      "answerText": "1: B\n2: C\n3: A",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "equiv-002-one-wrong",
+      "questionId": "q_dsat_equiv_002",
+      "answerText": "1) C\n2) c\n3) a",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "equiv-002-unreadable",
+      "questionId": "q_dsat_equiv_002",
+      "answerText": "I think the first one is A, not sure about the rest.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "nonlin-001-all-correct",
+      "questionId": "q_dsat_nonlin_001",
+      "answerText": "1: A\n2: B\n3: A",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "nonlin-001-one-wrong",
+      "questionId": "q_dsat_nonlin_001",
+      "answerText": "1) B\n2) b\n3) a",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "nonlin-001-unreadable",
+      "questionId": "q_dsat_nonlin_001",
+      "answerText": "I think the first one is A, not sure about the rest.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "nonlin-002-all-correct",
+      "questionId": "q_dsat_nonlin_002",
+      "answerText": "1: A\n2: B\n3: C",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "nonlin-002-one-wrong",
+      "questionId": "q_dsat_nonlin_002",
+      "answerText": "1) B\n2) b\n3) c",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1
+      }
+    },
+    {
+      "caseId": "nonlin-002-unreadable",
+      "questionId": "q_dsat_nonlin_002",
+      "answerText": "I think the first one is A, not sure about the rest.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "info-001-all-correct",
+      "questionId": "q_dsat_info_001",
+      "answerText": "1: A\n2: B\n3: C\n4: B\n5: D",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "info-001-first-wrong",
+      "questionId": "q_dsat_info_001",
+      "answerText": "1) b\n2) b\n3) c\n4) b\n5) d",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "info-001-unreadable",
+      "questionId": "q_dsat_info_001",
+      "answerText": "I picked the second option for most of these, I think.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "craft-001-all-correct",
+      "questionId": "q_dsat_craft_001",
+      "answerText": "1: B\n2: A\n3: C\n4: D\n5: B",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "craft-001-first-wrong",
+      "questionId": "q_dsat_craft_001",
+      "answerText": "1) c\n2) a\n3) c\n4) d\n5) b",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "craft-001-unreadable",
+      "questionId": "q_dsat_craft_001",
+      "answerText": "I picked the second option for most of these, I think.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "expr-001-all-correct",
+      "questionId": "q_dsat_expr_001",
+      "answerText": "1: C\n2: B\n3: A\n4: B\n5: D",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "expr-001-first-wrong",
+      "questionId": "q_dsat_expr_001",
+      "answerText": "1) b\n2) b\n3) a\n4) b\n5) d",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "expr-001-unreadable",
+      "questionId": "q_dsat_expr_001",
+      "answerText": "I picked the second option for most of these, I think.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "conv-001-all-correct",
+      "questionId": "q_dsat_conv_001",
+      "answerText": "1: A\n2: B\n3: D\n4: B\n5: C",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "conv-001-first-wrong",
+      "questionId": "q_dsat_conv_001",
+      "answerText": "1) b\n2) b\n3) d\n4) b\n5) c",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "conv-001-unreadable",
+      "questionId": "q_dsat_conv_001",
+      "answerText": "I picked the second option for most of these, I think.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "alg-001-all-correct",
+      "questionId": "q_dsat_alg_001",
+      "answerText": "1: C\n2: B\n3: D\n4: A\n5: C",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "alg-001-first-wrong",
+      "questionId": "q_dsat_alg_001",
+      "answerText": "1) b\n2) b\n3) d\n4) a\n5) c",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "alg-001-unreadable",
+      "questionId": "q_dsat_alg_001",
+      "answerText": "I picked the second option for most of these, I think.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "adv-001-all-correct",
+      "questionId": "q_dsat_adv_001",
+      "answerText": "1: B\n2: A\n3: C\n4: D\n5: A",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "adv-001-first-wrong",
+      "questionId": "q_dsat_adv_001",
+      "answerText": "1) c\n2) a\n3) c\n4) d\n5) a",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "adv-001-unreadable",
+      "questionId": "q_dsat_adv_001",
+      "answerText": "I picked the second option for most of these, I think.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "psda-001-all-correct",
+      "questionId": "q_dsat_psda_001",
+      "answerText": "1: B\n2: C\n3: A\n4: B\n5: D",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "psda-001-first-wrong",
+      "questionId": "q_dsat_psda_001",
+      "answerText": "1) c\n2) c\n3) a\n4) b\n5) d",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "psda-001-unreadable",
+      "questionId": "q_dsat_psda_001",
+      "answerText": "I picked the second option for most of these, I think.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    },
+    {
+      "caseId": "geo-001-all-correct",
+      "questionId": "q_dsat_geo_001",
+      "answerText": "1: C\n2: A\n3: B\n4: C\n5: D",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 1,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "geo-001-first-wrong",
+      "questionId": "q_dsat_geo_001",
+      "answerText": "1) b\n2) a\n3) b\n4) c\n5) d",
+      "expectedStatus": "accepted",
+      "expectedEarned": {
+        "item-1": 0,
+        "item-2": 1,
+        "item-3": 1,
+        "item-4": 1,
+        "item-5": 1
+      }
+    },
+    {
+      "caseId": "geo-001-unreadable",
+      "questionId": "q_dsat_geo_001",
+      "answerText": "I picked the second option for most of these, I think.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    }
+  ]
+}
