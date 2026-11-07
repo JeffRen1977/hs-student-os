@@ -109,3 +109,29 @@ async def test_dsat_access_and_isolation(h: Harness) -> None:
 
 async def test_removed_cross_course_routes_are_gone(h: Harness) -> None:
     await get(h, "/api/prerequisites", status=404)
+
+
+async def test_hints_see_the_items_but_never_the_answer_key(
+    h: Harness, provider: ScriptedProvider
+) -> None:
+    # Found on staging 2026-11-07: the tutor got only the set's instructions, so it asked
+    # the student to paste the item. It must see what the student sees, and nothing more.
+    assert await enroll(h) == 200
+    session = await start(h)
+    provider.queue({"reply": "Which terms share a common factor?"})
+    r = await h.client.post(
+        f"/api/sessions/{session['sessionId']}/messages",
+        json={"text": "Can you help with item 1?"},
+        headers=h.cmd(ALEX),
+    )
+    assert r.status_code == 202
+    await h.settle()
+    system = provider.calls[-1]["system"]
+    for item in session["activity"]["items"]:
+        assert f"Item {item['itemId']}: {item['prompt']}" in system
+        for choice in item["choices"]:
+            assert f"{choice['key']}) {choice['text']}" in system
+    assert "<items>" in system and "not given the answer keys" in system
+    # Neither the keys nor the expected answer ("1: A, 2: C, 3: B") reach the model.
+    assert "1: A, 2: C, 3: B" not in system
+    assert "answerKey" not in system and "Selects choice" not in system
