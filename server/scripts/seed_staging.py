@@ -48,6 +48,20 @@ def check_target(project: str, confirm: str, env: Mapping[str, str]) -> str:
     return password
 
 
+#: Counters and schedules the runtime owns once a student exists. Re-seeding must not reset
+#: them: a reset `nextSequence` reissues sequence numbers that existing events already hold,
+#: and consumers whose `processedSequence` is past the reset silently skip the new events.
+RUNTIME_STATE_SUFFIXES = ("/eventState/current", "/planState/current")
+
+
+def without_existing_runtime_state[D](
+    documents: Mapping[str, D], existing: Iterable[str]
+) -> tuple[dict[str, D], set[str]]:
+    """The documents to write, minus runtime state already in the database (and which)."""
+    kept = {p for p in existing if p in documents and p.endswith(RUNTIME_STATE_SUFFIXES)}
+    return {p: d for p, d in documents.items() if p not in kept}, kept
+
+
 def foreign_students(existing: Iterable[str], synthetic: Iterable[str]) -> list[str]:
     """Students in the database that are not fixtures: any one of them stops the seed."""
     return sorted(set(existing) - set(synthetic))
@@ -101,11 +115,17 @@ def main(argv: list[str] | None = None) -> int:
         **build_seed_documents(seeds, now=now),
         **build_platform_documents(platform, now=now),
     }
+    candidates = [p for p in documents if p.endswith(RUNTIME_STATE_SUFFIXES)]
+    existing_state = {s.reference.path for s in db.get_all([db.document(p) for p in candidates])
+                      if s.exists}  # fmt: skip
+    documents, kept = without_existing_runtime_state(documents, existing_state)
     batch = db.batch()
     for path, data in documents.items():
         batch.set(db.document(path), data)
     batch.commit()
     print(f"wrote {len(documents)} synthetic documents to project {args.project}")
+    if kept:
+        print(f"kept {len(kept)} existing runtime-state documents: {', '.join(sorted(kept))}")
     return 0
 
 

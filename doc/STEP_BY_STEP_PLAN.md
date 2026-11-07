@@ -958,17 +958,17 @@ Decisions behind this milestone:
 
 **Goal:** All M0–M3 acceptance chains, including authoring and publishing, run in the cloud environment.
 
-- [ ] 32.1 Run the complete Calculus learning loop in staging
-- [ ] 32.2 Run the authored pilot course end to end in staging, side by side with Calc BC, including in-course follow-up chains (supported + unsupported + inconclusive)
-- [ ] 32.2a Run the authoring path in staging: upload → validation report → review → active → version upgrade with an open session
-- [ ] 32.3 Test SSE reconnection across Cloud Run instances
-- [ ] 32.4 Test worker crash recovery in cloud
-- [ ] 32.5 Test cross-student isolation for all resources: sessions, events, files, assessments
-- [ ] 32.6 Verify: no duplicated progress, restart recovery, truthful failed/waiting states
+- [x] 32.1 Run the complete Calculus learning loop in staging
+- [ ] 32.2 Run the authored pilot course end to end in staging, side by side with Calc BC, including in-course follow-up chains (supported + unsupported + inconclusive) — side by side done; follow-up chains blocked on Step 24.2
+- [x] 32.2a Run the authoring path in staging: upload → validation report → review → active → version upgrade with an open session
+- [x] 32.3 Test SSE reconnection across Cloud Run instances
+- [x] 32.4 Test worker crash recovery in cloud
+- [ ] 32.5 Test cross-student isolation for all resources: sessions, events, files, assessments — done except files (not implemented)
+- [x] 32.6 Verify: no duplicated progress, restart recovery, truthful failed/waiting states
 
 **Verify:** All chains pass in staging with real infrastructure. Cloud-specific issues (OIDC, timeouts, instance rotation) handled.
 
-**Status:** ⏳ Unblocked (staging deployed 2026-11-03), not yet run; only the Step 30 smoke test has run. The checklist is in [OPERATIONS.md](OPERATIONS.md) §5. 32.2's follow-up chains also depend on Step 24.2, which is not built.
+**Status:** 🟡 Run on 2026-11-07 against `61dfda6` plus two fixes (image `61dfda6-dirty-20261107`), with synthetic users through real Firebase Auth, Firestore, Cloud Tasks, Scheduler and OpenAI `gpt-5.5-2026-04-23`. Record in [OPERATIONS.md](OPERATIONS.md) §5. Passed: 32.1, 32.2a, 32.3 (four instances, contiguous resume), 32.5 (no files), 32.6, and the 32.2 side-by-side part. Not run: 32.2 follow-up chains (Step 24.2 not built), files (not implemented), Cloud Run request timeout. 32.4 passed: a Run left RUNNING with an expired lease and no queue task was requeued by the Scheduler recovery job and finished once (attempt 2, 89 s); a worker revision rollover mid-run also finished once. Staging found two defects no local test caught, both fixed with regression tests: (1) a worker whose package copy predated an activation failed Runs as non-retryable `SESSION_NOT_OPEN` for up to 30 s (`ensure_version` was never called); (2) re-running `seed_staging` reset per-student event sequences, duplicating sequence numbers and making `course-metrics` skip events (staging counters repaired, nothing deleted). Open observations: SSE streams outlive client disconnects behind Cloud Run (to the 300 s cap), and requests in the ~30 s after a revision rollover can get a front-end 5xx.
 
 ---
 

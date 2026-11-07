@@ -17,8 +17,10 @@ from typing import Any
 
 import pytest
 
+from app.adapters.runtime import RandomIdFactory
+from app.bootstrap import build_services
 from app.registries.content import DEFAULT_CONTENT_ROOT
-from tests.support import Harness, build_harness, idem
+from tests.support import Harness, build_harness, harness_settings, idem
 
 ALEX, BETH = "stu_alex", "stu_beth"
 AUTHOR, OTHER_AUTHOR, REVIEWER = "author_hsos", "author_sample", "reviewer_platform"
@@ -358,3 +360,38 @@ async def test_authors_never_see_student_data(h: Harness) -> None:
     ]
     text = json.dumps(views)
     assert ALEX not in text and "students/" not in text
+
+
+async def test_a_worker_with_a_stale_copy_runs_a_just_activated_course(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    # Found in staging 2026-11-07: the worker instance had refreshed its packages seconds
+    # before an activation, so for up to 30 s it did not know the course and failed the
+    # Run permanently with SESSION_NOT_OPEN. A Run pinned to an unloaded version must
+    # reload first.
+    h = build_harness(clean_env)
+    worker = build_services(
+        harness_settings(clean_env), store=h.store, clock=h.clock, ids=RandomIdFactory(),
+        queue=h.queue, worker_id="worker-stale",
+    )  # fmt: skip
+    await worker.content_sync.refresh()  # loaded just now, before the course exists
+
+    await publish(h)
+    grant(h, ALEX, "dsat", COURSE)
+    assert await enroll(h) == 200
+    task = sorted(await course_tasks(h), key=lambda t: t["questionId"])[0]
+    session = await start(h, task["taskId"])
+    act = session["activity"]
+    body = {"questionId": act["questionId"], "questionVersion": act["questionVersion"],
+            "answer": {"text": "1: A\n2: C\n3: B", "fileIds": []}}  # fmt: skip
+    run_id = (await post(h, f"/api/sessions/{session['sessionId']}/submissions", ALEX, body, 202))[
+        "runId"
+    ]
+
+    # Deliver to the stale worker instance instead of the harness's own.
+    await h.services.dispatcher.dispatch_pending()
+    assert await h.queue.drain(worker.deliveries.process) == 1
+    run = await get(h, f"/api/runs/{run_id}", ALEX)
+    assert run["status"] == "SUCCEEDED", run
+    [a] = await assessments(h, session["sessionId"])
+    assert a["status"] == "accepted"

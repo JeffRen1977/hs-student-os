@@ -83,6 +83,9 @@ class PackageContentSync:
         if loaded is None or self._monotonic() - loaded >= self._max_age:
             await self.refresh()
 
+    def is_loaded(self, course_id: str, version: str) -> bool:
+        return self._registry.pack_version(course_id, version) is not None
+
     async def ensure_version(self, course_id: str, version: str) -> None:
         """A Run pinned to a version this instance has not loaded yet: reload once."""
         if self._registry.pack_version(course_id, version) is None:

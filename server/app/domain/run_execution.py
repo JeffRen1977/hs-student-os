@@ -18,6 +18,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
+from typing import Protocol
 
 from app.domain.access import is_enrolled, is_entitled
 from app.domain.admissions_runs import AdmissionsJob, AdmissionsRunner
@@ -64,6 +65,21 @@ class LeaseGrant:
     admissions: AdmissionsJob | None = None  # set for admissions runs (Step 35)
 
 
+class PinnedContent(Protocol):
+    """This instance's copy of course package versions (another instance may have
+    activated a version moments ago)."""
+
+    def is_loaded(self, course_id: str, version: str) -> bool: ...
+
+    async def ensure_version(self, course_id: str, version: str) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class _ContentMissing:
+    course_id: str
+    version: str
+
+
 class RunExecutionService:
     def __init__(
         self,
@@ -80,8 +96,10 @@ class RunExecutionService:
         planner: PlannerService | None = None,
         metrics: Metrics | None = None,
         admissions: AdmissionsRunner | None = None,
+        content: PinnedContent | None = None,
     ) -> None:
         self._uow = uow
+        self._content = content
         self._admissions = admissions
         self._metrics: Metrics = metrics or NullMetrics()
         self._assessments = assessments
@@ -103,7 +121,14 @@ class RunExecutionService:
         run_id = delivery.run_id
         if run_id is None:  # not a run delivery: nothing to execute
             return ProcessResult.DONE
-        acquired = await self.acquire(actor, run_id)
+        acquired = await self._acquire(actor, run_id, reload_allowed=True)
+        if isinstance(acquired, _ContentMissing):
+            # The session's pinned version is not loaded here yet: load it outside the
+            # transaction, then try once more. Without this, a Run started within the
+            # refresh window after an activation failed as SESSION_NOT_OPEN.
+            assert self._content is not None
+            await self._content.ensure_version(acquired.course_id, acquired.version)
+            acquired = await self.acquire(actor, run_id)
         if isinstance(acquired, ProcessResult):
             return acquired
         if acquired.admissions is not None:
@@ -147,7 +172,17 @@ class RunExecutionService:
     # ---- Lease ------------------------------------------------------------------------
 
     async def acquire(self, actor: ActorContext, run_id: str) -> LeaseGrant | ProcessResult:
-        async def body(tx: Tx) -> LeaseGrant | ProcessResult:
+        grant = await self._acquire(actor, run_id, reload_allowed=False)
+        assert not isinstance(grant, _ContentMissing)
+        return grant
+
+    async def _acquire(
+        self, actor: ActorContext, run_id: str, *, reload_allowed: bool
+    ) -> LeaseGrant | ProcessResult | _ContentMissing:
+        """`reload_allowed`: return `_ContentMissing` (writing nothing) instead of failing
+        the Run when the session's pinned course version is not loaded on this instance."""
+
+        async def body(tx: Tx) -> LeaseGrant | ProcessResult | _ContentMissing:
             now = self._clock.now()
             run = await tx.runs.get(actor, run_id)
             if run is None or run.is_terminal or run.status is RunStatus.WAITING_INPUT:
@@ -167,6 +202,14 @@ class RunExecutionService:
                 await self._fail_in_tx(tx, actor, run, "UNSUPPORTED_RUN_KIND", now)
                 return ProcessResult.DONE
             session = await tx.sessions.get(actor, run.session_id)
+            if (
+                reload_allowed
+                and self._content is not None
+                and session is not None
+                and session.status is SessionStatus.OPEN
+                and not self._content.is_loaded(session.course_id, session.context_version.pack)
+            ):
+                return _ContentMissing(session.course_id, session.context_version.pack)
             course = self._catalog.get(session.course_id) if session else None
             if session is None or session.status is not SessionStatus.OPEN or course is None:
                 await self._fail_in_tx(tx, actor, run, "SESSION_NOT_OPEN", now)

@@ -368,6 +368,7 @@ def build_services(
         planner=planner,
         metrics=metrics,
         admissions=AdmissionsRunner(gateway, prompt_set.by_id, ids),
+        content=content_sync,
     )
     consumer_runner = ConsumerRunner(uow, consumers, clock)
     deliveries = DeliveryRouter(run_execution, consumer_runner, content_sync.ensure_fresh)
