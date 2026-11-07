@@ -15,7 +15,7 @@ The product is a **course platform with one shared runtime**: third parties add 
 | M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator suite passed 2026-11-05 |
 | M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. **Steps 26–27 implemented 2026-11-01** (package contract v1 + validator, author/reviewer roles, review gate, version pinning, retire; Digital SAT rebuilt as an authored package; course-driven frontend). Not started: ability catalog contract (23), course-internal follow-up rules (24.2), package-sourced deadlines (25.4), re-expressing Calc BC as a package (22.3). |
 | M4 Proactive planning and pilot | 28–33 | **Steps 28, 29, 31 implemented 2026-11-01; verified over the in-memory backend** (scheduled planning, student controls + opt-in reminders, structured logs/metrics/alerts, backup/restore/delete, event retention). **Step 30 deployed to staging 2026-11-03** (project `hs-student-os`; real Firebase Auth + Firestore + Cloud Tasks + worker + model smoke test passed, see [OPERATIONS.md](OPERATIONS.md) §5; the deployed image predates M5). **Step 32** now unblocked, not yet run. **Step 33 gate recorded as not passed** ([PILOT_GATE.md](PILOT_GATE.md)). |
-| M5 Optional expansion | 34–38 | **Implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
+| M5 Optional expansion | 34–40 | **Steps 34–38 implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. 39 (author import from PDF and photos) and 40 (conversational authoring agent): planned 2026-11-07, not started. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
 
 Last local verification (`make check`, 2026-11-01, after M4 Steps 28–31): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **561 passed, 9 skipped** (8 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **34 passed**. Docker image built and smoke-checked locally. Browser check over `make server-memory` + `make web`: Beth locked a task date, turned reminders off, and skipped a task with a reason; no console errors.
 
@@ -1007,7 +1007,7 @@ Decisions behind this milestone:
 
 ---
 
-## M5 — Optional Expansion After Pilot Evidence (Steps 34–38)
+## M5 — Optional Expansion After Pilot Evidence (Steps 34–40)
 
 Each extension is independently selected and verified. None are prerequisites for the pilot.
 
@@ -1058,6 +1058,63 @@ Each extension is independently selected and verified. None are prerequisites fo
 
 **Status:** 🟡 Assessment written ([OPTIONAL_INFRASTRUCTURE.md](OPTIONAL_INFRASTRUCTURE.md)): none of the four is adopted, and each has an adoption trigger. 38.2 is deliberately not done: vendor availability, pricing and quality are only checked when a trigger is met, since today's figures would be stale by then. `tests/unit/test_optional_infrastructure.py` checks that no optional package is a runtime dependency and that the app plus a full learning loop run with those modules made unimportable.
 
+### Step 39 — Import questions from PDFs and photos in the author portal (future)
+
+**Goal:** Authors can bring existing question material (PDF files, photos of printed pages) into a draft package without writing JSON. The platform proposes items; the author confirms every item before it can enter a package; the existing validator and review gate are unchanged.
+
+```
+Upload PDF / photos ─► extraction Run (text layer, or OCR + vision-capable model)
+  ─► proposed items (passage, question, choices, answer key, skill, difficulty, figure crop)
+  ─► author review screen (original page | extracted item): edit, confirm or discard
+  ─► confirmed items ─► draft package (rubric criteria + basic evaluation cases generated)
+  ─► existing path: validator report → submit → platform reviewer → active
+```
+
+- [ ] 39.1 Contract first: `ImportJob`, `ProposedItem` (with a link back to the source page and region), author confirmation; API.md and COURSE_PACKAGE.md updated before handlers
+- [ ] 39.2 Upload: signed Cloud Storage uploads scoped to the author's organization; size, page and type limits; files never shown to students and never readable by other organizations (404)
+- [ ] 39.3 Source and license attestation per uploaded file, shown to the reviewer; official College Board or commercial test-prep material is refused without recorded permission
+- [ ] 39.4 Extraction as a worker Run through the LLM gateway (no external calls inside transactions), with per-organization token budgets; output validated against the `ProposedItem` schema, invalid output rejected
+- [ ] 39.5 Proposals are never content: only items the author confirms (and whose answer key the author enters or confirms) can be added to a draft. Handwritten marks on scanned pages are never used as answer keys, and photos are not kept as student data
+- [ ] 39.6 Author portal review screen: side-by-side page and item, edit/confirm/discard, bulk confirm only after each item has been opened
+- [ ] 39.7 Build the draft package from confirmed items (rubric criterion per item, all-correct / one-wrong / unreadable evaluation cases), then hand off to the existing upload and validator
+- [ ] 39.8 Tests: organization isolation of uploads and proposals, idempotent import commands, unconfirmed proposals never reaching a package, extraction failure leaves no partial draft, attestation required, budget exhaustion; an evaluation set of annotated sample pages measuring extraction accuracy (separate from deterministic tests)
+
+**Prerequisites:** item figures and math rendering. Today item prompts and choices are text only, so questions that depend on a diagram, graph or table image cannot be represented; the package contract, validator, storage and student view need image attachments (and formula rendering) first. An offline helper (PDF/photos → spreadsheet → package file) can serve authors in the meantime without platform changes.
+
+**Verify:** An author uploads a sample PDF and a photo, confirms the extracted items, and submits a draft that passes the validator; no unconfirmed item, other organization's file, or student-visible upload exists at any point.
+
+**Status:** ⏳ Planned 2026-11-07 (Option B of the import discussion); not started.
+
+### Step 40 — Conversational authoring agent (future)
+
+**Goal:** Authors build a course package by talking with an authoring agent instead of writing JSON. The agent asks for what the package needs (course basics, skills, practice-set design, questions and answer keys, rubric criteria and skill tags, the starter plan), proposes changes to a server-side draft, and the author accepts, rejects or adjusts each change in conversation. The package JSON becomes an artifact the agent maintains; submission and the platform review gate are unchanged.
+
+```
+Author ⇄ authoring agent (chat in the author portal)
+  ─► agent proposes a typed edit (add skill, add set, update item, set answer key, tag criterion …)
+  ─► validator runs on the resulting draft; problems explained in plain language, fixes offered
+  ─► author accepts / rejects / asks for a change
+  ─► server-side draft package (outline, validation report, student preview always available)
+  ─► author presses Submit ─► existing path: platform reviewer → approved → active
+```
+
+Conversation stages (the author can move between them at any time): course basics → manifest; skills (agent suggests from the exam outline or standards, author edits); practice-set design (size, difficulty mix, passages) → abilities and rubric shape; questions (author-written, pasted, imported via Step 39, or agent-drafted on request); rubric criteria and skill tag per item; starter tasks; evaluation cases (generated and run); review walkthrough of the student preview and the submit checklist.
+
+- [ ] 40.1 Contract first: `AuthoringSession`, server-side `DraftPackage`, a closed set of typed edit operations (no free-form JSON writes), proposal/accept/reject records, per-item provenance (`author`, `agent-drafted`, `imported`); API.md and COURSE_PACKAGE.md updated before handlers
+- [ ] 40.2 Draft store scoped to the author's organization (other organizations → 404); every applied operation is idempotent, versioned (concurrent edits → 409) and recorded with actor and time; the draft can be exported as package JSON, and an uploaded JSON can seed a draft
+- [ ] 40.3 Authoring agent as a platform ability: each turn is a worker Run through the LLM gateway (no external calls inside transactions) with per-organization token budgets; its only tools are the edit operations, the validator, the student preview and `math-verify`; model output is validated against the operation schema and invalid proposals are rejected
+- [ ] 40.4 Author confirmation rules: a proposal changes the draft only when the author accepts it; every answer key must be confirmed by the author (agent-proposed keys for math items are checked with `math-verify`); items whose key is unconfirmed block Submit
+- [ ] 40.5 Content integrity: agent-drafted items are recorded as such in `source` and shown to the reviewer; the agent asks for the source and license of pasted material and refuses to reproduce College Board or commercial test-prep items; package text the author pastes is treated as content, never as instructions to the agent
+- [ ] 40.6 Boundaries: the agent cannot submit, approve, activate, retire, grant entitlements, read other organizations' packages, or read any student data; Submit stays an explicit author action through the existing endpoint
+- [ ] 40.7 Author portal: chat panel beside a live draft view (outline, validation report, student preview, diff of each proposal with accept/reject); the JSON upload/download path remains for authors who prefer files
+- [ ] 40.8 Tests: organization isolation of sessions and drafts, idempotent and conflicting edits, rejected proposals leave the draft unchanged, unconfirmed answer keys block Submit, the agent cannot call review or entitlement routes, budget exhaustion, a failed Run leaves no partial edit; an evaluation set of scripted authoring sessions (separate from deterministic tests) measuring proposal quality and key correctness against reviewed packages
+
+**Relationship to other steps:** builds on the author portal (Step 34) and the review gate (Step 26); Step 39's PDF/photo import becomes one way to give the agent questions; figures and math rendering (Step 39 prerequisite) apply here too. Replaces the spreadsheet-converter idea as the main authoring path.
+
+**Verify:** An author with no JSON knowledge builds a small course (skills, two practice sets, rubrics, starter tasks) entirely in conversation; the resulting draft passes the validator and every evaluation case, every answer key was confirmed by the author, agent-drafted items are labeled for the reviewer, and nothing reaches students until the platform reviewer approves and activates it.
+
+**Status:** ⏳ Planned 2026-11-07; not started.
+
 ---
 
 ## Delivery Map
@@ -1069,7 +1126,7 @@ Each extension is independently selected and verified. None are prerequisites fo
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; emulator run 2026-11-05; real-model evaluation review and Step 32 pending |
 | M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
 | M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 deployed to staging 2026-11-03; 32 not yet run; 33 not passed |
-| M5 Optional expansion | 34–38 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure) | Implemented 2026-11-04 (in-memory, synthetic); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred |
+| M5 Optional expansion | 34–40 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent) | 34–38 implemented 2026-11-04 (in-memory, synthetic); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39 and 40 planned, not started |
 
 ## Superseded patterns
 

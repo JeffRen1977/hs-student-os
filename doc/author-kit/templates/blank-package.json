@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "course-package/v1",
+  "manifest": {
+    "courseId": "my_course",
+    "version": "1.0.0",
+    "name": "My Course",
+    "description": "One or two sentences students see in the course catalog. Say what the course practices; never promise or predict exam scores.",
+    "category": "SAT",
+    "agentType": "DSAT",
+    "supportedTaskTypes": ["PRACTICE"],
+    "supportedModes": ["ADAPTIVE"],
+    "abilities": ["socratic-guidance", "choice-scoring"],
+    "tools": [],
+    "modelTier": "balanced",
+    "contextBudgetTokens": 8000,
+    "workflowVersion": "my-course-practice-v1",
+    "publisher": {"name": "Your organization name"},
+    "license": "Original work by Your organization name"
+  },
+  "systemPrompt": "# My Course tutor\n\nYou are the My Course study agent. You are talking with {{studentName}}. The current study mode is {{currentMode}}.\n\n## Teaching style\n- Guide with questions first. Point to the step to check rather than naming the answer.\n- Never state which choice is correct for an item the student has not yet submitted.\n- Keep explanations short and concrete; one idea per reply.\n\n## Boundaries\n- Practice sets check skills. Never estimate or predict an exam score or percentile.\n- Hints are recorded, and answers given after a hint do not count as independent work.\n\n## Student context (filled in at runtime)\n{{masteryContext}}\n",
+  "skills": [
+    {
+      "skillId": "my_course.topic-one.first-skill",
+      "name": "First skill",
+      "description": "What a student who has this skill can do."
+    }
+  ],
+  "rubrics": [
+    {
+      "rubricId": "my-course-set-001",
+      "version": "1",
+      "courseId": "my_course",
+      "criteria": [
+        {
+          "criterionId": "item-1",
+          "description": "Item 1: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": ["Selects choice B for item 1"],
+          "skillIds": ["my_course.topic-one.first-skill"]
+        },
+        {
+          "criterionId": "item-2",
+          "description": "Item 2: selects the correct choice.",
+          "maxPoints": 1,
+          "evidenceRequirements": ["Selects choice D for item 2"],
+          "skillIds": ["my_course.topic-one.first-skill"]
+        }
+      ],
+      "source": {"type": "original", "author": "Your organization name", "license": "Original work"},
+      "review": {"status": "draft", "reviewer": null, "reviewedAt": null}
+    }
+  ],
+  "questions": [
+    {
+      "questionId": "q_my_course_set_001",
+      "version": "1",
+      "courseId": "my_course",
+      "topic": "Topic one: set 1",
+      "skillIds": ["my_course.topic-one.first-skill"],
+      "difficulty": "easy",
+      "prompt": "Two items on the first skill. Choose one answer for each item. Ask the tutor for a hint whenever you need one; hint use is recorded.",
+      "expectedAnswer": "1: B, 2: D",
+      "rubricRef": {"rubricId": "my-course-set-001", "version": "1"},
+      "items": [
+        {
+          "itemId": "1",
+          "prompt": "Replace with the item text. For reading items, put the short passage first, then a blank line, then the question.",
+          "choices": [
+            {"key": "A", "text": "Choice A"},
+            {"key": "B", "text": "Choice B (correct in this template)"},
+            {"key": "C", "text": "Choice C"},
+            {"key": "D", "text": "Choice D"}
+          ],
+          "answerKey": "B",
+          "criterionId": "item-1"
+        },
+        {
+          "itemId": "2",
+          "prompt": "Replace with the second item's text.",
+          "choices": [
+            {"key": "A", "text": "Choice A"},
+            {"key": "B", "text": "Choice B"},
+            {"key": "C", "text": "Choice C"},
+            {"key": "D", "text": "Choice D (correct in this template)"}
+          ],
+          "answerKey": "D",
+          "criterionId": "item-2"
+        }
+      ],
+      "source": {"type": "original", "author": "Your organization name", "license": "Original work"},
+      "review": {"status": "draft", "reviewer": null, "reviewedAt": null}
+    }
+  ],
+  "materials": [],
+  "starterTasks": [
+    {
+      "questionId": "q_my_course_set_001",
+      "taskType": "PRACTICE",
+      "mode": "ADAPTIVE",
+      "title": "Topic one: practice set 1",
+      "durationMin": 10
+    }
+  ],
+  "evaluationSet": [
+    {
+      "caseId": "set-001-all-correct",
+      "questionId": "q_my_course_set_001",
+      "answerText": "1: B\n2: D",
+      "expectedStatus": "accepted",
+      "expectedEarned": {"item-1": 1, "item-2": 1}
+    },
+    {
+      "caseId": "set-001-first-wrong",
+      "questionId": "q_my_course_set_001",
+      "answerText": "1) a\n2) d",
+      "expectedStatus": "accepted",
+      "expectedEarned": {"item-1": 0, "item-2": 1}
+    },
+    {
+      "caseId": "set-001-unreadable",
+      "questionId": "q_my_course_set_001",
+      "answerText": "I think the second one, maybe.",
+      "expectedStatus": "insufficient_evidence",
+      "expectedEarned": {}
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # 课程包契约 v1（course-package/v1）
 
-更新：2026-11-04（M5：能力 `source-analysis`、题目字段 `sourceMaterialIds`、APUSH 作者包、作者预览与课程指标）。2026-11-01。实现：`server/app/schemas/package.py`（契约）、`server/app/registries/package_validator.py`（校验器）、`server/app/domain/package_service.py`（审核与发布流程）。参考包：`server/content/authored/dsat/package.json`（Digital SAT）、`server/content/authored/apush/package.json`（AP US History，含基于材料的写作题）。
+更新：2026-11-04（M5：能力 `source-analysis`、题目字段 `sourceMaterialIds`、APUSH 作者包、作者预览与课程指标）。2026-11-01。实现：`server/app/schemas/package.py`（契约）、`server/app/registries/package_validator.py`（校验器）、`server/app/domain/package_service.py`（审核与发布流程）。参考包：`server/content/authored/dsat/package.json`（Digital SAT 1.0.0，本地种子）、`server/content/authored/dsat/package-2.0.0.json`（Digital SAT 2.0.0：两个部分、29 项技能、8 组新题，作者上传示例，见 [AUTHORING_GUIDE.md](AUTHORING_GUIDE.md)）、`server/content/authored/apush/package.json`（AP US History，含基于材料的写作题）。
 
 课程包是**纯数据**：一个 JSON 文档完整描述一门课程。包里没有代码；能力（ability）和工具只能从平台目录中选择。缺少的能力由平台新增，所有课程都可选用，绝不为某门课写运行时分支。
 
