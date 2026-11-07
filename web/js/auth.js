@@ -25,6 +25,7 @@
     { uid: "author_hsos", label: "HS Student OS content author (synthetic)" },
     { uid: "author_sample", label: "Sample Press author (synthetic)" },
     { uid: "reviewer_platform", label: "Platform reviewer (synthetic)" },
+    { uid: "admin_platform", label: "Platform admin (synthetic)" },
   ]);
   const DEV_UID_KEY = "hsos.localEmulatorUid";
   const FIREBASE_SDK = "https://www.gstatic.com/firebasejs/10.12.2/";

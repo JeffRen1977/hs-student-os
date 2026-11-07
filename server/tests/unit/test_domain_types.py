@@ -83,7 +83,7 @@ def test_run_transitions() -> None:
 def test_student_actor_is_bound_to_own_student() -> None:
     actor = ActorContext.for_student("stu_alex")
     assert actor.can(Permission.LEARNING_COMMAND)
-    assert not actor.can(Permission.ENTITLEMENTS_WRITE)
+    assert not actor.can(Permission.ENTITLEMENTS_MANAGE)
     with pytest.raises(ValueError, match="own student_id"):
         ActorContext(actor_id="stu_alex", student_id="stu_beth", role=ActorRole.STUDENT)
 

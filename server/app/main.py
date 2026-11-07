@@ -15,6 +15,7 @@ from app.adapters.observability import configure_logging, install_request_metric
 from app.api.errors import install_error_handlers
 from app.api.request_id import install_request_id
 from app.api.routes import (
+    admin,
     admissions,
     assessments,
     courses,
@@ -102,6 +103,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     app.include_router(admissions.router)
     app.include_router(packages.authoring)
     app.include_router(packages.review)
+    app.include_router(admin.router)
     return app
 
 

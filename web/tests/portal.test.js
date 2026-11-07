@@ -57,7 +57,7 @@ test("auth: the portal offers only synthetic platform members for local sign-in"
     hostname: "localhost", apiBaseUrl: "http://localhost:8787", storage,
     localUsers: A.SYNTHETIC_PLATFORM_MEMBERS, storageKey: "hsos.portalUid",
   });
-  assert.deepEqual(auth.students.map((s) => s.uid), ["author_hsos", "author_sample", "reviewer_platform"]);
+  assert.deepEqual(auth.students.map((s) => s.uid), ["author_hsos", "author_sample", "reviewer_platform", "admin_platform"]);
   assert.throws(() => auth.signInLocal("stu_alex"));
   auth.signInLocal("author_hsos");
   assert.equal(store.get("hsos.portalUid"), "author_hsos");

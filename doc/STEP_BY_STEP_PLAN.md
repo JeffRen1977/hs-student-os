@@ -15,7 +15,7 @@ The product is a **course platform with one shared runtime**: third parties add 
 | M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator suite passed 2026-11-05 |
 | M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. **Steps 26–27 implemented 2026-11-01** (package contract v1 + validator, author/reviewer roles, review gate, version pinning, retire; Digital SAT rebuilt as an authored package; course-driven frontend). Not started: ability catalog contract (23), course-internal follow-up rules (24.2), package-sourced deadlines (25.4), re-expressing Calc BC as a package (22.3). |
 | M4 Proactive planning and pilot | 28–33 | **Steps 28, 29, 31 implemented 2026-11-01; verified over the in-memory backend** (scheduled planning, student controls + opt-in reminders, structured logs/metrics/alerts, backup/restore/delete, event retention). **Step 30 deployed to staging 2026-11-03** (project `hs-student-os`; real Firebase Auth + Firestore + Cloud Tasks + worker + model smoke test passed, see [OPERATIONS.md](OPERATIONS.md) §5; the deployed image predates M5). **Step 32** now unblocked, not yet run. **Step 33 gate recorded as not passed** ([PILOT_GATE.md](PILOT_GATE.md)). |
-| M5 Optional expansion | 34–43 | **Steps 34–38 implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. 41 (reviewer screen `web/review.html`): implemented 2026-11-07, locally verified in the browser, not deployed. 39 (author import from PDF and photos), 40 (conversational authoring agent), 42 (admin course-access tool) and 43 (review assistant agent; workflow and skills to be defined by reviewers): planned 2026-11-07, not started. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
+| M5 Optional expansion | 34–43 | **Steps 34–38 implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. 41 (reviewer screen `web/review.html`) and 42 (course access admin tool `web/admin.html`): implemented 2026-11-07, locally verified in the browser, not deployed. 39 (author import from PDF and photos), 40 (conversational authoring agent) and 43 (review assistant agent; workflow and skills to be defined by reviewers): planned 2026-11-07, not started. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
 
 Last local verification (`make check`, 2026-11-01, after M4 Steps 28–31): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **561 passed, 9 skipped** (8 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **34 passed**. Docker image built and smoke-checked locally. Browser check over `make server-memory` + `make web`: Beth locked a task date, turned reminders off, and skipped a task with a reason; no console errors.
 
@@ -1143,21 +1143,50 @@ Verified in Chrome against a local in-memory API with `dsat` 2.0.0 and 2.0.1 sub
 - The server's status history for each version matched these actions. No console errors.
 - Found and fixed during the check: a pending version older than the active one was labelled "upgrade of".
 
-### Step 42 — Admin tool for student course access (future)
+### Step 42 — Admin tool for student course access
 
 **Goal:** Platform admins grant and revoke a student's access to courses with an audited tool instead of editing `students/{id}/access/current` in Firestore by hand. Found on staging (2026-11-07): giving a student access to Digital SAT required a direct database write. Entitlements stay platform-managed (CLAUDE.md §1.4); authors and students can never change them.
 
-- [ ] 42.1 Contract first: admin endpoints to read a student's access, and to grant or revoke one `courseId` (`apCourses` for AP courses, `courses` for others) with a reason; Idempotency-Key required; API.md updated before handlers
-- [ ] 42.2 Authorization: the existing `admin` role (`ActorRole.ADMIN`) gets an explicit `entitlements:manage` permission; platform admins are platform members like reviewers, with no student record; every other role gets 403; unknown students 404
-- [ ] 42.3 Atomic write of the access record and an audit entry (who, when, student, course, grant or revoke, reason) in one transaction; the student's events show a filtered `access.changed` notice without the admin's identity or reason
-- [ ] 42.4 Revocation semantics: the student keeps their records (sessions, assessments, mastery) readable; new enrollments, sessions and submissions return `COURSE_ACCESS_REQUIRED`; open sessions can still be abandoned; a Run already queued is re-checked at execution (as today)
-- [ ] 42.5 Admin screen: find a student by ID, see current access and enrollments, grant or revoke with a reason, see the audit history; no access to the student's answers or chats
-- [ ] 42.6 Bulk grant for a class or pilot cohort (list of student IDs, one course), each grant audited individually, partial failures reported per student
-- [ ] 42.7 Tests: role gating (author, reviewer, student, parent all 403), idempotency, grant then enroll, revoke blocks new work but keeps records, audit entry written in the same transaction (crash leaves neither), bulk partial failure, isolation (one student's change never touches another)
+- [x] 42.1 Contract first: admin endpoints to read a student's access, and to grant or revoke one `courseId` (`apCourses` for AP courses, `courses` for others) with a reason; Idempotency-Key required; API.md updated before handlers
+- [x] 42.2 Authorization: the existing `admin` role (`ActorRole.ADMIN`) gets an explicit `entitlements:manage` permission; platform admins are platform members like reviewers, with no student record; every other role gets 403; unknown students 404
+- [x] 42.3 Atomic write of the access record and an audit entry (who, when, student, course, grant or revoke, reason) in one transaction; the student's events show a filtered `access.changed` notice without the admin's identity or reason
+- [x] 42.4 Revocation semantics: the student keeps their records (sessions, assessments, mastery) readable; new enrollments, sessions and submissions return `COURSE_ACCESS_REQUIRED`; open sessions can still be abandoned; a Run already queued is re-checked at execution (as today)
+- [x] 42.5 Admin screen: find a student by ID, see current access and enrollments, grant or revoke with a reason, see the audit history; no access to the student's answers or chats
+- [x] 42.6 Bulk grant for a class or pilot cohort (list of student IDs, one course), each grant audited individually, partial failures reported per student
+- [x] 42.7 Tests: role gating (author, reviewer, student, parent all 403), idempotency, grant then enroll, revoke blocks new work but keeps records, audit entry written in the same transaction (crash leaves neither), bulk partial failure, isolation (one student's change never touches another)
 
 **Verify:** An admin grants Beth Digital SAT access in the tool, she enrolls; the admin revokes it, she can no longer start a session but still sees her past results; the audit history shows both changes with reasons.
 
-**Status:** ⏳ Planned 2026-11-07; not started. Until then, access is changed by a direct Firestore edit recorded in OPERATIONS.md.
+**Status:** ✅ Implemented 2026-11-07 (local; not yet deployed to staging). Contract first: API.md §6.5.6 and BACKEND.md §2–3.
+- **Backend:**
+  - `AccessService` (`app/domain/access_service.py`), routes `app/api/routes/admin.py`, schemas `app/schemas/admin.py`.
+  - Audit store `accessAudit`; `StudentStore.get_access` / `save_entitlements`; event `access.changed`.
+- **Roles:**
+  - `ActorRole.ADMIN` is now a platform role. The unused `entitlements:write` permission was renamed `entitlements:manage`.
+  - `ActorContext.for_admin` is built only by the service, for one student, with no learning permission.
+  - `admin_platform` was added to the synthetic platform members, so local seeding and `seed_staging` create it.
+- **Web:**
+  - `web/admin.html` + `js/portal/admin_portal.js` + `js/portal/admin-api.js`.
+  - The student app labels `access.changed` in its event list and refreshes the catalog.
+
+Notes:
+- 42.1: granting a course already granted, or revoking one not granted, returns `changed: false` and writes nothing.
+- 42.4: revocation needed no change to the learning code. The existing checks already block new work and keep records; the tests confirm each case.
+- 42.6: bulk grants run one transaction per student. A retry with the same Idempotency-Key replays the students that succeeded and retries the ones that failed.
+
+Tests:
+- `tests/contract/test_access_admin.py` (9).
+- `tests/emulator/test_access_admin_emulator.py` (2, on real Firestore): the record, audit and event commit together, and two concurrent changes to one student both survive.
+- `web/tests/admin.test.js` (5).
+
+Verified in Chrome against a local in-memory API:
+- `reviewer_platform` sees "not a platform admin".
+- As `admin_platform`, granting Digital SAT to Beth with a reason updates the table and adds a history row. Beth then sees Digital SAT as "Click to add" and enrolls.
+- After one finished set, the admin revoked access. Beth still sees the completed set and her Digital SAT mastery, but **Start practice** shows "You need access to this course".
+- The history lists both changes with reasons.
+- A bulk grant to `stu_beth`, `stu_nobody` and `stu_alex` reported 1 changed, 1 unchanged, 1 failed ("No student with this id").
+
+On staging, access is still a direct Firestore edit until this is deployed and `seed_staging` creates the `admin_platform` account.
 
 ### Step 43 — Review assistant agent (future; workflow and skills to be defined by reviewers)
 

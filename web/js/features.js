@@ -252,6 +252,7 @@ function plainEvent(type) {
   return {
     "course.enrolled": "Enrolled in a course",
     "course.unenrolled": "Left a course",
+    "access.changed": "Course access changed",
     "session.started": "Started a practice session",
     "session.completed": "Session completed",
     "session.abandoned": "Session abandoned",
@@ -270,6 +271,7 @@ function plainEvent(type) {
 function describeEvent(e, S) {
   const p = e.payload || {};
   if (e.type === "course.enrolled" || e.type === "course.unenrolled") return S ? S.courseName(p.courseId) : p.courseId;
+  if (e.type === "access.changed") return (S ? S.courseName(p.courseId) : p.courseId) + (p.change === "granted" ? ": access granted" : ": access removed");
   if (e.type === "run.failed") return "Error " + p.errorCode + (p.retryable ? ", can retry" : "");
   if (e.type === "assessment.completed") return p.status === "accepted" ? "Assessment accepted" : "Not enough evidence; mastery not updated";
   if (e.type === "plan.updated") return (p.changedTaskIds || []).length + " tasks changed";

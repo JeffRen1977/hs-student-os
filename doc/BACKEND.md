@@ -46,6 +46,7 @@ flowchart TD
 - 每个存储与领域函数显式接收 `ActorContext`，包含 actorId、studentId、权限范围。客户端不能靠 body 中的 studentId 选择他人身份。
 - email 是可变联系方式，不用于主键、文件路径或共享 JWT 密钥。未来参考产品账号通过独立映射和授权协议接入。
 - 学生可改 profile、goals、preferences 的叶字段白名单；`entitlements` 仅管理员配置，按 courseId 授予（`apCourses` / `courses`），课程类别不授予权限。学生勾选一门课程不等于获准使用。
+- 平台管理员（Step 42，`role: admin`，权限 `entitlements:manage`）同样是 `PlatformActor`。它只能通过 `AccessService` 修改学生权限：服务先检查权限，再为这一名学生构造 `ActorContext.for_admin`（只带 `entitlements:manage`，没有任何学习权限），只有 `StudentStore.save_entitlements` 接受它。访问记录、审计条目、`access.changed` 事件与幂等记录在同一事务中写入。
 - 课程作者与平台审核员（Step 26）由 `platformMembers/{uid}` 解析为 `PlatformActor`（actorId、role、orgId、权限），它与 `ActorContext` 是不同类型、没有 studentId，因此无法传给任何学生存储或学习服务。作者只能访问本组织的课程包，其他组织的包返回 404。
 - Task、Session、Run、Submission、Assessment、事件、文件与检索均校验归属。跨学生 ID 查询返回 404，避免暴露存在性。
 - 家长不是学生会话的别名（Step 36 已实现）。家长账号由 `parents/{uid}` 解析为 `ParentActor`（无 studentId）；学生创建邀请（只存邀请码哈希），家长兑换后链接生效，学生可随时撤销。每次读取都在同一事务里先校验学生侧链接（`students/{id}/parentLinks/{linkId}`，权威）再构造只带 `summary:read` 的 `ActorContext.for_parent`；家长索引 `parents/{uid}/children/{studentId}` 只用于列出，不作授权依据。摘要投影逐字段构造，不含作答/对话/反馈/文书/申请数据。
@@ -58,6 +59,7 @@ Twin 是统一逻辑视图，不是存放四年历史的一个巨大 JSON 文档
 ```text
 students/{studentId}                         # profile/goals/preferences/version
 students/{studentId}/access/current          # entitlements，后台写
+students/{studentId}/accessAudit/{auditId}     # Step 42：权限变更审计（谁、何时、课程、授予/撤销、原因），与访问记录同一事务写入
 students/{studentId}/enrollments/{courseId}   # 学生主动注册的课程；status/enrolledAt/unenrolledAt
 students/{studentId}/tasks/{taskId}
 students/{studentId}/sessions/{sessionId}
@@ -79,7 +81,7 @@ students/{studentId}/runInputs/{inputRequestId}   # M1：WAITING_INPUT 的类型
 identities/{uid}                                  # M1：已验证 uid → studentId，仅服务端读写
 packageCourses/{courseId}                         # Step 26：课程归属组织、状态、active 版本
 packageVersions/{courseId}@{version}              # 包内容（规范 JSON）、校验报告、审核决定、状态历史
-platformMembers/{uid}                             # 作者（含 orgId）或平台审核员
+platformMembers/{uid}                             # 作者（含 orgId）、平台审核员或平台管理员（Step 42）
 platformMembers/{uid}/idempotency/{keyHash}       # 平台成员命令的幂等记录
 courseMetrics/{courseId}                          # M5 34.4：课程聚合指标（无学生数据）
 students/{studentId}/metricsMembership/{courseId} # 该学生已计入不同学生数的标记

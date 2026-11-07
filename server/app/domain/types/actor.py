@@ -19,7 +19,7 @@ class Permission(StrEnum):
     LEARNING_READ = "learning:read"
     LEARNING_COMMAND = "learning:command"
     RUN_EXECUTE = "run:execute"
-    ENTITLEMENTS_WRITE = "entitlements:write"
+    ENTITLEMENTS_MANAGE = "entitlements:manage"  # platform admins: grant/revoke course access
     PACKAGES_AUTHOR = "packages:author"
     PACKAGES_REVIEW = "packages:review"
     SUMMARY_READ = "summary:read"  # parent: the summary projection only (Step 36)
@@ -42,9 +42,14 @@ SERVICE_ACTOR_PREFIX = "svc:"
 # and those scopes are limited to this set.
 PARENT_SCOPES = frozenset({Permission.SUMMARY_READ})
 
+# An admin acting on one student's access holds exactly this (Step 42): no learning
+# permission, so no learning service accepts it.
+ADMIN_STUDENT_PERMISSIONS = frozenset({Permission.ENTITLEMENTS_MANAGE})
+
 PLATFORM_ROLE_PERMISSIONS: dict[ActorRole, frozenset[Permission]] = {
     ActorRole.AUTHOR: frozenset({Permission.PACKAGES_AUTHOR}),
     ActorRole.PLATFORM_REVIEWER: frozenset({Permission.PACKAGES_REVIEW}),
+    ActorRole.ADMIN: frozenset({Permission.ENTITLEMENTS_MANAGE}),
 }
 
 
@@ -71,6 +76,12 @@ class ActorContext:
             raise ValueError("service actor ids start with 'svc:' so they never collide with uids")
         if self.role is ActorRole.STUDENT and self.actor_id.startswith(SERVICE_ACTOR_PREFIX):
             raise ValueError("student ids may not use the service prefix")
+        if self.role is ActorRole.ADMIN and (
+            self.actor_id == self.student_id
+            or self.actor_id.startswith(SERVICE_ACTOR_PREFIX)
+            or not self.permissions <= ADMIN_STUDENT_PERMISSIONS
+        ):
+            raise ValueError("an admin acts on one student's access with entitlements:manage only")
         if self.role is ActorRole.PARENT and (
             self.actor_id == self.student_id or not self.permissions <= PARENT_SCOPES
         ):
@@ -105,6 +116,21 @@ class ActorContext:
             student_id=student_id,
             role=ActorRole.SERVICE,
             permissions=permissions,
+            request_id=request_id,
+        )
+
+    @classmethod
+    def for_admin(
+        cls, admin_uid: str, student_id: str, request_id: str | None = None
+    ) -> ActorContext:
+        """Only built by AccessService after it checked the platform admin's
+        `entitlements:manage` permission (Step 42). It can read and write one student's
+        access record and audit; it holds no learning permission."""
+        return cls(
+            actor_id=admin_uid,
+            student_id=student_id,
+            role=ActorRole.ADMIN,
+            permissions=ADMIN_STUDENT_PERMISSIONS,
             request_id=request_id,
         )
 
@@ -150,12 +176,14 @@ class ParentActor:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PlatformActor:
-    """An author or platform reviewer (Step 26). Deliberately a different type from
-    `ActorContext`: it has no `student_id`, so it cannot be passed to any student store or
-    learning service, and authors never see student data.
+    """An author, platform reviewer (Step 26) or platform admin (Step 42). Deliberately a
+    different type from `ActorContext`: it has no `student_id`, so it cannot be passed to
+    any student store or learning service, and authors never see student data. An admin
+    reaches one student's access record only through `AccessService`.
 
     Authors belong to exactly one author organization (`org_id`) and see only that
-    organization's packages. Reviewers act for the platform and have no organization.
+    organization's packages. Reviewers and admins act for the platform and have no
+    organization.
     """
 
     actor_id: str
@@ -168,9 +196,9 @@ class PlatformActor:
         if not self.actor_id or self.actor_id.startswith(SERVICE_ACTOR_PREFIX):
             raise ValueError("platform actors need a real uid")
         if self.role not in PLATFORM_ROLE_PERMISSIONS:
-            raise ValueError("platform actors are authors or platform reviewers")
+            raise ValueError("platform actors are authors, platform reviewers or admins")
         if (self.role is ActorRole.AUTHOR) != (self.org_id is not None):
-            raise ValueError("authors belong to one organization; reviewers to none")
+            raise ValueError("authors belong to one organization; reviewers and admins to none")
 
     @classmethod
     def for_member(

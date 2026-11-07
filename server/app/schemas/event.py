@@ -53,6 +53,13 @@ class CoursePayload(EventPayload):
     course_id: CourseId
 
 
+class AccessChangedPayload(EventPayload):
+    """Step 42. Never the admin's identity or reason."""
+
+    course_id: CourseId
+    change: Literal["granted", "revoked"]
+
+
 PAYLOAD_TYPES: dict[EventType, type[EventPayload]] = {
     EventType.SESSION_STARTED: SessionPayload,
     EventType.SESSION_COMPLETED: SessionPayload,
@@ -68,6 +75,7 @@ PAYLOAD_TYPES: dict[EventType, type[EventPayload]] = {
     EventType.PLAN_UPDATED: PlanUpdatedPayload,
     EventType.COURSE_ENROLLED: CoursePayload,
     EventType.COURSE_UNENROLLED: CoursePayload,
+    EventType.ACCESS_CHANGED: AccessChangedPayload,
 }
 
 

@@ -69,15 +69,16 @@ async def get_actor(
 async def get_platform_actor(
     request: Request, services: Annotated[Services, Depends(get_services)]
 ) -> PlatformActor:
-    """Authors and platform reviewers (Step 26). A student account is not a platform
-    member, so it gets 403 on every authoring and review route."""
+    """Authors, platform reviewers (Step 26) and platform admins (Step 42). A student or
+    parent account is not a platform member, so it gets 403 on every authoring, review and
+    admin route."""
     _reject_asserted_identity(request)
     identity = await services.token_verifier.verify(_bearer_token(request))
     if identity.uid.startswith(SERVICE_ACTOR_PREFIX):
         raise DomainError(ErrorCode.UNAUTHENTICATED, "Invalid subject.")
     member = await services.platform_members.resolve(identity.uid)
     if member is None:
-        raise DomainError(ErrorCode.FORBIDDEN, "This account is not a course author or reviewer.")
+        raise DomainError(ErrorCode.FORBIDDEN, "This account is not a platform member.")
     return PlatformActor.for_member(
         member.uid, ActorRole(member.role), member.org_id, request_id=get_request_id(request)
     )

@@ -295,7 +295,7 @@ class DocumentPackageUnitOfWork:
 
 class FirestorePlatformDirectory:
     """`platformMembers/{uid}`: provisioned by platform operators (seed script locally).
-    A uid that is not listed is not an author or reviewer."""
+    A uid that is not listed is not an author, reviewer or admin."""
 
     def __init__(self, store: DocumentStore) -> None:
         self._store = store
@@ -305,6 +305,6 @@ class FirestorePlatformDirectory:
             return await txn.get(member_path(uid))
 
         doc: dict[str, Any] | None = await self._store.run_transaction(body)
-        if doc is None or doc.get("role") not in ("author", "platform_reviewer"):
+        if doc is None or doc.get("role") not in ("author", "platform_reviewer", "admin"):
             return None
         return PlatformMember(uid=uid, role=str(doc["role"]), org_id=doc.get("orgId"))

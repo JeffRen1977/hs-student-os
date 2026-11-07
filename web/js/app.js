@@ -63,6 +63,7 @@ function Workspace({ data, onReload }) {
         const has = (prefix) => events.some((e) => e.type.indexOf(prefix) === 0);
         if (events.some((e) => e.type === "mastery.updated" || e.type === "session.completed")) S.refreshTwin();
         if (has("course.") || has("session.") || has("plan.")) S.refreshTasks();
+        if (has("access.")) S.refreshCatalog(); // an admin granted or removed a course (Step 42)
         if (has("plan.")) S.refreshPlan();
         if (events.some((e) => e.type === "plan.updated" && e.payload && e.payload.planId)) S.planSettled();
         if (events.some((e) => e.type === "run.failed" && e.payload && e.payload.kind === "PLANNING")) S.planSettled();

@@ -63,7 +63,7 @@
 
 `PATCH /api/twin` 仅允许明确列出的叶字段：profile.displayName/grade/school/targetMajor/targetSchools、goals.satTarget/apTargets、preferences.timezone/weeklyAvailableMinutes/selectedCourses/notifications。每个字段有范围和格式校验，不能任意追加子树。
 
-禁止写入 studentId、entitlements、mastery、assessments、predictionSummary、version；email 更新走身份提供方的验证流程。旧 `subscriptions` 字段不再接受。后台人工开通使用独立管理员工具，不暴露学生可调用的 entitlement 写接口。
+禁止写入 studentId、entitlements、mastery、assessments、predictionSummary、version；email 更新走身份提供方的验证流程。旧 `subscriptions` 字段不再接受。后台开通使用独立管理员工具（§6.5.6，Step 42），不暴露学生可调用的 entitlement 写接口。
 
 ### 1.2 Agent / SubjectPack
 
@@ -191,7 +191,7 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
 }
 ```
 
-无 Session/Run 的 Planner 事件相应字段为 null。sequence 在同一学生范围递增。常见事件：session.started、run.queued、run.started、run.waiting_input、run.completed、run.failed、run.cancelled、assessment.completed、mastery.updated、session.completed、session.abandoned、plan.updated、course.enrolled、course.unenrolled。
+无 Session/Run 的 Planner 事件相应字段为 null。sequence 在同一学生范围递增。常见事件：session.started、run.queued、run.started、run.waiting_input、run.completed、run.failed、run.cancelled、assessment.completed、mastery.updated、session.completed、session.abandoned、plan.updated、course.enrolled、course.unenrolled、access.changed（Step 42，见 §6.5.6）。
 
 事件由服务端在事务中创建。客户端不能声明事件来源或伪造结果。UI 只接收脱敏的学生事件，不接收内部 outbox、原始模型推理或敏感工具参数。
 
@@ -563,6 +563,37 @@ M5 是试点后的可选扩展，各项单独验收（见 [STEP_BY_STEP_PLAN.md]
 ### 6.5.5 预测门控（Step 37）
 
 `TwinSummary.predictionSummary` 的每个已注册课程都由预测门控计算，目前一律 `{status: "unavailable", reason}`。reason 依次为：`not_calibrated`、`synthetic_only`、`mastery_not_calibrated`、`insufficient_coverage`、`no_independent_exam_outcomes`、`prediction_model_not_validated`。练习表现、自报成绩与预测分开处理，前两者永远不能使预测可用。校准脚本见 `server/scripts/run_calibration.py`。
+
+### 6.5.6 学生课程权限管理（Step 42，2026-11-07）
+
+取代直接修改 Firestore `students/{id}/access/current`。平台管理员（`platformMembers/{uid}`，`role: "admin"`，权限 `entitlements:manage`）与作者、审核员一样是平台成员，没有学生记录。作者、审核员调用返回 403 `FORBIDDEN`；学生、家长不是平台成员，也返回 403。学生不存在时 404。所有 POST 需要 Idempotency-Key。路径里的 `studentId` 是被管理的对象，不是调用者身份（调用者身份只来自 token）。
+
+- `GET /api/admin/students/{studentId}/access` → `StudentAccessView`：
+  - `studentId`、`displayName`；
+  - `access{apCourses, courses, admissions, updatedAt, updatedBy}`；
+  - `courses[{courseId, name, category, availability, granted, enrollment}]`：目录中所有课程。`enrollment` 为 `{status, enrolledAt, unenrolledAt}` 或 null；
+  - `audit[{auditId, courseId, change, reason, actorId, at}]`：最近 50 条，新的在前。
+
+  **不含**作答、对话、评估、掌握度或任务。
+- `POST /api/admin/students/{studentId}/access/grant`，body `{courseId, reason}`；`POST .../revoke` 同样的 body。返回 `AccessChangeView{changed, auditId, access: StudentAccessView}`。
+  - **字段：** AP 课程写入 `apCourses`，其他课程写入 `courses`，撤销时从两者中都删除。
+  - **校验：** `reason` 必填，1–500 字。授予时课程必须在目录中，否则 404；撤销任何已授予的 courseId 都允许。
+  - **无变化：** 已有权限时再授予，或没有权限时撤销，返回 `changed: false`、`auditId: null`，不写审计、不发事件。
+  - **同一事务写入：** 访问记录、审计条目 `students/{id}/accessAudit/{auditId}`、学生事件 `access.changed`，以及幂等记录。
+- `POST /api/admin/access/bulk`，body `{studentIds[1..200], courseId, change: "grant" | "revoke", reason}` → 200 `{results[{studentId, status: "changed" | "unchanged" | "failed", auditId, errorCode, message}], changed, unchanged, failed}`。
+  - 每个学生单独一个事务、单独一条审计；一个学生失败（如不存在 → `NOT_FOUND`）不影响其他学生。重复的 studentId 只处理一次。
+  - 同一 Idempotency-Key 重试时，已成功的学生按原结果重放，失败的学生重新尝试。
+
+学生事件 `access.changed`，payload `{courseId, change: "granted" | "revoked"}`：不含管理员身份或原因。学生端据此刷新目录。
+
+撤销的效果：
+- **保留：** 学生的记录（注册、任务、Session、评估、掌握度）不删除，仍可读取。
+- **被拒绝：** 新的注册、Session、提交与消息返回 403 `COURSE_ACCESS_REQUIRED`。
+- **仍可做：** 已开的 Session 可以放弃。
+- **已排队的 Run：** 执行时重新检查权限（同前）。
+- **不再补题：** practice top-up 不再为该课程加题。
+
+页面：`web/admin.html`。可以按 studentId 查找学生，查看权限、注册与审计历史，授予/撤销（必须写原因）和批量授予。只调用 `/api/admin/*`。
 
 ## 7. v0.1 → v0.2 迁移与验收
 

@@ -295,8 +295,8 @@ These need platform abilities first; a package cannot add them:
 - Figures and formatted math in items (prompts and choices are plain text).
 - Building a package by conversation with an authoring agent: planned as Step 40 in
   [STEP_BY_STEP_PLAN.md](STEP_BY_STEP_PLAN.md).
-- A reviewer screen (today the reviewer uses the API, as in §5) and an admin tool for granting
-  students course access (today a direct Firestore edit): planned as Steps 41 and 42.
+- Granting students access is a platform admin's job, not the author's: the course access
+  screen `web/admin.html` (Step 42).
 - A review assistant agent that prepares findings for the reviewer (the reviewer still decides);
   its workflow and skills are to be defined by reviewers: Step 43.
 - Student-produced-response (grid-in) math items. The platform can already grade free responses

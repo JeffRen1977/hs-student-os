@@ -21,6 +21,13 @@
       "orgId": null,
       "email": "reviewer@example.test",
       "displayName": "Platform reviewer"
+    },
+    {
+      "uid": "admin_platform",
+      "role": "admin",
+      "orgId": null,
+      "email": "admin@example.test",
+      "displayName": "Platform admin"
     }
   ],
   "seedPackages": [

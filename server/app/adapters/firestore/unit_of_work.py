@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
+from app.adapters.firestore.access_audit_repository import FirestoreAccessAuditStore
 from app.adapters.firestore.admissions_repository import FirestoreAdmissionsStore
 from app.adapters.firestore.assessment_repository import (
     FirestoreAssessmentStore,
@@ -61,6 +62,7 @@ class FirestoreTx:
         self.course_metrics = FirestoreCourseMetricsStore(txn)
         self.parents = FirestoreParentStore(txn)
         self.admissions = FirestoreAdmissionsStore(txn)
+        self.access_audit = FirestoreAccessAuditStore(txn)
 
 
 class DocumentUnitOfWork:

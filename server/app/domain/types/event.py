@@ -21,6 +21,7 @@ class EventType(StrEnum):
     PLAN_UPDATED = "plan.updated"
     COURSE_ENROLLED = "course.enrolled"
     COURSE_UNENROLLED = "course.unenrolled"
+    ACCESS_CHANGED = "access.changed"  # Step 42: an admin granted or revoked a course
 
 
 CURRENT_EVENT_SCHEMA_VERSION = 1

@@ -10,7 +10,7 @@ from that run (model: OpenAI `gpt-5.5`).
 |---|---|---|---|
 | Author | `author_hsos` (organization `org_hsos_content`) | Writes and uploads the course package, submits it | Author portal (`/author.html`) |
 | Platform reviewer | `reviewer_platform` | Reviews, approves, activates | Reviewer screen (`/review.html`, Step 41) or the review API |
-| Platform admin | — | Grants a student access to the course | Firestore edit (admin tool planned, Step 42) |
+| Platform admin | `admin_platform` | Grants a student access to the course | Course access screen (`/admin.html`, Step 42) |
 | Student | `stu_beth` (new to the course), `stu_alex` (enrolled since 1.0.0) | Enrolls, studies, gets feedback and a plan | Student app (`/`) |
 
 ## 1. The author builds the course
@@ -87,8 +87,14 @@ The course is now in the catalog, but Beth cannot enroll yet:
 
 > `POST /api/courses/enroll {"courseId":"dsat"}` → **403 `COURSE_ACCESS_REQUIRED`**
 
-Access is managed by the platform, never by authors. Today an admin adds `"dsat"` to `courses` in
-`students/stu_beth/access/current` (Firestore); Step 42 plans an audited admin tool for this.
+Access is managed by the platform, never by authors. A platform admin opens the course access
+screen (`/admin.html`), finds `stu_beth`, chooses **Grant** on Digital SAT and gives a reason.
+The change is recorded in Beth's access history (who, when, reason), and Beth's app shows only
+that her access changed. A class or cohort can be granted at once from the same screen.
+
+On staging on 2026-11-07 this was still a direct Firestore edit; the screen was built afterwards
+and is not deployed yet. Revoking later keeps all of Beth's work readable but blocks new
+sessions and submissions in the course.
 
 ## 5. The student enrolls
 
@@ -210,18 +216,19 @@ make web
 2. <http://localhost:8000/review.html>, local sign-in as `reviewer_platform`: open dsat 2.0.1,
    check it, approve and activate (or use the API commands in
    [AUTHORING_GUIDE.md](../AUTHORING_GUIDE.md) §5).
-3. <http://localhost:8000>, local sign-in as `stu_alex`: open Digital SAT, finish a set, see the
-   next one appear. (Beth has no Digital SAT access locally; granting it needs an edit to the
-   in-memory store, so use Alex.) The tutor replies are labeled synthetic unless
+3. <http://localhost:8000/admin.html>, local sign-in as `admin_platform`: open `stu_beth` and
+   grant Digital SAT with a reason.
+4. <http://localhost:8000>, local sign-in as `stu_beth`: add Digital SAT in the catalog, finish
+   a set, see the next one appear. The tutor replies are labeled synthetic unless
    `HSOS_LLM_PROVIDER` is set to a real model (see the root README).
 
 **On staging** (https://hs-student-os.web.app): the same flow, signing in with the synthetic
-accounts' staging password; the reviewer and admin steps use the API and Firestore as in
-sections 3–4.
+accounts' staging password. Until the Step 41 and 42 screens are deployed there, the reviewer
+and admin steps use the API and Firestore as in sections 3–4.
 
 ## 10. What is still manual or open
 
-- Admin access tool (Step 42): today a Firestore edit. The reviewer screen (Step 41) works locally but is not yet deployed to staging.
+- The reviewer screen (Step 41) and the course access screen (Step 42) work locally but are not yet deployed to staging.
 - Content review: every item is `draft`; a named reviewer must sign off before production.
 - Figures and formatted math in items (needed for many real SAT Math questions).
 - Evidence-driven follow-up (Step 24.2): repeated errors on a skill → a targeted diagnostic and
