@@ -24,7 +24,7 @@ and [`OPERATIONS.md`](doc/OPERATIONS.md)).
 flowchart LR
     subgraph Browser["Browser (web/)"]
         UI["Student workspace<br/>index.html"]
-        Portal["Author / reviewer portal<br/>author.html"]
+        Portal["Author / reviewer portal<br/>author.html, review.html"]
         Provider["HSProvider data seam<br/>Bearer token + Idempotency-Key<br/>SSE with polling fallback"]
         UI --> Provider
         Portal --> Provider
@@ -79,6 +79,7 @@ flowchart LR
 |---|---|---|
 | Web workspace | Course catalog, per-course agent (chat, submit, progress), tasks and weekly plan | `web/index.html`, `web/js/` |
 | Author portal | Upload packages, see validator/evaluation reports, submit for review, preview, metrics | `web/author.html`, `web/js/portal/` |
+| Reviewer screen | Review queue, full content with answer keys, upgrade comparison, approve / reject / activate / retire | `web/review.html`, `web/js/portal/` |
 | API | Thin FastAPI layer: token verification, Pydantic validation, delegation to domain | `server/app/api/` |
 | Domain | All business rules, typed ports, no infrastructure imports | `server/app/domain/` |
 | Adapters | Firestore, Firebase Auth, Cloud Tasks, LLM providers, tools (math verification) | `server/app/adapters/` |
@@ -181,7 +182,8 @@ make web              # terminal 2: static web on :8000
 
 Open <http://localhost:8000> and use **local development sign-in** to pick a synthetic
 student (`stu_alex` or `stu_beth`). The author portal is at
-<http://localhost:8000/author.html> (`author_hsos`, `author_sample`, `reviewer_platform`).
+<http://localhost:8000/author.html> (`author_hsos`, `author_sample`), and the reviewer screen
+is at <http://localhost:8000/review.html> (`reviewer_platform`).
 Data is lost when the API stops.
 
 ### Option B: Firebase emulators (real Firestore transactions)

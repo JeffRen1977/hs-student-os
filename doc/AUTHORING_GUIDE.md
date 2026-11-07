@@ -214,8 +214,15 @@ make web                  # terminal 2: web on :8000
    it names and upload again (a draft can be replaced).
 3. **Preview** the student view: 12 sets, 29 skills, no answer keys.
 4. **Submit** for review. From this point the version is immutable.
-5. **Review and activate (platform reviewer).** The portal cannot approve, so the reviewer
-   uses the API. Locally, an emulator-format token for `reviewer_platform` is accepted:
+5. **Review and activate (platform reviewer).** Open <http://localhost:8000/review.html> and
+   sign in as `reviewer_platform`. The version is under **Waiting for review**:
+   - Check the report, the content (answer keys highlighted), the student preview and, for an
+     upgrade, **compare** (removed question or skill IDs are warnings).
+   - Optionally work through the per-item **checklist** (kept in your browser only).
+   - Attest the license, **Approve**, then **Activate**. Each action asks you to confirm first.
+
+   The same decisions through the API (for scripts). Locally, an emulator-format token for
+   `reviewer_platform` is accepted:
 
    ```bash
    cd server
@@ -253,8 +260,9 @@ gets 403 → a newly enrolled student gets the 2.0.0 starter tasks, and mastery 
 Same steps against the deployed services (see [README](../README.md) §4):
 
 - Author: `https://<project>.web.app/author.html`, signing in with the author's email and password.
-- Reviewer: get an ID token with Firebase Auth email/password sign-in
-  (`identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=<web API key>`), then call
+- Reviewer: `https://<project>.web.app/review.html` (once Step 41 is deployed), or get an ID
+  token with Firebase Auth email/password sign-in
+  (`identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=<web API key>`) and call
   the same `approve` and `activate` endpoints on the `hsos-api` URL.
 - After activation, any worker instance loads the new version before running a session that
   needs it. (This relies on the worker fix from commit `0c643ca`, found in staging on

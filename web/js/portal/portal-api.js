@@ -35,13 +35,15 @@
     };
   }
 
-  function createPortalApi(options) {
+  // Shared by the author portal and the reviewer screen: Bearer token, one Idempotency-Key
+  // per user action (kept on network/5xx failures), typed errors from the server envelope.
+  function createRequester(options) {
     const o = options || {};
     const base = (o.baseUrl || "").replace(/\/$/, "");
     const fetchImpl = o.fetchImpl || (typeof fetch !== "undefined" ? fetch.bind(globalThis) : null);
     const keys = createActionKeys();
 
-    async function request(method, path, body, actionId) {
+    return async function request(method, path, body, actionId) {
       const token = await o.getIdToken();
       if (!token) throw new PortalError("UNAUTHENTICATED", "Sign in required.", 401);
       const headers = { Authorization: "Bearer " + token };
@@ -63,7 +65,11 @@
       }
       if (method === "POST") keys.done(actionId || method + path);
       return data;
-    }
+    };
+  }
+
+  function createPortalApi(options) {
+    const request = createRequester(options);
 
     const enc = encodeURIComponent;
     const ver = (c, v) => "/api/authoring/packages/" + enc(c) + "/versions/" + enc(v);
@@ -95,5 +101,5 @@
     retired: "Retired — no new work",
   };
 
-  return { createPortalApi, createActionKeys, parsePackageText, PortalError, STATUS_TEXT };
+  return { createPortalApi, createRequester, createActionKeys, parsePackageText, PortalError, STATUS_TEXT };
 });

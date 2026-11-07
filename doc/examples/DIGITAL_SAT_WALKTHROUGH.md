@@ -9,7 +9,7 @@ from that run (model: OpenAI `gpt-5.5`).
 | Role | Synthetic account | Does | Tool today |
 |---|---|---|---|
 | Author | `author_hsos` (organization `org_hsos_content`) | Writes and uploads the course package, submits it | Author portal (`/author.html`) |
-| Platform reviewer | `reviewer_platform` | Reviews, approves, activates | Review API (reviewer screen planned, Step 41) |
+| Platform reviewer | `reviewer_platform` | Reviews, approves, activates | Reviewer screen (`/review.html`, Step 41) or the review API |
 | Platform admin | — | Grants a student access to the course | Firestore edit (admin tool planned, Step 42) |
 | Student | `stu_beth` (new to the course), `stu_alex` (enrolled since 1.0.0) | Enrolls, studies, gets feedback and a plan | Student app (`/`) |
 
@@ -47,7 +47,8 @@ The author presses **Submit**. From now on this version cannot change.
 
 ## 3. The platform reviewer reviews and publishes
 
-The reviewer finds the version in the review queue and checks:
+The reviewer opens the reviewer screen (`/review.html`), finds the version under **Waiting for
+review** (marked "upgrade of 2.0.0"), and checks:
 
 | Check | Result for Digital SAT |
 |---|---|
@@ -55,15 +56,21 @@ The reviewer finds the version in the review queue and checks:
 | History | Uploaded and submitted by `author_hsos` |
 | Rights | Every question and rubric is `original`; no College Board or prep-book material |
 | Content | Answer keys, one defensible answer per item, skill tags, wording |
-| Upgrade safety | All question and skill IDs that students already use are kept |
+| Upgrade safety | The **compare** tab: every question and skill ID of the active version is kept |
 | Student preview | Reads well; nothing secret is shown |
 
-Then **approve** (with the license attestation) and **activate**. The previous version becomes
+A per-item checklist (answer key, one defensible answer, skill tag, source) helps work through
+the 52 items; it stays in the reviewer's browser and is not part of the review record.
+
+Then **approve** (with the license attestation) and **activate**, each after a confirmation. The previous version becomes
 `superseded`: a student in the middle of a set finishes it on the old version and its answer
 key; new practice uses the new version. Past results never change.
 
+On 2026-11-07 staging was reviewed with the API (the screen was built afterwards and is not
+deployed yet):
+
 ```bash
-# Reviewer, against the staging API (the reviewer screen in Step 41 will replace this)
+# Reviewer, against the staging API
 V=$API/api/review/packages/dsat/versions/2.0.1
 curl -s -X POST $V/approve  -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: $(uuidgen)" \
   -H 'Content-Type: application/json' -d '{"notes":"Checked keys, sources and preview.","licenseAttested":true}'
@@ -200,8 +207,9 @@ make web
 
 1. <http://localhost:8000/author.html>, local sign-in as `author_hsos`: upload
    `server/content/authored/dsat/package-2.0.1.json`, check the report and preview, submit.
-2. Approve and activate as `reviewer_platform` with the commands in
-   [AUTHORING_GUIDE.md](../AUTHORING_GUIDE.md) §5 (local token snippet included).
+2. <http://localhost:8000/review.html>, local sign-in as `reviewer_platform`: open dsat 2.0.1,
+   check it, approve and activate (or use the API commands in
+   [AUTHORING_GUIDE.md](../AUTHORING_GUIDE.md) §5).
 3. <http://localhost:8000>, local sign-in as `stu_alex`: open Digital SAT, finish a set, see the
    next one appear. (Beth has no Digital SAT access locally; granting it needs an edit to the
    in-memory store, so use Alex.) The tutor replies are labeled synthetic unless
@@ -213,7 +221,7 @@ sections 3–4.
 
 ## 10. What is still manual or open
 
-- Reviewer screen (Step 41) and admin access tool (Step 42): today the API and a Firestore edit.
+- Admin access tool (Step 42): today a Firestore edit. The reviewer screen (Step 41) works locally but is not yet deployed to staging.
 - Content review: every item is `draft`; a named reviewer must sign off before production.
 - Figures and formatted math in items (needed for many real SAT Math questions).
 - Evidence-driven follow-up (Step 24.2): repeated errors on a skill → a targeted diagnostic and
