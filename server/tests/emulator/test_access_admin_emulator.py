@@ -27,7 +27,9 @@ def headers(env: dict[str, Any], uid: str, key: str | None = None) -> dict[str, 
 
 
 async def prepare(env: dict[str, Any]) -> tuple[str, str]:
-    course = "lab_" + secrets.token_hex(4)
+    # No underscore: the replace below also rewrites rubric IDs and the workflow version,
+    # which are slugs.
+    course = "lab" + secrets.token_hex(4)
     text = (DEFAULT_CONTENT_ROOT / "authored/dsat/package.json").read_text()
     pkg = json.loads(text.replace("dsat", course))
     http = env["http"]
