@@ -80,7 +80,7 @@ flowchart LR
 | Web workspace | Course catalog, per-course agent (chat, submit, progress), tasks and weekly plan | `web/index.html`, `web/js/` |
 | Author portal | Upload packages, see validator/evaluation reports, submit for review, preview, metrics | `web/author.html`, `web/js/portal/` |
 | Reviewer screen | Review queue, full content with answer keys, upgrade comparison, approve / reject / activate / retire | `web/review.html`, `web/js/portal/` |
-| Course access screen | Platform admins grant / revoke a student's course access with a reason (audited), cohort grants | `web/admin.html`, `web/js/portal/` |
+| Course access screen | Platform admins publish reviewer-approved courses for all students or retire courses | `web/admin.html`, `web/js/portal/` |
 | API | Thin FastAPI layer: token verification, Pydantic validation, delegation to domain | `server/app/api/` |
 | Domain | All business rules, typed ports, no infrastructure imports | `server/app/domain/` |
 | Adapters | Firestore, Firebase Auth, Cloud Tasks, LLM providers, tools (math verification) | `server/app/adapters/` |
@@ -146,12 +146,12 @@ flowchart LR
     U["Author uploads package<br/>(data only)"] --> V["Validator report<br/>+ evaluation set"] --> D[draft]
     D -->|submit| Sub[submitted]
     Sub -->|"platform reviewer<br/>(license + evaluation attested)"| Ap[approved]
-    Ap -->|activate| Ac["active<br/>(in catalog)"]
+    Ap -->|"admin publishes"| Ac["active<br/>(in catalog)"]
     Ac -->|new version activated| Sup["superseded<br/>(open sessions keep it)"]
     Ac -->|retire| Ret["retired<br/>(records kept, no new work)"]
 ```
 
-Students still need a platform-managed entitlement to enroll in an active course.
+Every student may enroll in any active course. A reviewer approves content; a platform admin publishes the approved version. No individual course grant is required.
 
 ---
 
@@ -184,7 +184,7 @@ make web              # terminal 2: static web on :8000
 Open <http://localhost:8000> and use **local development sign-in** to pick a synthetic
 student (`stu_alex` or `stu_beth`). The author portal is at
 <http://localhost:8000/author.html> (`author_hsos`, `author_sample`), and the reviewer screen
-is at <http://localhost:8000/review.html> (`reviewer_platform`), and course access at
+is at <http://localhost:8000/review.html> (`reviewer_platform`), and course publication at
 <http://localhost:8000/admin.html> (`admin_platform`).
 Data is lost when the API stops.
 

@@ -1,22 +1,17 @@
-"""Step 42 against the real Firestore emulator (`make test-emulator`).
-
-An access change is a read-modify-write of `access/current` plus an audit entry and a
-student event. These tests check, on Firestore itself, that the pieces commit together and
-that two concurrent changes to one student's access both survive (neither overwrites the
-other), with distinct audit entries and event sequences.
-"""
+"""Publication gate, atomic audit, and duplicate publication on real Firestore."""
 
 from __future__ import annotations
 
 import asyncio
+import json
+import secrets
 from typing import Any
 
 import pytest
 
+from app.registries.content import DEFAULT_CONTENT_ROOT
 from tests.emulator.test_firestore_flows import make_env
 from tests.support import emulator_token, idem
-
-ADMIN = "admin_platform"
 
 
 @pytest.fixture
@@ -24,54 +19,61 @@ async def env() -> Any:
     return await make_env()
 
 
-def _admin(env: dict[str, Any]) -> dict[str, str]:
-    token = emulator_token(ADMIN, now=env["clock"].now())
-    return {"Authorization": f"Bearer {token}", "Idempotency-Key": idem()}
+def headers(env: dict[str, Any], uid: str, key: str | None = None) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {emulator_token(uid, now=env['clock'].now())}",
+        "Idempotency-Key": key or idem(),
+    }
 
 
-async def _docs(env: dict[str, Any], sid: str, collection: str) -> list[dict[str, Any]]:
-    snaps = env["db"].collection(f"students/{sid}/{collection}").stream()
-    return [s.to_dict() async for s in snaps]
-
-
-async def test_grant_commits_record_audit_and_event_then_enroll(env: dict[str, Any]) -> None:
-    http, beth = env["http"], env["beth"]
-    path = f"/api/admin/students/{beth}/access"
-    body = {"courseId": "dsat", "reason": "Pilot."}
-    r = await http.post(f"{path}/grant", json=body, headers=_admin(env))
-    assert r.status_code == 200, r.text
-    audit_id = r.json()["auditId"]
-
-    access = (await env["db"].document(f"students/{beth}/access/current").get()).to_dict()
-    assert "dsat" in access["courses"] and access["updatedBy"] == ADMIN
-    [audit] = await _docs(env, beth, "accessAudit")
-    assert audit["auditId"] == audit_id and audit["reason"] == "Pilot."
-    events = [e for e in await _docs(env, beth, "events") if e["type"] == "access.changed"]
-    assert len(events) == 1 and events[0]["payload"] == {"courseId": "dsat", "change": "granted"}
-
-    token = emulator_token(beth, now=env["clock"].now())
-    headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": idem()}
-    r = await http.post("/api/courses/enroll", json={"courseId": "dsat"}, headers=headers)
-    assert r.status_code == 200, r.text
-
-
-async def test_concurrent_changes_to_one_student_both_survive(env: dict[str, Any]) -> None:
-    http, beth = env["http"], env["beth"]
-    path = f"/api/admin/students/{beth}/access"
-    grant = {"courseId": "dsat", "reason": "a"}
-    revoke = {"courseId": "calc_bc", "reason": "b"}
-    a, b = await asyncio.gather(
-        http.post(f"{path}/grant", json=grant, headers=_admin(env)),
-        http.post(f"{path}/revoke", json=revoke, headers=_admin(env)),
+async def prepare(env: dict[str, Any]) -> tuple[str, str]:
+    course = "lab_" + secrets.token_hex(4)
+    text = (DEFAULT_CONTENT_ROOT / "authored/dsat/package.json").read_text()
+    pkg = json.loads(text.replace("dsat", course))
+    http = env["http"]
+    r = await http.post(
+        "/api/authoring/packages", json={"package": pkg}, headers=headers(env, "author_hsos")
     )
-    assert (a.status_code, b.status_code) == (200, 200), (a.text, b.text)
-    access = (await env["db"].document(f"students/{beth}/access/current").get()).to_dict()
-    assert access["courses"] == ["dsat"] and access["apCourses"] == []
-    assert sorted(x["change"] for x in await _docs(env, beth, "accessAudit")) == [
-        "grant",
-        "revoke",
-    ]
-    seqs = [e["sequence"] for e in await _docs(env, beth, "events")]
-    assert len(seqs) == len(set(seqs))
-    # Alex was never touched.
-    assert await _docs(env, env["alex"], "accessAudit") == []
+    assert r.status_code == 201, r.text
+    base = f"/packages/{course}/versions/1.0.0"
+    r = await http.post(
+        "/api/authoring" + base + "/submit", json={}, headers=headers(env, "author_hsos")
+    )
+    assert r.status_code == 200, r.text
+    r = await http.post(
+        "/api/review" + base + "/approve",
+        json={"licenseAttested": True},
+        headers=headers(env, "reviewer_platform"),
+    )
+    assert r.status_code == 200, r.text
+    return course, "/api/admin" + base + "/activate"
+
+
+async def test_publish_commits_pointer_and_admin_audit_then_all_students_enroll(
+    env: dict[str, Any],
+) -> None:
+    course, path = await prepare(env)
+    r = await env["http"].post(path, json={}, headers=headers(env, "admin_platform"))
+    assert r.status_code == 200, r.text
+    record = (await env["db"].document(f"packageCourses/{course}").get()).to_dict()
+    version = (await env["db"].document(f"packageVersions/{course}@1.0.0").get()).to_dict()
+    assert record["activeVersion"] == "1.0.0" and version["status"] == "active"
+    assert version["history"][-1]["actorId"] == "admin_platform"
+    for sid in (env["alex"], env["beth"]):
+        access = (await env["db"].document(f"students/{sid}/access/current").get()).to_dict()
+        assert course not in access.get("courses", [])
+        r = await env["http"].post(
+            "/api/courses/enroll", json={"courseId": course}, headers=headers(env, sid)
+        )
+        assert r.status_code == 200, r.text
+
+
+async def test_concurrent_duplicate_publication_has_one_transition(env: dict[str, Any]) -> None:
+    _, path = await prepare(env)
+    auth = headers(env, "admin_platform", idem())
+    a, b = await asyncio.gather(
+        env["http"].post(path, json={}, headers=auth),
+        env["http"].post(path, json={}, headers=auth),
+    )
+    assert a.status_code == b.status_code == 200, (a.text, b.text)
+    assert sum(x["toStatus"] == "active" for x in b.json()["history"]) == 1

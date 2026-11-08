@@ -27,6 +27,7 @@ KEYS = {
     for q in PKG["questions"]
 }
 BASE, REVIEW = "/api/authoring/packages/dsat/versions", "/api/review/packages/dsat/versions"
+PUBLICATION = REVIEW.replace("/api/review/", "/api/admin/")
 
 
 @pytest.fixture
@@ -50,7 +51,7 @@ async def publish_2_0_1(h: Harness, pkg: dict[str, Any] | None = None) -> None:
     await post(h, "/api/authoring/packages", AUTHOR, {"package": pkg or PKG}, 201)
     await post(h, f"{BASE}/2.0.1/submit", AUTHOR, {})
     await post(h, f"{REVIEW}/2.0.1/approve", REVIEWER, {"notes": "ok", "licenseAttested": True})
-    await post(h, f"{REVIEW}/2.0.1/activate", REVIEWER, {})
+    await post(h, f"{PUBLICATION}/2.0.1/activate", "admin_platform", {})
 
 
 def grant(h: Harness, sid: str, *courses: str) -> None:
@@ -159,17 +160,17 @@ async def test_students_enrolled_before_an_upgrade_get_the_new_sets(h: Harness) 
     assert open_ids(after) == sorted(["q_dsat_nonlin_001", ORDER[0]])
 
 
-async def test_nothing_is_offered_without_access_or_after_retirement(h: Harness) -> None:
+async def test_legacy_grants_do_not_gate_practice_but_retirement_does(h: Harness) -> None:
     await enrolled_beth(h)
     starters = await dsat_tasks(h)
     await skip(h, starters[0])  # one open task left: a top-up would normally add one
     grant(h, BETH)  # access revoked
     await replan(h)
-    assert len(await dsat_tasks(h)) == 2
+    assert len(await dsat_tasks(h)) == 3
     grant(h, BETH, "dsat")
-    await post(h, "/api/review/courses/dsat/retire", REVIEWER, {"notes": "test"})
+    await post(h, "/api/admin/courses/dsat/retire", "admin_platform", {"notes": "test"})
     await replan(h)
-    assert len(await dsat_tasks(h)) == 2
+    assert len(await dsat_tasks(h)) == 3
     # Calc BC (no practice sequence) is untouched throughout.
     calc = [t for t in (await get(h, "/api/tasks"))["tasks"] if t["courseId"] == "calc_bc"]
     assert all(t["reason"]["code"] != "NEXT_PRACTICE" for t in calc)

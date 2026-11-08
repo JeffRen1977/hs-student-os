@@ -34,27 +34,21 @@ test("review: every decision goes to the existing endpoint with an Idempotency-K
   const a = api(f);
   await a.approve("dsat", "2.0.1", { notes: "ok", licenseAttested: true });
   await a.reject("dsat", "2.0.2", "Item 3 has two defensible answers.");
-  await a.activate("dsat", "2.0.1");
-  await a.retire("apush", "Replaced.");
   await a.queue();
   await a.getVersion("dsat", "2.0.1");
   await a.preview("dsat", "2.0.1");
   assert.deepEqual(f.calls.map((c) => [c.init.method, c.url.replace("http://api", "")]), [
     ["POST", "/api/review/packages/dsat/versions/2.0.1/approve"],
     ["POST", "/api/review/packages/dsat/versions/2.0.2/reject"],
-    ["POST", "/api/review/packages/dsat/versions/2.0.1/activate"],
-    ["POST", "/api/review/courses/apush/retire"],
     ["GET", "/api/review/packages?status=submitted&status=approved&status=active&status=superseded&status=rejected&status=retired"],
     ["GET", "/api/review/packages/dsat/versions/2.0.1"],
     ["GET", "/api/review/packages/dsat/versions/2.0.1/preview"],
   ]);
   assert.deepEqual(f.calls[0].body, { notes: "ok", licenseAttested: true, modelEvaluationAttested: false });
   assert.deepEqual(f.calls[1].body, { notes: "Item 3 has two defensible answers." });
-  assert.deepEqual(f.calls[2].body, {});
-  assert.deepEqual(f.calls[3].body, { notes: "Replaced." });
-  for (const c of f.calls.slice(0, 4)) assert.match(c.init.headers["Idempotency-Key"], /^idk_/);
-  for (const c of f.calls.slice(4)) assert.equal(c.init.headers["Idempotency-Key"], undefined);
-  assert.equal(new Set(f.calls.slice(0, 4).map((c) => c.init.headers["Idempotency-Key"])).size, 4);
+  for (const c of f.calls.slice(0, 2)) assert.match(c.init.headers["Idempotency-Key"], /^idk_/);
+  for (const c of f.calls.slice(2)) assert.equal(c.init.headers["Idempotency-Key"], undefined);
+  assert.equal(new Set(f.calls.slice(0, 2).map((c) => c.init.headers["Idempotency-Key"])).size, 2);
 });
 
 test("review: a retried approval reuses its key; after the server answers, a new attempt is new", async () => {
@@ -114,8 +108,8 @@ test("review: a pending version older than the active one is flagged, decided on
 
 test("review: available actions follow the package state machine", () => {
   assert.deepEqual(R.actionsFor("submitted"), ["approve", "reject"]);
-  assert.deepEqual(R.actionsFor("approved"), ["activate"]);
-  assert.deepEqual(R.actionsFor("active"), ["retire"]);
+  assert.deepEqual(R.actionsFor("approved"), []);
+  assert.deepEqual(R.actionsFor("active"), []);
   for (const s of ["draft", "superseded", "rejected", "retired"]) assert.deepEqual(R.actionsFor(s), []);
 });
 

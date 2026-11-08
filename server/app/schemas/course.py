@@ -34,7 +34,7 @@ class CatalogEntry(ApiModel):
     description: Annotated[str, StringConstraints(max_length=500)]
     category: CourseCategory
     availability: Availability
-    entitled: bool
+    entitled: bool  # active for every student; no individual access grant
     enrolled: bool
     # Derived: enrolled | available | locked (needs access grant) | coming_soon (planned).
     status: CatalogStatus

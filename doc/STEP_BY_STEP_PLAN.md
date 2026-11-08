@@ -1,3 +1,9 @@
+> Current course publication policy (2026-11-07): author submits → reviewer approves
+> → admin publishes to the platform catalog → any student can enroll. Admins do not
+> grant courses to individual students or cohorts. Reviewer publication endpoints and
+> the old student-grant API are removed. Earlier descriptions of that workflow below
+> are superseded. See [API contract](API.md) and the Digital SAT walkthrough.
+
 # High School Student OS — Step-by-Step Implementation Plan v5.0
 
 Updated: 2026-11-05 (Firestore emulator suite run: 8/8 pass; M5 backend redeployed to staging). Previously 2026-11-04 (M5 Steps 34–38 implemented ahead of the pilot gate at the owner's request; Step 30 deployed to staging on 2026-11-03). Previously 2026-11-01 (v5.0: M3 redefined from Calc→SAT transfer to a course platform; see M3). Previously 2026-10-31. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). Checked boxes mark sub-tasks implemented in the working tree; each step's **Status** line records what was actually verified.

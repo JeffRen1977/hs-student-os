@@ -29,6 +29,8 @@ from tests.contract.test_package_review import (
 )
 from tests.support import Harness, build_harness
 
+PUBLICATION = REVIEW.replace("/api/review/", "/api/admin/")
+
 ALL = "?" + "&".join(
     f"status={s}" for s in ("submitted", "approved", "active", "superseded", "rejected", "retired")
 )
@@ -57,8 +59,8 @@ async def test_every_endpoint_the_screen_calls_is_reviewer_only(h: Harness) -> N
         await get(h, f"{v}/preview", uid, status=403)
         await post(h, f"{v}/approve", uid, APPROVE, 403)
         await post(h, f"{v}/reject", uid, {"notes": "no"}, 403)
-        await post(h, f"{v}/activate", uid, {}, 403)
-        await post(h, f"/api/review/courses/{COURSE}/retire", uid, {"notes": "no"}, 403)
+        await post(h, f"{v}/activate", uid, {}, 404)
+        await post(h, f"/api/review/courses/{COURSE}/retire", uid, {"notes": "no"}, 404)
     assert listed(await get(h, f"/api/review/packages{ALL}", REVIEWER)) == {"1.0.0": "submitted"}
 
 
@@ -82,7 +84,13 @@ async def test_queue_to_active_and_to_rejected_with_matching_history(h: Harness)
     }
 
     await post(h, f"{REVIEW}/1.0.0/approve", REVIEWER, APPROVE, 200)
-    await post(h, f"{REVIEW}/1.0.0/activate", REVIEWER, {}, 200)
+    await post(
+        h,
+        f"{PUBLICATION}/1.0.0/activate",
+        "admin_platform",
+        {},
+        200,
+    )
     notes = "Item 2 of the first set has two defensible answers."
     await post(h, f"{REVIEW}/1.1.0/reject", REVIEWER, {"notes": notes}, 200)
     # Reject needs notes; a decided version takes no further decision.
@@ -100,7 +108,7 @@ async def test_queue_to_active_and_to_rejected_with_matching_history(h: Harness)
         (None, "draft", AUTHOR),
         ("draft", "submitted", AUTHOR),
         ("submitted", "approved", REVIEWER),
-        ("approved", "active", REVIEWER),
+        ("approved", "active", "admin_platform"),
     ]
     assert active["review"]["licenseAttested"] is True
     rejected = await get(h, f"{REVIEW}/1.1.0", REVIEWER)

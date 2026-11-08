@@ -92,7 +92,7 @@ async def test_digital_sat_goes_through_the_gate_and_runs_beside_calc_bc(
         "licenseAttested": True,
     }
     await post(h, f"{review}/approve", REVIEWER, approval, 200)
-    await post(h, f"{review}/activate", REVIEWER, {}, 200)
+    await post(h, "/api/admin/packages/dsat/versions/1.0.0/activate", "admin_platform", {}, 200)
 
     # --- Platform-managed access, then enrollment with the package's starter tasks --------
     h.put_doc(

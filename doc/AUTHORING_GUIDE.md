@@ -1,3 +1,9 @@
+> Current course publication policy (2026-11-07): author submits → reviewer approves
+> → admin publishes to the platform catalog → any student can enroll. Admins do not
+> grant courses to individual students or cohorts. Reviewer publication endpoints and
+> the old student-grant API are removed. Earlier descriptions of that workflow below
+> are superseded. See [API contract](API.md) and the Digital SAT walkthrough.
+
 # Publishing a course package: internal guide
 
 > **Audience: the platform team and platform reviewers.** Course authors get the

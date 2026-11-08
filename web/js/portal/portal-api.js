@@ -94,8 +94,8 @@
   const STATUS_TEXT = {
     draft: "Draft — only your organization can see it",
     submitted: "Submitted — waiting for a platform reviewer",
-    approved: "Approved — not yet live",
-    active: "Active — students can enroll (with access)",
+    approved: "Approved — awaiting admin publication",
+    active: "Active — all students can enroll",
     superseded: "Superseded — serves sessions pinned to it",
     rejected: "Rejected — see reviewer notes",
     retired: "Retired — no new work",

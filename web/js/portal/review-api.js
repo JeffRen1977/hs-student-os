@@ -1,6 +1,6 @@
 // review-api.js — client and pure helpers for the reviewer screen (Step 41). Plain JS
 // (window.HSReviewApi; Node-testable, tests/review.test.js). It calls only the existing
-// /api/review/* endpoints: the server checks the platform_reviewer role on every request,
+// /api/review/* endpoints for content review; admins publish via their own endpoints.
 // so this screen adds no authority. Only review.html loads this file; the author portal and
 // the student app never do.
 (function (root, factory) {
@@ -30,8 +30,6 @@
         modelEvaluationAttested: !!d.modelEvaluationAttested,
       }, id("approve", c, v)),
       reject: (c, v, notes) => request("POST", ver(c, v) + "/reject", { notes }, id("reject", c, v)),
-      activate: (c, v) => request("POST", ver(c, v) + "/activate", {}, id("activate", c, v)),
-      retire: (c, notes) => request("POST", "/api/review/courses/" + enc(c) + "/retire", { notes }, id("retire", c)),
     };
   }
 
@@ -78,7 +76,7 @@
 
   // What a reviewer can do next, following the server's state machine.
   function actionsFor(status) {
-    return { submitted: ["approve", "reject"], approved: ["activate"], active: ["retire"] }[status] || [];
+    return { submitted: ["approve", "reject"], approved: [], active: [] }[status] || [];
   }
 
   // ---- Upgrade comparison -----------------------------------------------------------------

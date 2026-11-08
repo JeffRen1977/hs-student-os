@@ -1,3 +1,9 @@
+> Current course publication policy (2026-11-07): author submits → reviewer approves
+> → admin publishes to the platform catalog → any student can enroll. Admins do not
+> grant courses to individual students or cohorts. Reviewer publication endpoints and
+> the old student-grant API are removed. Earlier descriptions of that workflow below
+> are superseded. See [API contract](API.md) and the Digital SAT walkthrough.
+
 # High School Student OS — 后端设计 v0.4
 
 更新：2026-11-04：M5 数据布局（§3）、家长身份与 summary:read（§2）、申请 Run 与平台能力（§7）。2026-10-30：增加课程注册数据模型（§3）、对话上下文装载策略（§5.4）、SubjectPack manifest 与 system prompt（§7.1）。采纳 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md)，替代 v0.2 的单文件 HTTP、JSON 生产存储、email 主键、内存 Session 和强制 Jev 依赖。本文件是目标设计，不是已实现能力清单。产品边界见 [HIGH_SCHOOL_STUDENT_OS.md](HIGH_SCHOOL_STUDENT_OS.md)，接口以 [API.md](API.md) v0.3 为准。

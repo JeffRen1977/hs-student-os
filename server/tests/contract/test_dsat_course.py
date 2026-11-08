@@ -100,8 +100,8 @@ async def test_unreadable_choices_record_no_evidence(h: Harness) -> None:
 
 
 async def test_dsat_access_and_isolation(h: Harness) -> None:
-    # Beth has no Digital SAT entitlement and cannot see Alex's DSAT task.
-    assert await enroll(h, BETH) == 403
+    # Beth can enroll without a grant, but cannot see Alex's task.
+    assert await enroll(h, BETH) == 200
     await get(h, f"/api/tasks/{TASK}", sid=BETH, status=404)
     r = await h.client.post("/api/sessions", json={"taskId": TASK}, headers=h.cmd(BETH))
     assert r.status_code == 404

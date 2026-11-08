@@ -14,7 +14,7 @@ class EnrollmentStatus(StrEnum):
 
 
 class CatalogStatus(StrEnum):
-    """Per-student catalog state derived from availability + entitlement + enrollment."""
+    """Per-student catalog state derived from publication and enrollment."""
 
     ENROLLED = "enrolled"
     AVAILABLE = "available"

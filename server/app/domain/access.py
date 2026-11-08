@@ -1,7 +1,6 @@
-"""Course access policy: availability, entitlement, and enrollment are separate checks.
+"""Course access policy: published courses are open to every student.
 
-Selecting a course in preferences grants nothing. Entitlements are admin-managed; an
-enrollment is the student's own choice, allowed only on top of an entitlement.
+Admins publish reviewer-approved packages. Students explicitly enroll before learning.
 """
 
 from __future__ import annotations
@@ -16,13 +15,6 @@ from app.domain.types.course import (
     CourseEnrollment,
     EnrollmentStatus,
 )
-from app.domain.types.student import Entitlements
-
-
-def is_entitled(entitlements: Entitlements, course: CourseDefinition) -> bool:
-    """Per-course grants only. A package's category is a label: it never grants access,
-    so an author cannot widen who may enroll (Step 26.5)."""
-    return entitlements.grants(course.course_id)
 
 
 def is_enrolled(enrollment: CourseEnrollment | None) -> bool:
@@ -36,27 +28,23 @@ def require_known_course(catalog: CourseCatalog, course_id: str) -> CourseDefini
     return course
 
 
-def check_available_and_entitled(course: CourseDefinition, entitlements: Entitlements) -> None:
+def check_available(course: CourseDefinition) -> None:
     if course.availability is Availability.RETIRED:
         raise DomainError(ErrorCode.COURSE_NOT_AVAILABLE, "This course has been retired.")
     if not course.is_active:
         raise DomainError(ErrorCode.COURSE_NOT_AVAILABLE, "This course is not available yet.")
-    if not is_entitled(entitlements, course):
-        raise DomainError(
-            ErrorCode.COURSE_ACCESS_REQUIRED, "Access to this course has not been granted."
-        )
 
 
 async def require_course_access(
     tx: Tx, actor: ActorContext, catalog: CourseCatalog, course_id: str
 ) -> CourseDefinition:
-    """Full check for learning activity: active pack, entitlement, and active enrollment.
+    """Full check for learning activity: active course and active enrollment.
 
     Reading the enrollment inside the caller's transaction also makes concurrent unenroll
     and session/command creation conflict instead of interleaving.
     """
     course = require_known_course(catalog, course_id)
-    check_available_and_entitled(course, await tx.students.get_entitlements(actor))
+    check_available(course)
     if not is_enrolled(await tx.enrollments.get(actor, course_id)):
         raise DomainError(ErrorCode.COURSE_NOT_ENROLLED, "Enroll in this course first.")
     return course

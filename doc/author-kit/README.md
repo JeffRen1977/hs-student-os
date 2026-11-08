@@ -16,11 +16,11 @@ happens before students can see it.
 You describe your course in **one JSON file**, the *course package*. It holds your skills,
 practice questions, answer keys, scoring rubrics, the tutor's teaching instructions, and test
 cases. You upload it in the **author portal**; the platform checks it at once; a **platform
-reviewer** approves it; then it appears in the student catalog.
+reviewer** approves it; a **platform admin** publishes it; then it appears in the student catalog.
 
 ```
 You write the package  →  Upload (portal)  →  Validation report  →  fix and re-upload as needed
-      →  Submit  →  Platform review  →  Approved  →  Activated  →  in the course catalog
+      →  Submit  →  Platform review  →  Approved  →  Admin publishes  →  in the course catalog
 ```
 
 Every course runs on the same platform. Your package does not contain code; it chooses from
@@ -36,8 +36,7 @@ abilities the platform provides:
 If your course needs something not on this list, ask the platform team. New abilities are added
 to the platform for every course; they are never added inside one package.
 
-**What stays with the platform:** approving and activating courses, deciding which students may
-enroll, and all student data. You will see aggregate results for your course (once at least 5
+**What stays with the platform:** reviewing and publishing courses, and all student data. You will see aggregate results for your course (once at least 5
 students are enrolled), never an individual student's work.
 
 ## 2. Before you start: content rules
@@ -101,7 +100,7 @@ lists every field, its limits, and the rules that connect them.
 A platform reviewer checks your validation report and test results, your license statement, and
 the content itself. The reviewer either:
 
-- **approves and activates** the course: it appears in the catalog, and students with access can
+- **approves** the course: an admin can then publish it to the catalog, where every student can
   enroll; or
 - **rejects** it with notes, which you see in the portal. Fix the issues and upload a new
   version.
@@ -111,7 +110,7 @@ You can follow every step (who changed the status, and when) in the version's hi
 ## 6. Updating a published course
 
 Upload a new version with a higher number (for example `1.1.0` or `2.0.0`). It goes through the
-same review. When the new version is activated, students who are in the middle of a set finish
+same review. When an admin publishes the new version, students who are in the middle of a set finish
 it on the old version; new practice uses the new one. Past results never change.
 
 Keep these unchanged between versions:

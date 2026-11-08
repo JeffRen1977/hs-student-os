@@ -7,9 +7,9 @@ from enum import StrEnum
 class ActorRole(StrEnum):
     STUDENT = "student"
     SERVICE = "service"  # worker / scheduler identities (OIDC), never a browser
-    ADMIN = "admin"  # back-office tooling, e.g. entitlement management
+    ADMIN = "admin"  # publishes reviewer-approved courses for the whole platform
     AUTHOR = "author"  # course-package author, member of one author organization
-    PLATFORM_REVIEWER = "platform_reviewer"  # approves, activates and retires packages
+    PLATFORM_REVIEWER = "platform_reviewer"  # approves or rejects content
     PARENT = "parent"  # reads a scoped summary of a linked student (Step 36)
 
 
@@ -19,9 +19,10 @@ class Permission(StrEnum):
     LEARNING_READ = "learning:read"
     LEARNING_COMMAND = "learning:command"
     RUN_EXECUTE = "run:execute"
-    ENTITLEMENTS_MANAGE = "entitlements:manage"  # platform admins: grant/revoke course access
+    ENTITLEMENTS_MANAGE = "entitlements:manage"  # legacy records; no platform role grants this
     PACKAGES_AUTHOR = "packages:author"
     PACKAGES_REVIEW = "packages:review"
+    PACKAGES_PUBLISH = "packages:publish"  # admins publish reviewer-approved courses
     SUMMARY_READ = "summary:read"  # parent: the summary projection only (Step 36)
 
 
@@ -49,7 +50,7 @@ ADMIN_STUDENT_PERMISSIONS = frozenset({Permission.ENTITLEMENTS_MANAGE})
 PLATFORM_ROLE_PERMISSIONS: dict[ActorRole, frozenset[Permission]] = {
     ActorRole.AUTHOR: frozenset({Permission.PACKAGES_AUTHOR}),
     ActorRole.PLATFORM_REVIEWER: frozenset({Permission.PACKAGES_REVIEW}),
-    ActorRole.ADMIN: frozenset({Permission.ENTITLEMENTS_MANAGE}),
+    ActorRole.ADMIN: frozenset({Permission.PACKAGES_PUBLISH}),
 }
 
 

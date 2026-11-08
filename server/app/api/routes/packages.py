@@ -1,7 +1,7 @@
 """Course package authoring and the platform review gate (Step 26, API.md §6.3).
 
 `/api/authoring/*` — authors of one organization: upload, submit, read their own packages.
-`/api/review/*`    — platform reviewers: queue, read, approve, reject, activate, retire.
+`/api/review/*`    — platform reviewers: queue, read, approve, reject.
 
 Students are not platform members and get 403 on all of these routes. Another
 organization's packages return 404. Every POST needs an Idempotency-Key.
@@ -300,35 +300,4 @@ async def reject_package(
 ) -> JSONResponse:
     cmd = command_key(request, idempotency_key, body)
     outcome = await services.packages.reject(actor, course_id, version, body.notes, cmd)
-    return respond(version_view(outcome.value), replayed=outcome.replayed)
-
-
-@review.post(
-    "/packages/{course_id}/versions/{version}/activate", response_model=pk.PackageVersionView
-)
-async def activate_package(
-    course_id: CoursePath,
-    version: VersionPath,
-    body: pk.EmptyCommand,
-    request: Request,
-    actor: Platform,
-    services: ServicesDep,
-    idempotency_key: IdempotencyKeyHeader = None,
-) -> JSONResponse:
-    cmd = command_key(request, idempotency_key, body)
-    outcome = await services.packages.activate(actor, course_id, version, cmd)
-    return respond(version_view(outcome.value), replayed=outcome.replayed)
-
-
-@review.post("/courses/{course_id}/retire", response_model=pk.PackageVersionView)
-async def retire_course(
-    course_id: CoursePath,
-    body: pk.RetireRequest,
-    request: Request,
-    actor: Platform,
-    services: ServicesDep,
-    idempotency_key: IdempotencyKeyHeader = None,
-) -> JSONResponse:
-    cmd = command_key(request, idempotency_key, body)
-    outcome = await services.packages.retire(actor, course_id, body.notes, cmd)
     return respond(version_view(outcome.value), replayed=outcome.replayed)

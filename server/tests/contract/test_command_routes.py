@@ -172,13 +172,13 @@ async def test_commands_on_foreign_or_closed_sessions(harness: Harness) -> None:
     assert closed.json()["error"]["code"] == "INVALID_STATE_TRANSITION"
 
 
-async def test_lost_entitlement_blocks_commands(harness: Harness) -> None:
+async def test_legacy_entitlements_do_not_block_enrolled_students(harness: Harness) -> None:
     session_id = await _session(harness)
     harness.put_doc(
         "students/stu_alex/access/current", {"apCourses": [], "dsat": True, "admissions": False}
     )
     response = await _submit(harness, session_id)
-    assert response.status_code == 403
+    assert response.status_code == 202
 
 
 async def test_transaction_failure_leaves_no_partial_state(harness: Harness) -> None:

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Protocol
 
-from app.domain.access import is_enrolled, is_entitled
+from app.domain.access import is_enrolled
 from app.domain.admissions_runs import AdmissionsJob, AdmissionsRunner
 from app.domain.assessment_service import AssessmentRejectedError, AssessmentService
 from app.domain.errors import ErrorCode
@@ -214,11 +214,10 @@ class RunExecutionService:
             if session is None or session.status is not SessionStatus.OPEN or course is None:
                 await self._fail_in_tx(tx, actor, run, "SESSION_NOT_OPEN", now)
                 return ProcessResult.DONE
-            # Verify course access again: the student may have lost access since enqueue.
-            entitlements = await tx.students.get_entitlements(actor)
+            # Verify course access again: the course may have been retired since enqueue.
             enrollment = await tx.enrollments.get(actor, course.course_id)
-            if not course.is_active or not is_entitled(entitlements, course):
-                await self._fail_in_tx(tx, actor, run, ErrorCode.COURSE_ACCESS_REQUIRED, now)
+            if not course.is_active:
+                await self._fail_in_tx(tx, actor, run, ErrorCode.COURSE_NOT_AVAILABLE, now)
                 return ProcessResult.DONE
             if not is_enrolled(enrollment):
                 await self._fail_in_tx(tx, actor, run, ErrorCode.COURSE_NOT_ENROLLED, now)

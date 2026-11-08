@@ -55,13 +55,12 @@ async def test_planned_course_is_409(harness: Harness) -> None:
     assert response.json()["error"]["code"] == "COURSE_NOT_AVAILABLE"
 
 
-async def test_not_entitled_is_403(harness: Harness) -> None:
+async def test_enrolled_student_can_study_without_individual_entitlement(harness: Harness) -> None:
     harness.put_doc(
         "students/stu_beth/access/current", {"apCourses": [], "dsat": False, "admissions": False}
     )
     response = await _start(harness, "stu_beth", "task_beth_calc_01")
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "COURSE_ACCESS_REQUIRED"
+    assert response.status_code == 201
 
 
 async def test_not_enrolled_is_409(harness: Harness) -> None:

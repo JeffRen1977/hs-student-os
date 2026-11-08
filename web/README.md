@@ -1,3 +1,9 @@
+> Current course publication policy (2026-11-07): author submits → reviewer approves
+> → admin publishes to the platform catalog → any student can enroll. Admins do not
+> grant courses to individual students or cohorts. Reviewer publication endpoints and
+> the old student-grant API are removed. Earlier descriptions of that workflow below
+> are superseded. See [API contract](../doc/API.md) and the Digital SAT walkthrough.
+
 # High School Student OS — 前端
 
 本目录是学生界面：课程、作答、任务和计划按模块拆开，方便按课程扩展并接入后端。

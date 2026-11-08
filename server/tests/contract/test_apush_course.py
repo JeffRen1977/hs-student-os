@@ -20,6 +20,7 @@ from tests.support import Harness, ScriptedProvider, build_harness
 ALEX = "stu_alex"
 AUTHOR, REVIEWER = "author_hsos", "reviewer_platform"
 REVIEW = "/api/review/packages/apush/versions/1.0.0"
+PUBLICATION = REVIEW.replace("/api/review/", "/api/admin/")
 DOC_A, DOC_B = "mat_apush_doc_a_federalist10", "mat_apush_doc_b_brutus1"
 ESSAY = (
     "The debate centered on the size of the republic to a large extent. "
@@ -66,7 +67,7 @@ async def activate_apush(h: Harness) -> None:
         {"notes": "Ran the model-graded cases.", "licenseAttested": True,
          "modelEvaluationAttested": True}, 200,
     )  # fmt: skip
-    await post(h, f"{REVIEW}/activate", REVIEWER, {}, 200)
+    await post(h, f"{PUBLICATION}/activate", "admin_platform", {}, 200)
 
 
 async def dbq_session(h: Harness) -> dict[str, Any]:
@@ -136,7 +137,7 @@ async def test_apush_waits_for_review_and_needs_model_evaluation_attested(h: Har
     assert r.status_code == 409 and r.json()["error"]["code"] == "REVIEW_REQUIREMENTS_NOT_MET"
     await activate_apush(h)
     catalog = {c["courseId"]: c for c in (await get(h, "/api/courses/catalog"))["courses"]}
-    assert catalog["apush"]["status"] == "locked"  # active, but access is platform-managed
+    assert catalog["apush"]["status"] == "available"  # admin published for all students
     assert catalog["apush"]["agent"]["supportedTaskTypes"] == ["FRQ_PRACTICE", "PRACTICE"]
 
 

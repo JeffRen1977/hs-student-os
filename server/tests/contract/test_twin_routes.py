@@ -141,12 +141,13 @@ async def test_selecting_a_course_grants_nothing(harness: Harness) -> None:
     assert ent.json() == {"apCourses": ["calc_bc"], "courses": [], "admissions": False}
     catalog = await harness.client.get("/api/courses/catalog", headers=harness.auth("stu_beth"))
     dsat = next(c for c in catalog.json()["courses"] if c["courseId"] == "dsat")
-    assert dsat["entitled"] is False and dsat["enrolled"] is False
+    assert dsat["entitled"] is True and dsat["enrolled"] is False
     enroll = await harness.client.post(
         "/api/courses/enroll", json={"courseId": "dsat"}, headers=harness.cmd("stu_beth")
     )
-    assert enroll.status_code == 403  # selecting it granted nothing: no dsat entitlement
-    assert enroll.json()["error"]["code"] == "COURSE_ACCESS_REQUIRED"
+    assert (
+        enroll.status_code == 200
+    )  # publication allows enrollment; preference alone does not enroll
 
 
 async def test_data_survives_restart(harness: Harness, clean_env: pytest.MonkeyPatch) -> None:

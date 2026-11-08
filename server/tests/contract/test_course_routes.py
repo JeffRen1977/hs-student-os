@@ -31,7 +31,7 @@ async def _unenroll(h: Harness, sid: str, course: str, key: str | None = None) -
     )
 
 
-async def test_catalog_reflects_entitlements_per_student(harness: Harness) -> None:
+async def test_catalog_opens_published_courses_to_all_students(harness: Harness) -> None:
     alex = await _catalog(harness, "stu_alex")
     # APUSH is an authored package waiting for platform review: not in the catalog yet.
     assert set(alex) == {"calc_bc", "physics_c", "dsat"}
@@ -42,8 +42,8 @@ async def test_catalog_reflects_entitlements_per_student(harness: Harness) -> No
     _revoke_calc(harness, "stu_beth")
     await _unenroll(harness, "stu_beth", "calc_bc")
     beth = await _catalog(harness, "stu_beth")
-    assert beth["calc_bc"]["status"] == "locked"
-    assert beth["dsat"]["entitled"] is False and beth["dsat"]["status"] == "locked"
+    assert beth["calc_bc"]["status"] == "available"
+    assert beth["dsat"]["entitled"] is True and beth["dsat"]["status"] == "available"
 
 
 async def test_course_detail_and_unknown_course(harness: Harness) -> None:
@@ -75,12 +75,11 @@ async def test_enroll_planned_course_is_409(harness: Harness) -> None:
     assert response.json()["error"]["code"] == "COURSE_NOT_AVAILABLE"
 
 
-async def test_enroll_without_entitlement_is_403(harness: Harness) -> None:
+async def test_enroll_without_individual_entitlement_succeeds(harness: Harness) -> None:
     _revoke_calc(harness, "stu_beth")
     await _unenroll(harness, "stu_beth", "calc_bc")
     response = await _enroll(harness, "stu_beth", "calc_bc")
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "COURSE_ACCESS_REQUIRED"
+    assert response.status_code == 200
 
 
 async def test_unknown_course_enroll_is_404(harness: Harness) -> None:

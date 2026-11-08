@@ -1,5 +1,5 @@
 // review_portal.js — the reviewer screen (Step 41). Platform reviewers take a submitted
-// package version to approved and active (or rejected), and retire courses, through the
+// package version to approved or rejected; admins publish reviewed versions through their
 // existing /api/review endpoints. The server checks the reviewer role on every call; an
 // author or student who opens this page gets "not a platform reviewer" and nothing else.
 
@@ -51,13 +51,13 @@ function Decisions({ version, activeVersion, onDone }) {
   const c = version.courseId, v = version.version;
   const modelCases = version.report.evaluation.modelCases;
   const actions = R.actionsFor(version.status);
-  if (actions.length === 0) return null;
+  if (actions.length === 0) return version.status === "approved" ? <p className="mt-4 text-sm text-slate-600">Approved. Awaiting admin publication.</p> : null;
 
   const plans = {
     approve: {
       label: "Approve", color: "bg-emerald-600",
       blocked: !license ? "Attest the content license first." : modelCases && !modelEval ? "Attest the model-graded evaluation cases first." : null,
-      message: "Approve " + c + " " + v + "? The version is recorded as approved by you; it does not go live until it is activated.",
+      message: "Approve " + c + " " + v + "? The version is recorded as approved by you; it goes to an admin for publication.",
       run: () => API.approve(c, v, { notes, licenseAttested: license, modelEvaluationAttested: modelEval }),
     },
     reject: {
@@ -66,19 +66,7 @@ function Decisions({ version, activeVersion, onDone }) {
       message: "Reject " + c + " " + v + "? This cannot be undone; the author must upload a new version.",
       run: () => API.reject(c, v, notes.trim()),
     },
-    activate: {
-      label: "Activate", color: "bg-indigo-600", blocked: null,
-      message: activeVersion && activeVersion !== v
-        ? "Activate " + c + " " + v + "? " + activeVersion + " becomes superseded: sessions already open finish on it, new practice uses " + v + "."
-        : "Activate " + c + " " + v + "? Students with access can then enroll.",
-      run: () => API.activate(c, v),
-    },
-    retire: {
-      label: "Retire course", color: "bg-slate-700",
-      blocked: notes.trim() ? null : "Retiring needs notes.",
-      message: "Retire " + c + "? No new enrollments, sessions or work for any student. Student records are kept. This cannot be undone.",
-      run: () => API.retire(c, notes.trim()),
-    },
+
   };
 
   async function confirm() {

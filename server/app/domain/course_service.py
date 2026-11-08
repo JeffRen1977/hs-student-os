@@ -6,9 +6,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from app.domain.access import (
-    check_available_and_entitled,
+    check_available,
     is_enrolled,
-    is_entitled,
     require_known_course,
 )
 from app.domain.commands import CommandKey, Outcome, find_replay, remember
@@ -82,10 +81,9 @@ class CourseService:
         actor.require(Permission.LEARNING_READ)
 
         async def read(tx: Tx) -> list[CourseCatalogEntry]:
-            entitlements = await tx.students.get_entitlements(actor)
             enrollments = {e.course_id: e for e in await tx.enrollments.list(actor)}
             return [
-                self._entry(c, is_entitled(entitlements, c), enrollments.get(c.course_id))
+                self._entry(c, c.is_active, enrollments.get(c.course_id))
                 for c in self._catalog.list()
             ]
 
@@ -96,9 +94,8 @@ class CourseService:
         course = require_known_course(self._catalog, course_id)
 
         async def read(tx: Tx) -> CourseCatalogEntry:
-            entitlements = await tx.students.get_entitlements(actor)
             enrollment = await tx.enrollments.get(actor, course_id)
-            return self._entry(course, is_entitled(entitlements, course), enrollment)
+            return self._entry(course, course.is_active, enrollment)
 
         return await self._uow.transaction(read)
 
@@ -118,7 +115,7 @@ class CourseService:
                 return Outcome(value=existing, replayed=True, created=False)
 
             course = require_known_course(self._catalog, course_id)
-            check_available_and_entitled(course, await tx.students.get_entitlements(actor))
+            check_available(course)
             now = self._clock.now()
             current = await tx.enrollments.get(actor, course_id)
             if is_enrolled(current):

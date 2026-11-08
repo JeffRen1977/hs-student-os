@@ -1,236 +1,132 @@
-# Digital SAT, end to end: from authoring to a student studying
+# Digital SAT: author → reviewer → admin → student
 
-This walkthrough follows one course, **Digital SAT**, through every role on the platform: the
-author writes it, the platform reviewer approves it, an admin gives a student access, and the
-student enrolls and studies with the course's tutor. Everything below was run on the staging
-environment on 2026-11-07 with synthetic users; the tutor replies and results are real output
-from that run (model: OpenAI `gpt-5.5`).
+Current workflow, revised 2026-11-07. This describes the local implementation; it is not
+an assertion that the revised publication policy has been deployed or run on staging.
+Earlier staging runs used individual student grants; that policy is superseded.
 
-| Role | Synthetic account | Does | Tool today |
+| Role | Synthetic account | Responsibility | Page |
 |---|---|---|---|
-| Author | `author_hsos` (organization `org_hsos_content`) | Writes and uploads the course package, submits it | Author portal (`/author.html`) |
-| Platform reviewer | `reviewer_platform` | Reviews, approves, activates | Reviewer screen (`/review.html`, Step 41) or the review API |
-| Platform admin | `admin_platform` | Grants a student access to the course | Course access screen (`/admin.html`, Step 42) |
-| Student | `stu_beth` (new to the course), `stu_alex` (enrolled since 1.0.0) | Enrolls, studies, gets feedback and a plan | Student app (`/`) |
+| Author | `author_hsos` | Create, validate, preview and submit a package | `/author.html` |
+| Reviewer | `reviewer_platform` | Check correctness, sources, rubrics and evaluations; approve or reject | `/review.html` |
+| Admin | `admin_platform` | Publish an approved course to the catalog for everyone; retire courses | `/admin.html` |
+| Student | `stu_beth` | Choose a published course, enroll and learn | `/` |
 
-## 1. The author builds the course
+## 1. The author creates the course package
 
-The course is one JSON file: [`server/content/authored/dsat/package-2.0.1.json`](../../server/content/authored/dsat/package-2.0.1.json)
-(a copy ships in the [author kit](../author-kit/examples/digital-sat-2.0.1.json)).
+Use [Digital SAT 2.0.1](../../server/content/authored/dsat/package-2.0.1.json), or begin with
+[the author-kit template](../author-kit/templates/blank-package.json).
 
-| Part | Content |
-|---|---|
-| Skills | 29: the public Digital SAT skills. Reading and Writing: Information and Ideas, Craft and Structure, Expression of Ideas, Standard English Conventions. Math: Algebra, Advanced Math, Problem-Solving and Data Analysis, Geometry and Trigonometry |
-| Practice sets | 12 multiple-choice sets: 8 sets of 5 items (one per domain, original content) + the 4 sets from 1.0.0. Each Reading and Writing item carries its own short passage |
-| Scoring | One rubric per set, one line per item, each tagged with the skill that item tests; scored by answer key (`choice-scoring`), no AI involved |
-| Tutor | `socratic-guidance`: hints by questions; never confirms an answer before submission; never predicts scores |
-| Practice order | 2 starter sets (one Reading and Writing, one Math), then a `practiceSequence` of the other 10, alternating sections |
-| Test cases | 36 (all correct / one wrong / unreadable, for every set), run automatically at upload |
+The Digital SAT example contains 29 skills, 12 practice sets with 52 multiple-choice items,
+answer keys and item-to-skill rubric mappings, tutor instructions, two starter sets, ten
+subsequent sets in `practiceSequence`, and 36 deterministic scoring evaluation cases.
+The selected abilities are `socratic-guidance` and `choice-scoring`.
 
-History of versions: 1.0.0 (4 Math sets) → 2.0.0 (both sections, 29 skills, kept every 1.0.0
-question and skill ID so existing students are unaffected) → 2.0.1 (adds the practice order).
-How each part is written is explained in the [author kit](../author-kit/README.md).
+Authors independently check keys and record sources and licenses. Automatic scoring tests
+verify the behavior of the supplied keys, not whether those keys are factually correct.
 
-Before uploading, every answer key was checked independently: all Math keys recomputed with a
-computer algebra system, each Reading and Writing key checked against its text.
+## 2. The author uploads, previews and submits
 
-## 2. The author uploads and submits
+Sign in at `/author.html` as `author_hsos`. Upload the JSON, inspect validation and evaluation
+results, and inspect the student preview. Fix and replace a draft as needed. Submit when
+ready. Submitted versions are immutable; corrections require a new version.
 
-In the author portal, `author_hsos` uploads the file and gets the validation report at once:
+The student preview excludes answer keys, rubrics, internal tutor instructions and evaluation
+answers. Authors cannot approve or publish their own content.
 
-- **valid**, no errors; **36/36** test cases pass;
-- the **student preview** shows 12 sets and 29 skills, with no answer keys, rubrics, tutor
-  instructions or test cases;
-- for 2.0.1, the preview also lists the practice order (2 starters + 10 in sequence).
+## 3. The reviewer approves content quality
 
-The author presses **Submit**. From now on this version cannot change.
+At `/review.html`, sign in as `reviewer_platform` and open the submitted version. Inspect:
 
-## 3. The platform reviewer reviews and publishes
+- Every question's wording, answer key, distractors and skill mapping.
+- Original authorship or appropriate licensing.
+- Validation and evaluation results; any model-graded cases require explicit attestation.
+- Student preview and changes against the active version, especially removed IDs.
 
-The reviewer opens the reviewer screen (`/review.html`), finds the version under **Waiting for
-review** (marked "upgrade of 2.0.0"), and checks:
+Reject with notes, or approve with the required attestations. Approval records the reviewer's
+identity and decision and sends the version to the admin publication queue. It does not make
+the course available to students. Reviewers cannot activate or retire courses.
 
-| Check | Result for Digital SAT |
-|---|---|
-| Validation report and test cases | Valid, 36/36 |
-| History | Uploaded and submitted by `author_hsos` |
-| Rights | Every question and rubric is `original`; no College Board or prep-book material |
-| Content | Answer keys, one defensible answer per item, skill tags, wording |
-| Upgrade safety | The **compare** tab: every question and skill ID of the active version is kept |
-| Student preview | Reads well; nothing secret is shown |
+The per-item checklist is local to the reviewer's browser, not durable review evidence.
+Item-level reviewed-content requirements still apply in production. This example's draft
+content needs named content review before real student use.
 
-A per-item checklist (answer key, one defensible answer, skill tag, source) helps work through
-the 52 items; it stays in the reviewer's browser and is not part of the review record.
+## 4. The admin publishes the course for everyone
 
-Then **approve** (with the license attestation) and **activate**, each after a confirmation. The previous version becomes
-`superseded`: a student in the middle of a set finishes it on the old version and its answer
-key; new practice uses the new version. Past results never change.
+At `/admin.html`, sign in as `admin_platform`. The page lists reviewed versions, including
+Digital SAT 2.0.1 after approval. Inspect the review decision, validator report and history.
+Select **Publish to catalog**, then confirm.
 
-On 2026-11-07 staging was reviewed with the API (the screen was built afterwards and is not
-deployed yet):
+The server accepts publication only for an approved version. The transition to `active`,
+active-version pointer, audit history and idempotency record commit together. The admin's
+identity is recorded separately from the reviewer's identity.
 
-```bash
-# Reviewer, against the staging API
-V=$API/api/review/packages/dsat/versions/2.0.1
-curl -s -X POST $V/approve  -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: $(uuidgen)" \
-  -H 'Content-Type: application/json' -d '{"notes":"Checked keys, sources and preview.","licenseAttested":true}'
-curl -s -X POST $V/activate -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: $(uuidgen)" \
-  -H 'Content-Type: application/json' -d '{}'
-```
+**No student lookup, individual grant or cohort grant is needed.** Every student can now
+choose Digital SAT from the catalog. Publication does not enroll anyone automatically.
+A previous active version becomes superseded; open sessions retain their pinned version.
 
-The items are still marked `draft`. Staging serves draft content; production withholds it until
-a named content reviewer marks each item `reviewed`.
+API: `POST /api/admin/packages/dsat/versions/2.0.1/activate`, body `{}`, admin token and
+`Idempotency-Key` required.
 
-## 4. An admin gives the student access
+## 5. Beth enrolls
 
-The course is now in the catalog, but Beth cannot enroll yet:
+Beth signs in at `/`, opens the catalog and selects **Digital SAT → Add course**. She can do
+this even if her legacy entitlement lists do not contain `dsat`.
 
-> `POST /api/courses/enroll {"courseId":"dsat"}` → **403 `COURSE_ACCESS_REQUIRED`**
+Enrollment creates two starter tasks, placed according to available study time:
 
-Access is managed by the platform, never by authors. A platform admin opens the course access
-screen (`/admin.html`), finds `stu_beth`, chooses **Grant** on Digital SAT and gives a reason.
-The change is recorded in Beth's access history (who, when, reason), and Beth's app shows only
-that her access changed. A class or cohort can be granted at once from the same screen.
+- Reading and Writing: information and ideas, set 1 (20 minutes).
+- Math: algebra, set 1 (20 minutes).
 
-On staging on 2026-11-07 this was still a direct Firestore edit; the screen was built afterwards
-and is not deployed yet. Revoking later keeps all of Beth's work readable but blocks new
-sessions and submissions in the course.
+Enrolling and unenrolling are Beth's choices. Another student's tasks and learning records
+remain private even though both students can enroll in the same course.
 
-## 5. The student enrolls
+## 6. Beth studies and receives feedback
 
-Beth opens the catalog, chooses **Digital SAT → Add course**, and receives the two starter sets:
+Beth opens a practice set, reads passages and questions, selects choices, and can ask for
+Socratic hints. Hints are recorded. The tutor receives student-visible item content without
+answer keys; scoring uses the server's keys, without a model call.
 
-```
-PLANNED  2026-11-07  Reading and Writing: information and ideas, set 1   [INITIAL_PRACTICE]
-PLANNED  2026-11-08  Math: algebra, set 1                                 [INITIAL_PRACTICE]
-```
+On submission, feedback identifies correct and incorrect items. Skill evidence follows the
+rubric mappings. Hint-assisted success is distinguished from independent evidence; unreadable
+or incomplete submissions produce insufficient evidence and do not update mastery. There are
+no SAT score predictions.
 
-## 6. The student studies
+Beth completes the session. The platform offers the next unassigned sets in the author's
+practice order, maintaining up to two unfinished sets until the sequence runs out. The weekly
+planner fits tasks around her available time and explains placements.
 
-### Getting a hint
+Today this order does not select remediation based on mistakes. Targeted follow-up, delayed
+review, full-length timed tests, and figures/formatted math remain future work.
 
-Beth opens *Information and Ideas, set 1* and asks about item 3 (choose the quotation that
-supports a claim about the novelist's characters):
+## 7. The admin retires a course when necessary
 
-> **Beth:** I'm stuck on item 3. Which quote should I pick?
->
-> **Tutor:** Look for the quote that shows both parts of the claim at once: a period of
-> uncertainty and a daily routine that brings comfort. Which choice includes a repeated habit
-> and also shows that the habit calms the character?
->
-> **Beth:** Just tell me: is item 3 C?
->
-> **Tutor:** I can't confirm a choice before you submit it. Check which quote shows a routine
-> during a difficult situation and explicitly suggests that the routine is comforting—what
-> phrase in one option shows that effect?
+An admin can retire a published course with a reason. This stops new enrollments and new
+learning activity for everyone while preserving existing records for reading. Authors and
+reviewers cannot retire courses. A queued learning run rechecks availability and enrollment.
 
-The tutor sees each item's passage, question and choices, but never the answer keys, so it
-cannot give them away. Every hint is recorded on the session.
+## 8. The author observes aggregate results
 
-### Submitting and feedback
+The author portal provides course aggregates, suppressed below the minimum cohort threshold
+of five students with work. Authors never see Beth's individual answers, chats or mastery.
 
-Beth answers one line per item (`1: A`, `2: B`, …). The set is scored by its answer key in a
-moment:
+## Try locally
 
-> Item 1: correct. Item 2: correct. Item 3: correct. Item 4: not correct. Item 5: correct.
-
-She completes the session. **The next sets in the course's practice order appear right away**:
-the platform keeps her at two unfinished sets.
-
-```
-COMPLETED  2026-11-07  Reading and Writing: information and ideas, set 1   [INITIAL_PRACTICE]
-COMPLETED  2026-11-08  Math: algebra, set 1                                 [INITIAL_PRACTICE]
-COMPLETED  2026-11-09  Reading and Writing: craft and structure, set 1      [NEXT_PRACTICE]
-PLANNED    2026-11-10  Math: advanced math, set 1                           [NEXT_PRACTICE]
-PLANNED    2026-11-11  Reading and Writing: expression of ideas, set 1      [NEXT_PRACTICE]
-```
-
-On *Craft and Structure* she asked about a word's meaning:
-
-> **Beth:** For item 1, what does 'economy' mean in that sentence?
->
-> **Tutor:** Look at the context clue after the colon: the engineers "used half as much steel"
-> but the bridge was still stronger. Which choice means using resources efficiently?
-
-She then scored 5/5, recorded as **hint-assisted**.
-
-### Progress per skill
-
-Each item updates the skill it tests. Work done after a hint counts as evidence but not as
-independent evidence, so those skills stay at `emerging`:
-
-```
-dsat.algebra.linear-equations                  developing   evidence 1, independent 1
-dsat.algebra.linear-functions                  developing   evidence 1, independent 1
-...
-dsat.craft-structure.words-in-context          emerging     evidence 1, independent 0
-dsat.information-ideas.command-of-evidence     emerging     evidence 1, independent 0
-```
-
-There is **no SAT score prediction**: `{"status": "unavailable", "reason": "not_calibrated"}`.
-
-### The weekly plan
-
-The planner fits the sets into Beth's weekly time (180 minutes, 26 per day) and explains each
-placement:
-
-```
-2026-11-10  dsat  Math: advanced math, set 1                          20 min  Little independent
-            evidence yet for Equivalent expressions, Nonlinear equations and systems, Nonlinear
-            functions. Kept on 2026-11-10: fits your 26-minute daily budget.
-2026-11-11  dsat  Reading and Writing: expression of ideas, set 1     20 min  Little independent
-            evidence yet for Rhetorical synthesis, Transitions. Kept on 2026-11-11: ...
-```
-
-The plan covers all of a student's enrolled courses, but a course's evidence never changes
-another course's tasks or progress.
-
-## 7. A student who joined before the update
-
-Alex enrolled when the course was 1.0.0 and had two 1.0.0 sets in progress. After 2.0.1 was
-activated, he finished one of them, and received the first set in the new order he had never had:
-
-```
-COMPLETED    2026-11-04  Equivalent expressions: set 1                        [INITIAL_PRACTICE]
-IN_PROGRESS  2026-11-05  Function composition: set 1                          [INITIAL_PRACTICE]
-PLANNED      2026-11-10  Reading and Writing: information and ideas, set 1   [NEXT_PRACTICE]
-```
-
-## 8. The author sees results
-
-The author portal shows aggregate results per course (students, graded answers by status, the
-average score on each rubric line). With fewer than 5 students they are hidden
-(`"suppressed": true`), as they were here. Authors never see an individual student's work.
-
-## 9. Repeat it yourself
-
-**Locally** (synthetic users, nothing to deploy):
+In separate terminals:
 
 ```bash
-make server-memory     # API + worker; Digital SAT 1.0.0 is seeded active, Alex enrolled
+make server-memory
+```
+
+```bash
 make web
 ```
 
-1. <http://localhost:8000/author.html>, local sign-in as `author_hsos`: upload
-   `server/content/authored/dsat/package-2.0.1.json`, check the report and preview, submit.
-2. <http://localhost:8000/review.html>, local sign-in as `reviewer_platform`: open dsat 2.0.1,
-   check it, approve and activate (or use the API commands in
-   [AUTHORING_GUIDE.md](../AUTHORING_GUIDE.md) §5).
-3. <http://localhost:8000/admin.html>, local sign-in as `admin_platform`: open `stu_beth` and
-   grant Digital SAT with a reason.
-4. <http://localhost:8000>, local sign-in as `stu_beth`: add Digital SAT in the catalog, finish
-   a set, see the next one appear. The tutor replies are labeled synthetic unless
-   `HSOS_LLM_PROVIDER` is set to a real model (see the root README).
+1. Open <http://localhost:8000/author.html>, sign in as `author_hsos`, upload the 2.0.1 file,
+   validate, preview and submit.
+2. Open <http://localhost:8000/review.html>, sign in as `reviewer_platform`, review and approve.
+3. Open <http://localhost:8000/admin.html>, sign in as `admin_platform`, publish 2.0.1.
+4. Open <http://localhost:8000/>, sign in as `stu_beth`, enroll in Digital SAT and complete a set.
 
-**On staging** (https://hs-student-os.web.app): the same flow, signing in with the synthetic
-accounts' staging password. Until the Step 41 and 42 screens are deployed there, the reviewer
-and admin steps use the API and Firestore as in sections 3–4.
-
-## 10. What is still manual or open
-
-- The reviewer screen (Step 41) and the course access screen (Step 42) work locally but are not yet deployed to staging.
-- Content review: every item is `draft`; a named reviewer must sign off before production.
-- Figures and formatted math in items (needed for many real SAT Math questions).
-- Evidence-driven follow-up (Step 24.2): repeated errors on a skill → a targeted diagnostic and
-  practice. Today the next set follows the package's order, not the student's mistakes.
-- Timed, full-length tests.
+The local fixture starts with Digital SAT 1.0.0 active for demonstration. The 2.0.1 upgrade
+exercises the revised gate. Mock mode produces synthetic tutor replies; choice scoring works
+without a real model. In-memory state resets when the API stops.

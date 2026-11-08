@@ -41,7 +41,6 @@ from app.config import (
     Settings,
     StorageProvider,
 )
-from app.domain.access_service import AccessService
 from app.domain.admissions_runs import AdmissionsRunner
 from app.domain.admissions_service import AdmissionsService
 from app.domain.assessment_service import AssessmentService
@@ -110,7 +109,6 @@ class Services:
     platform_members: PlatformDirectory
     parent_directory: ParentDirectory
     parents: ParentService
-    access: AccessService
     admissions: AdmissionsService
     content: ContentRegistry
     content_sync: PackageContentSync
@@ -398,7 +396,6 @@ def build_services(
         platform_members=FirestorePlatformDirectory(store),
         parent_directory=FirestoreParentDirectory(store),
         parents=ParentService(uow, catalog, clock, ids),
-        access=AccessService(uow, catalog, clock, ids),
         admissions=AdmissionsService(uow, prompt_set, clock, ids),
         content=content,
         content_sync=content_sync,

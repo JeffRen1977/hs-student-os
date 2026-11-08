@@ -6,7 +6,7 @@
 
 - Authors act only within their own organization; another organization's packages,
   and courseIds it owns, are invisible (404) or unavailable (409 COURSE_ID_TAKEN).
-- Only a platform reviewer approves, rejects, activates or retires. Approval requires a
+- Reviewers approve or reject; only platform admins activate or retire. Approval requires a
   valid validator report, every key-scored evaluation case passing, a license
   attestation, and — when the evaluation set has model-graded cases — an attestation that
   the reviewer ran them.
@@ -393,12 +393,28 @@ class PackageService:
 
         return await self._uow.transaction(write)
 
+    async def publication_queue(self, actor: PlatformActor) -> Sequence[PackageVersion]:
+        """Reviewed versions only; no private drafts or student data."""
+        actor.require(Permission.PACKAGES_PUBLISH)
+
+        async def read(tx: PackageTx) -> Sequence[PackageVersion]:
+            return await tx.versions.list_by_status(
+                (
+                    PackageStatus.APPROVED,
+                    PackageStatus.ACTIVE,
+                    PackageStatus.SUPERSEDED,
+                    PackageStatus.RETIRED,
+                )
+            )
+
+        return await self._uow.transaction(read)
+
     async def activate(
         self, actor: PlatformActor, course_id: str, version: str, cmd: CommandKey
     ) -> Outcome[PackageVersion]:
         """Make an approved version the one new sessions use. The previous active version
         becomes `superseded` and keeps serving the sessions pinned to it."""
-        actor.require(Permission.PACKAGES_REVIEW)
+        actor.require(Permission.PACKAGES_PUBLISH)
 
         async def write(tx: PackageTx) -> Outcome[PackageVersion]:
             replay = await _replay(tx, actor, cmd)
@@ -445,7 +461,7 @@ class PackageService:
     ) -> Outcome[PackageVersion]:
         """Stop new enrollments, sessions and commands for a course. Nothing a student did
         is deleted; pinned versions stay loadable for reading past work."""
-        actor.require(Permission.PACKAGES_REVIEW)
+        actor.require(Permission.PACKAGES_PUBLISH)
 
         async def write(tx: PackageTx) -> Outcome[PackageVersion]:
             replay = await _replay(tx, actor, cmd)

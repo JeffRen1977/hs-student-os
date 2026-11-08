@@ -9,7 +9,7 @@ rule as any new task. Completed and skipped questions are never offered again.
 It runs inside the caller's transaction: the planning commit (every enrolled course) and
 the session-completion commit (that session's course). It only uses data the package
 declares; there is no course-specific logic. A course that is not active, a student
-without access or not enrolled, and a question the course does not currently serve (for
+not enrolled, and a question the course does not currently serve (for
 example, unreviewed content where reviewed content is required) get nothing.
 
 Queries inside a transaction do not see the transaction's own writes, so callers pass the
@@ -21,7 +21,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 
-from app.domain.access import is_enrolled, is_entitled
+from app.domain.access import is_enrolled
 from app.domain.planner_service import all_tasks, local_today, place_new_task
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.content import SubjectPackRegistry
@@ -55,15 +55,12 @@ async def top_up_practice(
 ) -> list[Task]:
     """Create the next practice tasks for `course_ids`; return the tasks created."""
     tasks = _merge(await all_tasks(tx, actor), known)
-    entitlements = await tx.students.get_entitlements(actor)
     today = local_today(now, student.preferences.timezone)
     weekly = student.preferences.weekly_available_minutes
     created: list[Task] = []
     for course_id in sorted(set(course_ids)):
         course = catalog.get(course_id)
         if course is None or not course.is_active or not course.practice_order:
-            continue
-        if not is_entitled(entitlements, course):
             continue
         if not is_enrolled(await tx.enrollments.get(actor, course_id)):
             continue

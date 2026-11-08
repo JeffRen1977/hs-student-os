@@ -346,10 +346,9 @@ function MobileTabs({ S }) {
   );
 }
 
-// Course catalog (API.md §1.7): availability and entitlement decide what can be added.
+// Course catalog (API.md §1.7): publication and enrollment decide what can be added.
 function catalogState(course) {
   if (course.availability !== "active") return { label: "Coming soon", can: false };
-  if (!course.entitled) return { label: "Access required", can: false };
   if (course.enrolled) return { label: "Enrolled · click to remove", can: true };
   return { label: "Click to add", can: true };
 }
@@ -357,7 +356,7 @@ function catalogState(course) {
 function CatalogModal({ S }) {
   return (
     <Modal title="Course catalog" onClose={() => S.setShowCatalog(false)}>
-      <p className="text-[11px] text-slate-500 dark:text-slate-400">You can add only courses that are open and that you have access to. Access is managed by the school; choosing a course does not grant access.</p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">Every published course is open for enrollment. Add a course to start learning in your workspace.</p>
       {S.actionError && <p className="text-[11px] text-rose-600 dark:text-rose-300">{HSProvider.errorText(S.actionError.code)}</p>}
       <div className="grid grid-cols-2 gap-2">
         {S.catalog.map((c) => {

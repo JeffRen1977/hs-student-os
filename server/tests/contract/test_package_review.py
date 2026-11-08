@@ -29,6 +29,7 @@ COURSE = "alglab"
 PKG = json.loads(json.dumps(DSAT).replace("dsat", COURSE))
 BASE = f"/api/authoring/packages/{COURSE}/versions"
 REVIEW = f"/api/review/packages/{COURSE}/versions"
+PUBLICATION = REVIEW.replace("/api/review/", "/api/admin/")
 APPROVE = {"notes": "Checked evaluation and license.", "licenseAttested": True}
 
 
@@ -66,7 +67,13 @@ async def publish(h: Harness, version: str = "1.0.0", pkg: dict[str, Any] | None
     await upload(h, pkg or package(version))
     await post(h, f"{BASE}/{version}/submit", AUTHOR, {}, 200)
     await post(h, f"{REVIEW}/{version}/approve", REVIEWER, APPROVE, 200)
-    return await post(h, f"{REVIEW}/{version}/activate", REVIEWER, {}, 200)
+    return await post(
+        h,
+        f"{PUBLICATION}/{version}/activate",
+        "admin_platform",
+        {},
+        200,
+    )
 
 
 def grant(h: Harness, sid: str, *courses: str) -> None:
@@ -112,20 +119,24 @@ async def test_only_a_reviewed_and_activated_package_reaches_students(h: Harness
     assert COURSE not in await catalog_ids(h)  # approved is not active
     assert await enroll(h) == 404
 
-    active = await post(h, f"{REVIEW}/1.0.0/activate", REVIEWER, {}, 200)
+    active = await post(
+        h,
+        f"{PUBLICATION}/1.0.0/activate",
+        "admin_platform",
+        {},
+        200,
+    )
     assert active["status"] == "active"
     # Every transition is audited: who, from, to.
     assert [(c["fromStatus"], c["toStatus"], c["actorId"]) for c in active["history"]] == [
         (None, "draft", AUTHOR),
         ("draft", "submitted", AUTHOR),
         ("submitted", "approved", REVIEWER),
-        ("approved", "active", REVIEWER),
+        ("approved", "active", "admin_platform"),
     ]
     assert COURSE in await catalog_ids(h)
 
-    # The category (SAT) grants nothing: Alex's Digital SAT access does not extend to it.
-    assert await enroll(h) == 403
-    grant(h, ALEX, "dsat", COURSE)
+    # Admin publication opens enrollment without individual grants.
     assert await enroll(h) == 200
     starters = await course_tasks(h)
     assert sorted(t["questionId"] for t in starters) == [
@@ -218,7 +229,13 @@ async def test_approval_needs_attestations_and_a_passing_evaluation_set(h: Harne
     err = await post(h, f"{REVIEW}/1.0.1/approve", REVIEWER, no_license, 409)
     assert "license" in err["error"]["message"]
     # An approved-but-not-activated version cannot be activated before approval either.
-    err = await post(h, f"{REVIEW}/1.0.1/activate", REVIEWER, {}, 409)
+    err = await post(
+        h,
+        f"{PUBLICATION}/1.0.1/activate",
+        "admin_platform",
+        {},
+        409,
+    )
     assert err["error"]["code"] == "INVALID_STATE_TRANSITION"
 
 
@@ -316,7 +333,13 @@ async def test_a_new_version_never_changes_an_open_session(h: Harness) -> None:
     assert new["contextVersion"]["pack"] == "1.1.0"
     assert await assessments(h, old["sessionId"]) == [a]
     # An older version can never replace the active one.
-    err = await post(h, f"{REVIEW}/1.0.0/activate", REVIEWER, {}, 409)
+    err = await post(
+        h,
+        f"{PUBLICATION}/1.0.0/activate",
+        "admin_platform",
+        {},
+        409,
+    )
     assert err["error"]["code"] == "INVALID_STATE_TRANSITION"
 
 
@@ -329,7 +352,7 @@ async def test_retiring_stops_new_work_and_keeps_records(h: Harness) -> None:
     await submit(h, done, "1: A\n2: C\n3: B")
     open_session = await start(h, second["taskId"])
 
-    retired = await post(h, f"/api/review/courses/{COURSE}/retire", REVIEWER,
+    retired = await post(h, f"/api/admin/courses/{COURSE}/retire", "admin_platform",
                          {"notes": "Replaced by a new course."}, 200)  # fmt: skip
     assert retired["status"] == "retired"
     assert COURSE not in await catalog_ids(h)
