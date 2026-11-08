@@ -206,6 +206,41 @@ make web
 
 Open <http://localhost:8000/?demo=true>. A DEMO banner is shown; nothing is saved or graded.
 
+### Test the demo
+
+This walkthrough uses Option A and needs no API key. It takes about five minutes and covers
+the student loop and course publication. Start the two servers, then open each page below.
+All accounts are synthetic: sign in by clicking the matching button on each page. The student
+app has no sign-out, so use a new browser tab to switch students. The portals have **Sign out**.
+
+```bash
+make install
+make server-memory    # terminal 1: API on :8787
+make web              # terminal 2: web on :8000
+```
+
+| # | Page and account | Do this | You should see |
+|---|---|---|---|
+| 1 | <http://localhost:8000> as **Beth** | Click **Course catalog** | Calculus BC is enrolled; Digital SAT shows **Click to add** |
+| 2 | Same | Click Digital SAT, then **Done** | Two Digital SAT practice tasks appear under **My courses** |
+| 3 | Same | Select *Equivalent expressions: practice set 1*, click **Start practice**, choose **Answer (scored by answer key)**, pick A, C, B, then **Submit answers** | With no model call: 3/3, **Accepted (counts toward mastery)**, and Digital SAT appears under **Skill mastery** |
+| 4 | A new tab at <http://localhost:8000> as **Alex** | Click **Start practice** on the Calculus BC task and send the tutor a message | A reply labeled **Synthetic reply**, because no model is configured. Nothing is graded |
+| 5 | <http://localhost:8000/review.html> as **Platform reviewer** | Open `apush v1.0.0` under **Waiting for review**, tick both attestations, then **Approve** and **Confirm** | It moves to **Approved, not yet live** |
+| 6 | <http://localhost:8000/admin.html> as **Platform admin** | Click **Publish to catalog** for AP US History, then **Confirm** | The course shows `active` |
+| 7 | Beth's tab | Reload, open **Course catalog**, click AP US History, then **Done** | APUSH joins **My courses** with its practice tasks, with no individual grant |
+
+Also worth checking:
+
+- **Author portal:** at <http://localhost:8000/author.html> as **HS Student OS content author**,
+  open `dsat v1.0.0` under **Your organization's packages**.
+- **Role limits:** sign in to `review.html` as an author. The screen says the account is not a
+  platform reviewer and shows no package content.
+- **Real tutoring and grading:** hints and free-response grading (Calculus BC, AP US History)
+  need a real model; see the next section. Without one, they return labeled synthetic output.
+
+To start over, stop and restart `make server-memory`; all data is reset. For a demo with no
+backend at all, use Option C. It shows sample data only.
+
 ### Using a real model locally
 
 By default `HSOS_LLM_PROVIDER=mock`, which returns clearly labeled synthetic replies and never
