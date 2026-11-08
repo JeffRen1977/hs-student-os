@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 
@@ -64,6 +64,8 @@ class Session:
     version: int
     # Internal: agent skills pinned when the session opened, and completion inputs.
     agent_skills: Sequence[str] = ()
+    # Ability versions pinned when the session opened (Step 44); empty on older sessions.
+    ability_versions: Mapping[str, str] = field(default_factory=dict)
     has_accepted_assessment: bool = False
     # Content pinned when the session opened (Step 17.1): the activity the student works on.
     activity: SessionActivity | None = None

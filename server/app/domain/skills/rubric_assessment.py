@@ -21,15 +21,23 @@ from typing import Any
 from app.domain.context_loader import render_system_prompt
 from app.domain.ports.content import (
     MaterialContent,
+    ModelTier,
     PackContent,
     QuestionContent,
     RubricContent,
 )
-from app.domain.ports.execution import ExecutionOutput, ExecutionRequest
+from app.domain.ports.execution import ExecutionFailure, ExecutionOutput, ExecutionRequest
 from app.domain.ports.llm import BudgetContext, Effort, LlmGateway, LlmMessage, LlmRequest, LlmRole
 from app.domain.ports.runtime import Clock, IdFactory
 from app.domain.ports.tools import ToolContext, ToolNotAllowedError, ToolRunner
 from app.domain.skills import source_analysis
+from app.domain.skills.ability import (
+    AbilityContext,
+    AbilityDataRule,
+    AbilityDefinition,
+    AbilityEvidence,
+    QuestionShape,
+)
 from app.domain.types.assessment import (
     AssessmentStatus,
     RubricResult,
@@ -37,6 +45,7 @@ from app.domain.types.assessment import (
     UncertaintyLevel,
 )
 from app.domain.types.assessment_draft import AssessmentDraft
+from app.domain.types.run import RunKind
 from app.domain.types.submission import Submission
 from app.domain.types.tool import ToolResult, ToolStatus
 
@@ -407,3 +416,50 @@ async def run_rubric_assessment(
             tool_result_ids=tuple(t.tool_result_id for t in tool_results),
         ),
     )
+
+
+async def _handle(ctx: AbilityContext) -> ExecutionOutput:
+    question, rubric, submission = ctx.assessment_inputs()
+    sources = source_analysis.sources_for(
+        ctx.packs, ctx.request.session.course_id, question, ctx.pack.pack_version
+    )
+    if sources is None:
+        raise ExecutionFailure("COURSE_CONTENT_UNAVAILABLE")
+    return await run_rubric_assessment(
+        ctx.model, ctx.tools, ctx.clock, ctx.ids,
+        ctx.pack, ctx.request, question, rubric, submission, sources=sources,
+    )  # fmt: skip
+
+
+DEFINITION = AbilityDefinition(
+    ability_id=SKILL,
+    version="1",
+    run_kinds=frozenset({RunKind.ASSESS_SUBMISSION}),
+    question_shapes=frozenset({QuestionShape.FREE_RESPONSE}),
+    needs_model=True,
+    model_tier_floor=ModelTier.FAST,
+    evidence=AbilityEvidence.RUBRIC_CRITERIA,
+    handler=_handle,
+    data_rule=AbilityDataRule(
+        shape=QuestionShape.FREE_RESPONSE,
+        missing_ability="free-response questions need rubric-assessment",
+        missing_data="rubric-assessment needs at least one free-response question",
+        enforced_on_bundled=False,
+    ),
+)
+# Defined here because source analysis is rubric grading with the documents fenced in.
+SOURCE_ANALYSIS_DEFINITION = AbilityDefinition(
+    ability_id=source_analysis.SKILL,
+    version="1",
+    run_kinds=frozenset({RunKind.ASSESS_SUBMISSION}),
+    question_shapes=frozenset({QuestionShape.SOURCED}),
+    needs_model=True,
+    model_tier_floor=ModelTier.FAST,
+    evidence=AbilityEvidence.RUBRIC_CRITERIA,
+    handler=_handle,
+    data_rule=AbilityDataRule(
+        shape=QuestionShape.SOURCED,
+        missing_ability="source-based questions need source-analysis",
+        missing_data="source-analysis needs at least one question with sourceMaterialIds",
+    ),
+)

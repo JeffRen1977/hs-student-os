@@ -25,6 +25,7 @@ def session_to_doc(s: Session) -> Doc:
         "activeRunId": s.active_run_id,
         "contextVersion": {"pack": s.context_version.pack, "workflow": s.context_version.workflow},
         "agentSkills": list(s.agent_skills),
+        "abilityVersions": dict(s.ability_versions),
         "hasAcceptedAssessment": s.has_accepted_assessment,
         "activity": (
             {
@@ -62,6 +63,7 @@ def session_from_doc(doc: Doc) -> Session:
         completion=completion_for(status, active, accepted),
         version=int(doc["version"]),
         agent_skills=tuple(doc.get("agentSkills", [])),
+        ability_versions=dict(doc.get("abilityVersions", {})),
         has_accepted_assessment=accepted,
         activity=(
             SessionActivity(

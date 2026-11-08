@@ -9,7 +9,8 @@ from typing import Any
 
 import pytest
 
-from app.registries.content import ABILITY_CATALOG, DEFAULT_CONTENT_ROOT, load_content, pack_issues
+from app.domain.skills.catalog import PLATFORM_ABILITY_REGISTRY
+from app.registries.content import DEFAULT_CONTENT_ROOT, load_content, pack_issues
 from app.registries.package_validator import validate_package
 
 # Every authored package file, including later versions kept beside the seeded one
@@ -37,7 +38,7 @@ def dbq(pkg: dict[str, Any]) -> dict[str, Any]:
 
 
 def test_source_analysis_is_a_platform_ability() -> None:
-    assert "source-analysis" in ABILITY_CATALOG
+    assert "source-analysis" in PLATFORM_ABILITY_REGISTRY
 
 
 def test_later_package_versions_are_covered() -> None:

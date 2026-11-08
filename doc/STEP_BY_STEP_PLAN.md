@@ -21,7 +21,7 @@ The product is a **course platform with one shared runtime**: third parties add 
 | M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator suite passed 2026-11-05 |
 | M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. **Steps 26–27 implemented 2026-11-01** (package contract v1 + validator, author/reviewer roles, review gate, version pinning, retire; Digital SAT rebuilt as an authored package; course-driven frontend). Not started: ability catalog contract (23), course-internal follow-up rules (24.2), package-sourced deadlines (25.4), re-expressing Calc BC as a package (22.3). |
 | M4 Proactive planning and pilot | 28–33 | **Steps 28, 29, 31 implemented 2026-11-01; verified over the in-memory backend** (scheduled planning, student controls + opt-in reminders, structured logs/metrics/alerts, backup/restore/delete, event retention). **Step 30 deployed to staging 2026-11-03** (project `hs-student-os`; real Firebase Auth + Firestore + Cloud Tasks + worker + model smoke test passed, see [OPERATIONS.md](OPERATIONS.md) §5; the deployed image predates M5). **Step 32** now unblocked, not yet run. **Step 33 gate recorded as not passed** ([PILOT_GATE.md](PILOT_GATE.md)). |
-| M5 Optional expansion | 34–43 | **Steps 34–38 implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. 41 (reviewer screen `web/review.html`) and 42 (course access admin tool `web/admin.html`): implemented 2026-11-07, locally verified in the browser, not deployed. 39 (author import from PDF and photos), 40 (conversational authoring agent) and 43 (review assistant agent; workflow and skills to be defined by reviewers): planned 2026-11-07, not started. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
+| M5 Optional expansion | 34–44 | **Steps 34–38 implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. 41 (reviewer screen `web/review.html`) and 42 (course access admin tool `web/admin.html`): implemented 2026-11-07, locally verified in the browser, not deployed. 39 (author import from PDF and photos), 40 (conversational authoring agent) and 43 (review assistant agent; workflow and skills to be defined by reviewers): planned 2026-11-07, not started. 44 (registry-driven ability dispatch): implemented 2026-11-08, local, not deployed. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
 
 Last local verification (`make check`, 2026-11-01, after M4 Steps 28–31): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **561 passed, 9 skipped** (8 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **34 passed**. Docker image built and smoke-checked locally. Browser check over `make server-memory` + `make web`: Beth locked a task date, turned reminders off, and skipped a task with a reason; no console errors.
 
@@ -782,7 +782,7 @@ Decisions behind this milestone:
 
 **Verify:** Two courses that select the same ability behave identically apart from their data.
 
-**Status: 🟡 partly implemented.** Socratic guidance, rubric assessment and `choice-scoring` exist (`app/domain/skill_executor.py`, `app/domain/skills/`); the catalog contract, the in-course `diagnostic` ability, per-course budget and injection checks are not built.
+**Status: 🟡 partly implemented.** Socratic guidance, rubric assessment and `choice-scoring` exist (`app/domain/skill_executor.py`, `app/domain/skills/`); the catalog contract, the in-course `diagnostic` ability, per-course budget and injection checks are not built. The catalog contract and registry-driven dispatch were completed in Step 44 (2026-11-08).
 
 ---
 
@@ -1014,7 +1014,7 @@ Decisions behind this milestone:
 
 ---
 
-## M5 — Optional Expansion After Pilot Evidence (Steps 34–43)
+## M5 — Optional Expansion After Pilot Evidence (Steps 34–44)
 
 Each extension is independently selected and verified. None are prerequisites for the pilot.
 
@@ -1116,7 +1116,7 @@ Conversation stages (the author can move between them at any time): course basic
 - [ ] 40.7 Author portal: chat panel beside a live draft view (outline, validation report, student preview, diff of each proposal with accept/reject); the JSON upload/download path remains for authors who prefer files
 - [ ] 40.8 Tests: organization isolation of sessions and drafts, idempotent and conflicting edits, rejected proposals leave the draft unchanged, unconfirmed answer keys block Submit, the agent cannot call review or entitlement routes, budget exhaustion, a failed Run leaves no partial edit; an evaluation set of scripted authoring sessions (separate from deterministic tests) measuring proposal quality and key correctness against reviewed packages
 
-**Relationship to other steps:** builds on the author portal (Step 34) and the review gate (Step 26); Step 39's PDF/photo import becomes one way to give the agent questions; figures and math rendering (Step 39 prerequisite) apply here too. Replaces the spreadsheet-converter idea as the main authoring path.
+**Relationship to other steps:** requires Step 44 first; builds on the author portal (Step 34) and the review gate (Step 26); Step 39's PDF/photo import becomes one way to give the agent questions; figures and math rendering (Step 39 prerequisite) apply here too. Replaces the spreadsheet-converter idea as the main authoring path.
 
 **Verify:** An author with no JSON knowledge builds a small course (skills, two practice sets, rubrics, starter tasks) entirely in conversation; the resulting draft passes the validator and every evaluation case, every answer key was confirmed by the author, agent-drafted items are labeled for the reviewer, and nothing reaches students until the platform reviewer approves and activates it.
 
@@ -1210,9 +1210,43 @@ On staging, access is still a direct Firestore edit until this is deployed and `
 - It runs on the shared runtime (worker Run through the LLM gateway, usage budgets, no external calls inside transactions), with read-only tools: the package, the validator, the preview, the Step 41 comparison and `math-verify`. No access to student data or to other organizations' drafts.
 - Its own quality is measured offline on annotated packages with known problems (missed issues and false alarms) before reviewers rely on it.
 
-**Relationship to other steps:** builds on the reviewer screen (Step 41), where findings would appear beside each item; mirrors the authoring agent (Step 40) on the author side.
+**Relationship to other steps:** requires Step 44 first; builds on the reviewer screen (Step 41), where findings would appear beside each item; mirrors the authoring agent (Step 40) on the author side.
 
 **Status:** ⏳ Intent recorded 2026-11-07; workflow and skills to be defined by reviewers; not started.
+
+### Step 44 — Registry-driven ability dispatch
+
+**Goal:** The package manifest declares its abilities and the executor looks them up in a registry, so adding a platform ability no longer means editing the executor or the validator. Multi-course agents already work through package data; multi-ability agents still depend on hard-coded branches. This finishes the catalog contract of Step 23.1 and prepares for a larger course marketplace.
+
+**Today:**
+- `SkillExecutor.execute` (`app/domain/skill_executor.py`) picks the skill with `if` branches on Run kind and question shape, and calls each skill module by name. `source-analysis` runs through the rubric-assessment path.
+- `ABILITY_CATALOG` (`app/registries/content.py`) is a separate hard-coded set, and each ability's data requirements are separate `if` blocks in the validator.
+
+**Plan:**
+- [x] 44.1 Contract first: an `AbilityDefinition` in `app/domain/skills/` with ability ID, version, the Run kinds and question shapes it handles, the package data it requires, its settings, whether it needs a model, model tier floor and the evidence it produces (the fields of Step 23.1)
+- [x] 44.2 One ability registry in `app/domain/`, built explicitly from a typed list of platform abilities at startup. No dynamic imports, entry points or paths taken from package data. Duplicate IDs, or two abilities claiming the same Run kind and question shape, fail at startup
+- [x] 44.3 Move the four existing abilities onto the registry with no change in behavior. The executor keeps the version pinning, `SKILL_NOT_ENABLED` and content checks, then looks up the handler; no ability names remain in `skill_executor.py`
+- [x] 44.4 The validator reads the catalog and each ability's data requirements from the registry; `ABILITY_CATALOG` and the per-ability `if` blocks are removed. Existing validator issue codes stay the same
+- [x] 44.5 Abilities pinned per Run: a Session keeps the ability version it started with, or the Run fails with `CONTENT_VERSION_CHANGED` rather than silently changing grading behavior
+- [x] 44.6 Update the author-facing ability list (`AUTHORING_GUIDE.md`, the API contract if the catalog is exposed) from the registry's fields
+
+**Boundaries:**
+- A new ability is still platform code, reviewed and shipped by the platform with its own tests and evaluation set; "no executor change" does not mean "no code". Packages only select and configure registered abilities (CLAUDE.md §3.5, §6.2).
+- Third-party authors do not upload ability code, prompts that override grading rules, or new tools. An author who needs a missing capability requests it, and it becomes a platform ability every course can select.
+- Every evidence-producing ability still commits only through AssessmentService; a registered handler cannot write mastery directly.
+
+**Tests:** characterization tests on the current dispatch before the move (Calc BC, Digital SAT, APUSH, for hint, rubric, choice and sourced items); a test-only ability registered with no edit to the executor or validator, then selected by two courses; an unregistered ability rejected at validation; an enabled-check failure returns `SKILL_NOT_ENABLED`; a registration conflict stops startup; an open Session keeps its pinned ability version.
+
+**Verify:** `git diff` for adding the test-only ability touches only its module and the registry list. All existing assessment, validator and evaluation tests pass unchanged.
+
+**Relationship to other steps:** completes 23.1. **Must be done before Steps 40 and 43** (decided 2026-11-08), whose agent skills are added through this registry. The `diagnostic` ability (Step 23) should use it too, so doing this step first avoids more branches.
+
+**Status:** ✅ Implemented 2026-11-08 (local; not yet deployed to staging). `AbilityDefinition` and `QuestionShape` are in `app/domain/skills/ability.py`, `AbilityRegistry` in `app/domain/ability_registry.py`, and the one registered list in `app/domain/skills/catalog.py`. Notes:
+- A new ability using existing Run kinds and question shapes touches only its module and the catalog list. A new Run kind or question shape is a contract change in the domain types.
+- 44.1: the model tier floor is enforced by the validator (`model_tier_below_floor`). All current floors are `fast`, so no existing package is affected. No ability has package settings yet.
+- 44.4: the `ABILITY_CATALOG` constant is gone, so one existing test now reads the registry; no other test logic changed.
+- 44.5: `Session.ability_versions` is internal and not exposed by the API. Sessions opened before this step have nothing pinned and keep running. Bump an ability's version only for a change in grading behavior: open Sessions on the old version then fail with `CONTENT_VERSION_CHANGED`.
+- Tests: `tests/unit/test_ability_dispatch.py`.
 
 ---
 
@@ -1225,7 +1259,7 @@ On staging, access is still a direct Firestore edit until this is deployed and `
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; emulator run 2026-11-05; real-model evaluation review and Step 32 pending |
 | M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
 | M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 deployed to staging 2026-11-03; 32 not yet run; 33 not passed |
-| M5 Optional expansion | 34–43 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course-access tool, review assistant agent) | 34–38 implemented 2026-11-04 (in-memory, synthetic); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39–43 planned, not started |
+| M5 Optional expansion | 34–44 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course-access tool, review assistant agent, registry-driven ability dispatch) | 34–38 implemented 2026-11-04 (in-memory, synthetic); 41–42 implemented 2026-11-07 (local); 44 implemented 2026-11-08 (local); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39, 40, 43 planned, not started |
 
 ## Superseded patterns
 

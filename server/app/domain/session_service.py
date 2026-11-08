@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 
+from app.domain.ability_registry import AbilityRegistry
 from app.domain.access import require_course_access
 from app.domain.commands import CommandKey, Outcome, find_replay, remember
 from app.domain.errors import DomainError, ErrorCode
@@ -11,6 +12,7 @@ from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.content import SubjectPackRegistry
 from app.domain.ports.repositories import EventDraft, SessionQuery, Tx, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
+from app.domain.skills.catalog import PLATFORM_ABILITY_REGISTRY
 from app.domain.types.actor import ActorContext, Permission
 from app.domain.types.common import PageRequest, PaginatedResponse
 from app.domain.types.event import EventType
@@ -55,12 +57,14 @@ class SessionService:
         clock: Clock,
         ids: IdFactory,
         packs: SubjectPackRegistry | None = None,
+        abilities: AbilityRegistry = PLATFORM_ABILITY_REGISTRY,
     ) -> None:
         self._uow = uow
         self._catalog = catalog
         self._clock = clock
         self._ids = ids
         self._packs = packs
+        self._abilities = abilities
 
     def _activity(self, course_id: str, question_id: str | None) -> SessionActivity | None:
         """Pin the task's question and rubric versions for the whole session (Step 17.1)."""
@@ -132,6 +136,7 @@ class SessionService:
                 completion=completion_for(SessionStatus.OPEN, None, False),
                 version=1,
                 agent_skills=tuple(course.skills),
+                ability_versions=self._abilities.versions_for(course.skills),
                 activity=activity,
                 created_at=now,
                 updated_at=now,

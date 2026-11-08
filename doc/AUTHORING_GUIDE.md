@@ -79,6 +79,16 @@ reveal answer keys, or widen tool access.
 - `category` is a catalog label only. It never grants access.
 - Every ability you list must have matching content (`choice-scoring` needs at least one choice
   set), and every kind of content must have its ability. The validator checks both directions.
+- `modelTier` must meet the floor of every ability you select.
+
+Platform abilities you can select. A running session keeps the ability version it started with.
+
+| Ability | Version | Handles | Needs a model | Minimum tier | Evidence | Content it needs |
+|---|---|---|---|---|---|---|
+| `socratic-guidance` | 1 | Hints on any question or open chat | Yes | fast | Hint usage (never independent evidence) | None |
+| `choice-scoring` | 1 | Assessment of choice sets | No | None | Answer key | At least one choice set |
+| `rubric-assessment` | 1 | Assessment of free-response questions | Yes | fast | Rubric criteria | At least one free-response question |
+| `source-analysis` | 1 | Assessment of source-based writing | Yes | fast | Rubric criteria | At least one question with `sourceMaterialIds` |
 
 ### 3.2 Skills
 

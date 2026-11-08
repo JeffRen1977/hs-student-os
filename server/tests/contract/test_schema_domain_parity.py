@@ -55,6 +55,7 @@ PAIRS: list[tuple[type[BaseModel], type, set[str], set[str]]] = [
             "course_id",
             "version",
             "agent_skills",
+            "ability_versions",
             "has_accepted_assessment",
             "created_at",
             "updated_at",

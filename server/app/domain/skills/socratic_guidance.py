@@ -14,9 +14,16 @@ from app.domain.context_loader import (
     render_system_prompt,
     retrieve_materials,
 )
-from app.domain.ports.content import PackContent, QuestionContent, SubjectPackRegistry
+from app.domain.ports.content import ModelTier, PackContent, QuestionContent, SubjectPackRegistry
 from app.domain.ports.execution import ExecutionFailure, ExecutionOutput, ExecutionRequest
 from app.domain.ports.llm import BudgetContext, Effort, LlmGateway, LlmRequest
+from app.domain.skills.ability import (
+    AbilityContext,
+    AbilityDefinition,
+    AbilityEvidence,
+    QuestionShape,
+)
+from app.domain.types.run import RunKind
 
 SKILL = "socratic-guidance"
 MAX_REPLY_CHARS = 4000
@@ -121,3 +128,19 @@ async def run_socratic_guidance(
         issued_hint=True,
         usage_tokens=result.usage.total,
     )
+
+
+async def _handle(ctx: AbilityContext) -> ExecutionOutput:
+    return await run_socratic_guidance(ctx.model, ctx.packs, ctx.pack, ctx.request, ctx.question)
+
+
+DEFINITION = AbilityDefinition(
+    ability_id=SKILL,
+    version="1",
+    run_kinds=frozenset({RunKind.HINT}),
+    question_shapes=frozenset(QuestionShape),
+    needs_model=True,
+    model_tier_floor=ModelTier.FAST,
+    evidence=AbilityEvidence.HINT_USAGE,
+    handler=_handle,
+)

@@ -25,6 +25,10 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from app.domain.ability_registry import AbilityRegistry
+from app.domain.ports.content import TIER_ORDER, ModelTier
+from app.domain.skills.ability import QuestionShape, question_shape
+from app.domain.skills.catalog import PLATFORM_ABILITY_REGISTRY
 from app.domain.types.common import Availability
 from app.domain.types.package import PackageIssue
 from app.schemas.content import (
@@ -38,12 +42,8 @@ from app.schemas.package import EvaluationCase, StarterTask
 
 DEFAULT_CONTENT_ROOT = Path(__file__).resolve().parents[2] / "content"
 
-# The platform ability and tool catalogs (CLAUDE.md §3.5): a package selects from these;
-# a missing capability becomes a new platform ability, never course code.
-ABILITY_CATALOG = frozenset(
-    {"socratic-guidance", "rubric-assessment", "choice-scoring", "source-analysis"}
-)
-SOURCE_ANALYSIS = "source-analysis"
+# The platform tool catalog (CLAUDE.md §3.5): a package selects from it, and from the ability
+# registry; a missing capability becomes a new platform ability, never course code.
 TOOL_CATALOG = frozenset({"math-verify", "content-retrieval"})
 
 
@@ -180,14 +180,31 @@ def _issue(path: str, code: str, message: str) -> PackageIssue:
     return PackageIssue(path=path, code=code, message=message)
 
 
-def pack_issues(pack: Pack) -> list[PackageIssue]:
+def pack_issues(
+    pack: Pack, catalog: AbilityRegistry = PLATFORM_ABILITY_REGISTRY
+) -> list[PackageIssue]:
     """Every cross-reference problem of a pack, each with a path. Empty → consistent."""
     issues: list[PackageIssue] = []
     m = pack.manifest
     cid = m.course_id
     abilities, tools = set(m.skills), set(m.tools)
-    for a in sorted(abilities - ABILITY_CATALOG):
-        issues.append(_issue("manifest.abilities", "unknown_ability", f"unknown ability {a}"))
+    for a in sorted(abilities):
+        ability = catalog.get(a)
+        if ability is None:
+            issues.append(_issue("manifest.abilities", "unknown_ability", f"unknown ability {a}"))
+        elif (
+            ability.model_tier_floor is not None
+            and m.model_tier
+            and TIER_ORDER.index(ModelTier(m.model_tier))
+            < TIER_ORDER.index(ability.model_tier_floor)
+        ):
+            issues.append(
+                _issue(
+                    "manifest.modelTier",
+                    "model_tier_below_floor",
+                    f"{a} needs at least the {ability.model_tier_floor.value} model tier",
+                )
+            )
     for t in sorted(tools - TOOL_CATALOG):
         issues.append(_issue("manifest.tools", "unknown_tool", f"unknown tool {t}"))
     if pack.is_active and not pack.questions:
@@ -226,7 +243,7 @@ def pack_issues(pack: Pack) -> list[PackageIssue]:
                     )
                 )
 
-    has_choice = has_free = has_sourced = False
+    seen_shapes: set[QuestionShape] = set()
     for qid, q in sorted(pack.questions.items()):
         path = f"questions[{qid}]"
         if q.course_id != cid:
@@ -251,6 +268,8 @@ def pack_issues(pack: Pack) -> list[PackageIssue]:
                 )
             )
             continue
+        shape = question_shape(q)
+        seen_shapes.add(shape)
         criteria = {c.criterion_id for c in q_rubric.criteria}
         if q.answer_check is not None:
             if q.answer_check.criterion_id not in criteria:
@@ -270,7 +289,6 @@ def pack_issues(pack: Pack) -> list[PackageIssue]:
                     )
                 )
         if q.items is not None:
-            has_choice = True
             # Every item scores exactly one rubric criterion, and every criterion one item.
             if sorted(i.criterion_id for i in q.items) != sorted(criteria):
                 issues.append(
@@ -280,17 +298,8 @@ def pack_issues(pack: Pack) -> list[PackageIssue]:
                         f"question {qid}: items and rubric criteria differ",
                     )
                 )
-            if "choice-scoring" not in abilities:
-                issues.append(
-                    _issue(
-                        f"{path}.items",
-                        "ability_not_selected",
-                        f"question {qid}: pack cannot score items (needs choice-scoring)",
-                    )
-                )
         elif q.source_material_ids:
-            # Source-based writing is graded by source-analysis against these documents.
-            has_sourced = True
+            # Source-based writing is graded against these documents.
             for mid in q.source_material_ids:
                 mat = pack.materials.get(mid)
                 if mat is None or mat.course_id != cid:
@@ -301,51 +310,29 @@ def pack_issues(pack: Pack) -> list[PackageIssue]:
                             f"question {qid}: unknown source material {mid}",
                         )
                     )
-            if SOURCE_ANALYSIS not in abilities:
-                issues.append(
-                    _issue(
-                        path,
-                        "ability_not_selected",
-                        f"question {qid}: source-based questions need source-analysis",
-                    )
+        owner = catalog.owner_of_shape(shape)
+        rule = owner.data_rule if owner else None
+        if (
+            owner is not None
+            and rule is not None
+            and owner.ability_id not in abilities
+            and (pack.authored or rule.enforced_on_bundled)
+        ):
+            issues.append(
+                _issue(
+                    f"{path}{rule.issue_path_suffix}",
+                    "ability_not_selected",
+                    f"question {qid}: {rule.missing_ability}",
                 )
-        else:
-            has_free = True
-            if pack.authored and "rubric-assessment" not in abilities:
-                issues.append(
-                    _issue(
-                        path,
-                        "ability_not_selected",
-                        f"question {qid}: free-response questions need rubric-assessment",
-                    )
-                )
+            )
 
     # An ability selected without the data it needs is rejected here, not at runtime.
     if pack.authored:
-        if "choice-scoring" in abilities and not has_choice:
-            issues.append(
-                _issue(
-                    "manifest.abilities",
-                    "ability_without_data",
-                    "choice-scoring needs at least one choice set",
+        for ability_id, rule in catalog.data_rules():
+            if ability_id in abilities and rule.shape not in seen_shapes:
+                issues.append(
+                    _issue("manifest.abilities", "ability_without_data", rule.missing_data)
                 )
-            )
-        if "rubric-assessment" in abilities and not has_free:
-            issues.append(
-                _issue(
-                    "manifest.abilities",
-                    "ability_without_data",
-                    "rubric-assessment needs at least one free-response question",
-                )
-            )
-        if SOURCE_ANALYSIS in abilities and not has_sourced:
-            issues.append(
-                _issue(
-                    "manifest.abilities",
-                    "ability_without_data",
-                    "source-analysis needs at least one question with sourceMaterialIds",
-                )
-            )
 
     for mid, mat in sorted(pack.materials.items()):
         path = f"materials[{mid}]"

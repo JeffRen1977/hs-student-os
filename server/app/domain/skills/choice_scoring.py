@@ -18,6 +18,13 @@ from dataclasses import dataclass
 
 from app.domain.ports.content import PackContent, QuestionContent, RubricContent
 from app.domain.ports.execution import ExecutionOutput
+from app.domain.skills.ability import (
+    AbilityContext,
+    AbilityDataRule,
+    AbilityDefinition,
+    AbilityEvidence,
+    QuestionShape,
+)
 from app.domain.types.assessment import (
     AssessmentStatus,
     RubricResult,
@@ -25,6 +32,7 @@ from app.domain.types.assessment import (
     UncertaintyLevel,
 )
 from app.domain.types.assessment_draft import AssessmentDraft
+from app.domain.types.run import RunKind
 from app.domain.types.submission import Submission
 
 SKILL = "choice-scoring"
@@ -124,3 +132,26 @@ def score_choice_set(
             feedback=feedback,
         ),
     )
+
+
+async def _handle(ctx: AbilityContext) -> ExecutionOutput:
+    question, rubric, submission = ctx.assessment_inputs()
+    return score_choice_set(ctx.pack, question, rubric, submission)
+
+
+DEFINITION = AbilityDefinition(
+    ability_id=SKILL,
+    version="1",
+    run_kinds=frozenset({RunKind.ASSESS_SUBMISSION}),
+    question_shapes=frozenset({QuestionShape.CHOICE_SET}),
+    needs_model=False,
+    model_tier_floor=None,
+    evidence=AbilityEvidence.ANSWER_KEY,
+    handler=_handle,
+    data_rule=AbilityDataRule(
+        shape=QuestionShape.CHOICE_SET,
+        missing_ability="pack cannot score items (needs choice-scoring)",
+        missing_data="choice-scoring needs at least one choice set",
+        issue_path_suffix=".items",
+    ),
+)
