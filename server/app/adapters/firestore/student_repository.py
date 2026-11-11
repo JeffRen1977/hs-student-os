@@ -5,8 +5,7 @@ from typing import Any
 
 from app.adapters.firestore import paths
 from app.adapters.firestore.documents import Doc, DocTxn, QuerySpec
-from app.domain.types.access import AccessRecord
-from app.domain.types.actor import ActorContext, Permission
+from app.domain.types.actor import ActorContext
 from app.domain.types.student import (
     Entitlements,
     Goals,
@@ -124,38 +123,14 @@ class FirestoreStudentStore:
         return student_from_doc(doc, mastery, latest)
 
     async def get_entitlements(self, actor: ActorContext) -> Entitlements:
-        return (await self.get_access(actor)).entitlements
-
-    async def get_access(self, actor: ActorContext) -> AccessRecord:
+        # Read-only: no API writes `access/current`; it is seeded or set by operators.
         doc = await self._txn.get(paths.sub(actor, "access", "current"))
         if doc is None:
-            return AccessRecord(entitlements=Entitlements())
-        return AccessRecord(
-            entitlements=Entitlements(
-                ap_courses=tuple(doc.get("apCourses", [])),
-                courses=tuple(doc.get("courses", [])),
-                admissions=bool(doc.get("admissions", False)),
-            ),
-            updated_at=doc.get("updatedAt"),
-            updated_by=doc.get("updatedBy"),
-        )
-
-    def save_entitlements(
-        self, actor: ActorContext, entitlements: Entitlements, *, now: datetime
-    ) -> None:
-        # Only a platform admin's per-student context (Step 42); students, services and
-        # parents never hold this permission.
-        if not actor.can(Permission.ENTITLEMENTS_MANAGE):
-            raise PermissionError("only entitlements:manage may write the access record")
-        self._txn.set(
-            paths.sub(actor, "access", "current"),
-            {
-                "apCourses": list(entitlements.ap_courses),
-                "courses": list(entitlements.courses),
-                "admissions": entitlements.admissions,
-                "updatedAt": now,
-                "updatedBy": actor.actor_id,
-            },
+            return Entitlements()
+        return Entitlements(
+            ap_courses=tuple(doc.get("apCourses", [])),
+            courses=tuple(doc.get("courses", [])),
+            admissions=bool(doc.get("admissions", False)),
         )
 
     def save_twin(self, actor: ActorContext, student: Student, *, now: datetime) -> None:

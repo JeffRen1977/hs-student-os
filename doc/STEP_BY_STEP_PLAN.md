@@ -1151,6 +1151,8 @@ Verified in Chrome against a local in-memory API with `dsat` 2.0.0 and 2.0.1 sub
 
 ### Step 42 — Admin tool for student course access
 
+> **Superseded (2026-11-07, code removed 2026-11-10).** Admins now publish approved courses to every student (see the policy at the top of API.md). The per-student grant routes, `AccessService`, the `accessAudit` store, `ActorContext.for_admin` and `StudentStore.save_entitlements` no longer exist. The `access.changed` event type is kept only so any such events already stored still replay. The record below is history.
+
 **Goal:** Platform admins grant and revoke a student's access to courses with an audited tool instead of editing `students/{id}/access/current` in Firestore by hand. Found on staging (2026-11-07): giving a student access to Digital SAT required a direct database write. Entitlements stay platform-managed (CLAUDE.md §1.4); authors and students can never change them.
 
 - [x] 42.1 Contract first: admin endpoints to read a student's access, and to grant or revoke one `courseId` (`apCourses` for AP courses, `courses` for others) with a reason; Idempotency-Key required; API.md updated before handlers

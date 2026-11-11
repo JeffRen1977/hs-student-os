@@ -1,8 +1,8 @@
 > Current course publication policy (2026-11-07): author submits → reviewer approves
 > → admin publishes to the platform catalog → any student can enroll. Admins do not
 > grant courses to individual students or cohorts. Reviewer publication endpoints and
-> the old student-grant API are removed. Earlier descriptions of that workflow below
-> are superseded. See [API contract](doc/API.md) and the Digital SAT walkthrough.
+> the old student-grant API are removed. The rest of this file follows this policy.
+> See [API contract](doc/API.md) and the Digital SAT walkthrough.
 
 # High School Student OS — Development Rules
 
@@ -52,7 +52,7 @@ Architecture docs live in `doc/`. Implementation follows `doc/STEP_BY_STEP_PLAN.
 │  ┌──────────────┐ ┌────────────┐ ┌──────────────┐                  │
 │  │ Twin Service │ │ Session &  │ │ Event Feed   │                  │
 │  │ Profile/Goal │ │ Command    │ │ SSE + Poll   │                  │
-│  │ Entitlements │ │ Service    │ │              │                  │
+│  │ Enrollments  │ │ Service    │ │              │                  │
 │  └──────┬───────┘ └─────┬──────┘ └──────┬───────┘                  │
 │         │               │               │                          │
 │         └───────────────┼───────────────┘                          │
@@ -223,7 +223,7 @@ The student's workspace is **driven by their enrolled courses**. A course is inv
 │     └──────────┘ └──────────┘ └──────────┘ └───────────────┘   │
 │          │            │                                         │
 │          ▼            ▼                                         │
-│  2. Add Course (enrolls → backend validates entitlement)        │
+│  2. Add Course (enrolls → backend checks the course is active)  │
 │          │            │                                         │
 │          ▼            ▼                                         │
 │  3. My Workspace (only enrolled courses visible)                │
@@ -264,11 +264,13 @@ The student's workspace is **driven by their enrolled courses**. A course is inv
 
 | State | Visibility | What the student can do |
 |---|---|---|
-| `active` + entitled + enrolled | **Visible with full agent** | Chat, practice, get assessed, see progress |
-| `active` + entitled + NOT enrolled | In catalog only | Browse description, add to workspace |
-| `active` + NOT entitled | In catalog, locked | See description, cannot add (needs access grant) |
+| `active` + enrolled | **Visible with full agent** | Chat, practice, get assessed, see progress |
+| `active` + NOT enrolled | In catalog | Browse description, add to workspace (open to every student) |
 | `planned` | In catalog, "coming soon" | See description only, cannot add |
+| `retired` | Not offered for new enrollment | Existing records stay readable; no new sessions or submissions |
 | Not in catalog | Invisible | — |
+
+A course becomes `active` only when a platform admin publishes a reviewer-approved version. There are no per-student or per-cohort course grants. The catalog's `entitled` field is kept for compatibility and simply equals "course is active".
 
 **Per-course agent behavior:**
 
@@ -286,13 +288,13 @@ Each enrolled course activates an agent powered by that course's `SubjectPack`. 
 Student adds "calc_bc"
        │
        ▼
-PATCH /api/twin  { selectedCourses: ["calc_bc"] }
+POST /api/courses/enroll  { courseId: "calc_bc" } + Idempotency-Key
        │
        ▼
-Backend validates:
-  ├── Is pack "calc_bc" active?              → yes
-  ├── Does student have entitlement?         → yes (entitlements.apCourses includes "calc_bc")
-  └── Save to preferences.selectedCourses
+Backend validates (in one transaction):
+  ├── Does course "calc_bc" exist?           → else 404
+  ├── Is it active (admin-published)?        → else 409 COURSE_NOT_AVAILABLE
+  └── Write students/{id}/enrollments/calc_bc + course.enrolled event
        │
        ▼
 GET /api/courses/enrolled  →  returns enrolled courses with agent config
@@ -315,18 +317,18 @@ Student picks a task → POST /api/sessions { taskId }
 **Enrollment API:**
 
 ```
-GET  /api/courses/catalog          → all packs with availability + entitlement status for this student
-POST /api/courses/enroll           → { courseId } + Idempotency-Key → enroll (validates active + entitled)
+GET  /api/courses/catalog          → all courses with availability + enrollment status for this student
+POST /api/courses/enroll           → { courseId } + Idempotency-Key → enroll (validates the course is active)
 POST /api/courses/unenroll         → { courseId } + Idempotency-Key → remove from workspace
 GET  /api/courses/enrolled         → list enrolled courses with agent config, mastery summary, active tasks
 GET  /api/courses/:courseId/agent  → agent config, skills, modes, current session if any
 ```
 
-**Key constraint:** Enrolling in a course is a student action. But enrollment alone does not grant access — the backend checks `entitlements` (admin-managed). A student selecting "APUSH" in the catalog when they have no APUSH entitlement gets a clear "access required" response, not a silent failure.
+**Key constraint:** Enrolling is an explicit student action, and any student may enroll in any `active` course. Course availability is controlled only by the publication workflow (admin publish / retire), never by per-student grants. Learning commands (tasks, sessions, submissions) still require an active enrollment in an active course: not enrolled → 409 `COURSE_NOT_ENROLLED`; planned or retired → 409 `COURSE_NOT_AVAILABLE`. A queued Run re-checks this when it executes. Admissions is separate and still requires the backend-managed `entitlements.admissions` (403 `ADMISSIONS_ACCESS_REQUIRED`).
 
 ### Course packages and authoring (the platform model)
 
-A course is **data, not code**. Authors (first-party or third-party organizations) submit a versioned course package; the platform validates it, a platform reviewer approves it, and only then does it become `active` in the catalog.
+A course is **data, not code**. Authors (first-party or third-party organizations) submit a versioned course package; the platform validates it, a platform reviewer approves it, and a platform admin publishes it; only then does it become `active` in the catalog.
 
 ```
   Author org builds a course package (data only)
@@ -345,7 +347,10 @@ A course is **data, not code**. Authors (first-party or third-party organization
   Platform reviewer: evaluation results, license, content → approved / rejected
          │
          ▼
-  active in catalog → students enroll (entitlements still platform-managed)
+  Platform admin publishes the approved version (or later retires the course)
+         │
+         ▼
+  active in catalog → any student may enroll (no per-student grants)
          │
          ▼
   Same runtime for every course: Task → Session → Run → AssessmentService
@@ -356,7 +361,7 @@ Rules:
 - A package selects abilities from the platform catalog; it cannot add code, prompts that override grading rules, or new tools. A missing capability becomes a platform ability available to every course.
 - Each Run pins the package version; a new version never changes open sessions or past assessments. Retiring a course stops new work without deleting student records.
 - Evidence in one course never creates findings, tasks or mastery changes in another course.
-- Authors never see individual student data and cannot grant entitlements. Another organization's packages return 404.
+- Authors never see individual student data and cannot publish or retire courses. Reviewers approve or reject only. Another organization's packages return 404.
 
 ## 1. Boundaries — what you must not do
 
@@ -379,7 +384,7 @@ Rules:
 
 ### 1.4 No client-side authority over learning data
 - The browser submits **commands and answers only** — never scores, mastery deltas, assessment status, tool results, or domain events.
-- Entitlements are backend-managed; `selectedCourses` is a student preference, not an access grant.
+- Course availability comes only from the admin publication workflow; enrollment is a server-side record created by `POST /api/courses/enroll`. `selectedCourses` is a student preference, not enrollment or access. Admissions entitlements stay backend-managed.
 - Identity comes from verified Firebase ID tokens only — reject `X-User-Email` and body-provided `studentId`.
 
 ## 2. Architecture rules
@@ -484,7 +489,7 @@ Every step must have tests covering:
 - **Isolation**: Student A cannot access Student B's resources (returns 404).
 - **Idempotency**: Same key + same body → same result; same key + different body → 409.
 - **State machine**: Invalid transitions are rejected.
-- **Authorization**: Missing/expired/wrong-audience tokens → 401; no entitlement → 403.
+- **Authorization**: Missing/expired/wrong-audience tokens → 401; wrong role (e.g. non-admin publishing) or no admissions entitlement → 403; not enrolled / course not active → 409.
 - **Recovery**: Restart app → pending work resumes; crash in any window → no partial state.
 - **Concurrency**: Version conflicts → 409; race conditions → consistent terminal state.
 

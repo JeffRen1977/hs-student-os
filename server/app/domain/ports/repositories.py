@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Protocol
 
-from app.domain.types.access import AccessAuditEntry, AccessRecord
 from app.domain.types.actor import ActorContext
 from app.domain.types.admissions import (
     Activity,
@@ -75,31 +74,13 @@ class EventDraft:
 class StudentStore(Protocol):
     async def get(self, actor: ActorContext) -> Student | None: ...
 
-    async def get_entitlements(self, actor: ActorContext) -> Entitlements: ...
-
-    async def get_access(self, actor: ActorContext) -> AccessRecord:
-        """The access record with who last changed it (admin reads, Step 42)."""
-        ...
-
-    def save_entitlements(
-        self, actor: ActorContext, entitlements: Entitlements, *, now: datetime
-    ) -> None:
-        """Replace the access record. Only an actor holding `entitlements:manage` (a
-        platform admin's `ActorContext.for_admin`, Step 42) may call it; others raise."""
+    async def get_entitlements(self, actor: ActorContext) -> Entitlements:
+        """Read-only `access/current`. Only `admissions` gates anything today; course
+        availability comes from admin publication, not per-student lists."""
         ...
 
     def save_twin(self, actor: ActorContext, student: Student, *, now: datetime) -> None:
         """Persist profile/goals/preferences/version. Never touches entitlements."""
-        ...
-
-
-class AccessAuditStore(Protocol):
-    """`students/{id}/accessAudit/{auditId}` (Step 42). Admin actors only."""
-
-    def append(self, actor: ActorContext, entry: AccessAuditEntry) -> None: ...
-
-    async def list_recent(self, actor: ActorContext, limit: int) -> Sequence[AccessAuditEntry]:
-        """Newest first."""
         ...
 
 
@@ -389,8 +370,6 @@ class Tx(Protocol):
     def parents(self) -> ParentStore: ...
     @property
     def admissions(self) -> AdmissionsStore: ...
-    @property
-    def access_audit(self) -> AccessAuditStore: ...
 
 
 class UnitOfWork(Protocol):
