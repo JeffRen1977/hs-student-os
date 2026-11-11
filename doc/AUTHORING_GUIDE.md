@@ -1,14 +1,14 @@
 > Current course publication policy (2026-11-07): author submits → reviewer approves
 > → admin publishes to the platform catalog → any student can enroll. Admins do not
 > grant courses to individual students or cohorts. Reviewer publication endpoints and
-> the old student-grant API are removed. Earlier descriptions of that workflow below
-> are superseded. See [API contract](API.md) and the Digital SAT walkthrough.
+> the old student-grant API are removed; this guide follows the policy. See
+> [API contract](API.md) and the Digital SAT walkthrough.
 
 # Publishing a course package: internal guide
 
 > **Audience: the platform team and platform reviewers.** Course authors get the
 > [author kit](author-kit/README.md) instead (author guide, field reference, blank template, and
-> example). This guide adds what authors do not need: the reviewer's approve/activate steps, the
+> example). This guide adds what authors do not need: the reviewer's approve step, the admin's publish step, the
 > local walkthrough, and platform limits. The kit's example
 > (`author-kit/examples/digital-sat-2.0.1.json`) is a copy of
 > `server/content/authored/dsat/package-2.0.1.json`; copy it again whenever that file changes.
@@ -29,9 +29,9 @@ abilities and *configures* them.
 | You can | You cannot |
 |---|---|
 | Define skills, practice sets, rubrics, a tutor prompt, starter tasks, an evaluation set | Upload code, add tools, or add abilities (ask the platform team for a new ability instead) |
-| Upload and replace drafts, read the validator report, preview the student view | Approve or activate your own package (a platform reviewer does) |
+| Upload and replace drafts, read the validator report, preview the student view | Approve or publish your own package (a platform reviewer approves; a platform admin publishes) |
 | See aggregate course metrics (hidden below 5 students) | See any individual student's data |
-| Publish new versions of courses your organization owns | Grant students access (entitlements are platform-managed) |
+| Submit new versions of courses your organization owns | Choose which students get the course (every student can enroll once it is published) |
 
 Package text is treated as **content, not instructions**: it cannot change grading rules,
 reveal answer keys, or widen tool access.
@@ -230,12 +230,16 @@ make web                  # terminal 2: web on :8000
    it names and upload again (a draft can be replaced).
 3. **Preview** the student view: 12 sets, 29 skills, no answer keys.
 4. **Submit** for review. From this point the version is immutable.
-5. **Review and activate (platform reviewer).** Open <http://localhost:8000/review.html> and
+5. **Review (platform reviewer).** Open <http://localhost:8000/review.html> and
    sign in as `reviewer_platform`. The version is under **Waiting for review**:
    - Check the report, the content (answer keys highlighted), the student preview and, for an
      upgrade, **compare** (removed question or skill IDs are warnings).
    - Optionally work through the per-item **checklist** (kept in your browser only).
-   - Attest the license, **Approve**, then **Activate**. Each action asks you to confirm first.
+   - Attest the license, then **Approve**. It asks you to confirm first. Reviewers cannot
+     activate or retire.
+
+   Then **publish (platform admin)**: open <http://localhost:8000/admin.html>, sign in as
+   `admin_platform`, and click **Publish to catalog** for the approved version, then **Confirm**.
 
    The same decisions through the API (for scripts). Locally, an emulator-format token for
    `reviewer_platform` is accepted:
@@ -256,7 +260,9 @@ make web                  # terminal 2: web on :8000
    curl -s -X POST $R/approve -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: $(uuidgen)" \
      -H 'Content-Type: application/json' \
      -d '{"notes": "Validator clean, 36/36 cases, original content.", "licenseAttested": true}'
-   curl -s -X POST $R/activate -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: $(uuidgen)" \
+   # Publishing needs an admin token: build TOKEN as above with 'admin_platform', then
+   curl -s -X POST $API/api/admin/packages/dsat/versions/2.0.0/activate \
+     -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: $(uuidgen)" \
      -H 'Content-Type: application/json' -d '{}'
    ```
 
@@ -270,6 +276,9 @@ The same flow, verified on 2026-11-07: upload → report (36/36) → preview →
 cannot approve their own package (403) → reviewer approves and activates → an open 1.0.0 session
 is still scored with its 1.0.0 key → a 1.0.0-era task starts on 2.0.0 → a student without access
 gets 403 → a newly enrolled student gets the 2.0.0 starter tasks, and mastery updates per skill.
+(That run used the old policy, where reviewers activated and students needed a grant. Today an
+admin publishes and every student can enroll; see
+[examples/DIGITAL_SAT_WALKTHROUGH.md](examples/DIGITAL_SAT_WALKTHROUGH.md).)
 
 ## 6. Publishing on staging
 
@@ -279,7 +288,8 @@ Same steps against the deployed services (see [README](../README.md) §4):
 - Reviewer: `https://<project>.web.app/review.html` (once Step 41 is deployed), or get an ID
   token with Firebase Auth email/password sign-in
   (`identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=<web API key>`) and call
-  the same `approve` and `activate` endpoints on the `hsos-api` URL.
+  the same `approve` endpoint on the `hsos-api` URL.
+- Admin: `https://<project>.web.app/admin.html`, or the `activate` endpoint under `/api/admin`.
 - After activation, any worker instance loads the new version before running a session that
   needs it. (This relies on the worker fix from commit `0c643ca`, found in staging on
   2026-11-07, see [OPERATIONS.md](OPERATIONS.md) §5; without it, runs in the first ~30 s after
@@ -311,8 +321,8 @@ These need platform abilities first; a package cannot add them:
 - Figures and formatted math in items (prompts and choices are plain text).
 - Building a package by conversation with an authoring agent: planned as Step 40 in
   [STEP_BY_STEP_PLAN.md](STEP_BY_STEP_PLAN.md).
-- Granting students access is a platform admin's job, not the author's: the course access
-  screen `web/admin.html` (Step 42).
+- Publishing an approved version to every student is a platform admin's job, not the author's:
+  `web/admin.html`. There are no per-student grants.
 - A review assistant agent that prepares findings for the reviewer (the reviewer still decides);
   its workflow and skills are to be defined by reviewers: Step 43.
 - Student-produced-response (grid-in) math items. The platform can already grade free responses

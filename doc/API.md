@@ -1,6 +1,6 @@
 # Course publication policy (2026-11-07 revision)
 
-This policy supersedes the earlier per-student course entitlement workflow below.
+This policy replaced the per-student course entitlement workflow; this document follows it.
 Authors upload and submit immutable package versions. Reviewers approve or reject content.
 Only platform admins publish an approved version or retire a published course. Every student
 may enroll in any active course; no individual or cohort grant is required. Enrollment is
@@ -21,13 +21,14 @@ The former `/api/admin/students/*/access` and `/api/admin/access/bulk` routes ar
 Reviewer activation/retirement routes are removed; reviewers only approve/reject.
 The catalog's existing `entitled` field now means the course is active for everyone,
 independent of the legacy per-student entitlement lists. Admissions entitlement is unchanged.
+`COURSE_ACCESS_REQUIRED` is no longer returned by any course route.
 
 
 ---
 
 # High School Student OS — API 契约 v0.3
 
-更新：2026-11-04：M5 扩展（§6.5）：作者门户预览与课程聚合指标、平台能力 `source-analysis`（Session `activity.sources`）、家长链接与摘要、申请工作区（新增 Run 类型 `ADMISSIONS_FACTS`/`ADMISSIONS_FEEDBACK` 与 `subjectId`）、预测门控；新增错误码 `PARENT_LINK_LIMIT`、`ADMISSIONS_ACCESS_REQUIRED`、`FACTS_NOT_CONFIRMED`。2026-11-01：M3 改为课程平台，移除跨课程前置技能接口与事件，新增 `PRACTICE` 任务类型（§6.2）。2026-10-31：M2 实现补充：评估/掌握度/完成/事件流接口与字段（标注 “M2”，见 §1.4、§1.5、§2.6、§4、§8）。M1 实现补充：`COURSE_NOT_ENROLLED`、目录 `status`/`agent` 字段、消息资源、身份映射与 `date=today`（标注 “M1”）。2026-10-30 增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。本文为目标契约，尚未声明已实现。后端设计见 [BACKEND.md](BACKEND.md)。
+更新：2026-11-04：M5 扩展（§6.5）：作者门户预览与课程聚合指标、平台能力 `source-analysis`（Session `activity.sources`）、家长链接与摘要、申请工作区（新增 Run 类型 `ADMISSIONS_FACTS`/`ADMISSIONS_FEEDBACK` 与 `subjectId`）、预测门控；新增错误码 `PARENT_LINK_LIMIT`、`ADMISSIONS_ACCESS_REQUIRED`、`FACTS_NOT_CONFIRMED`。2026-11-01：M3 改为课程平台，移除跨课程前置技能接口与事件，新增 `PRACTICE` 任务类型（§6.2）。2026-10-31：M2 实现补充：评估/掌握度/完成/事件流接口与字段（标注 “M2”，见 §1.4、§1.5、§2.6、§4、§8）。M1 实现补充：`COURSE_NOT_ENROLLED`、目录 `status`/`agent` 字段、消息资源、身份映射与 `date=today`（标注 “M1”）。2026-10-30 增加课程目录与注册 API（§1.7）。根据 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) 重订接口，替代 v0.1；旧接口迁移见第 7 节。2026-11-10 起本文与代码核对：除第 3 节文件接口（未实现，已标注）外，列出的路由均已实现；实现与本文不一致时以修正本文为准。后端设计见 [BACKEND.md](BACKEND.md)。
 
 ## 0. 通用约定
 
@@ -80,34 +81,23 @@ independent of the legacy per-student entitlement lists. Admissions entitlement 
 
 `latestEventSequence` 与摘要使用一致读快照，供客户端先加载状态后增量订阅。详细历史由分页 API 读取；不能把所有学生历史塞入 Twin 响应。
 
-`GET /api/me/entitlements` 返回后端管理的权限：
+`GET /api/me/entitlements` 返回后端管理的只读权限记录：
 
 ```json
 {"apCourses": ["calc_bc"], "courses": ["dsat"], "admissions": false}
 ```
 
-访问按 courseId 授予：AP 课程在 `apCourses`，其他课程在 `courses`（2026-11-01 起取代 v0.3 的 `dsat` 布尔值）。课程包的 category 只是目录标签，不授予访问权限。
+2026-11-07 起只有 `admissions` 生效（申请工作区，§6.5.4）。`apCourses` / `courses` 是旧的按学生课程授权列表，仅为兼容保留，不再影响目录、注册或学习命令；课程是否可用只由管理员发布决定。没有任何 API 写这条记录。课程包的 category 只是目录标签。
 
 `PATCH /api/twin` 仅允许明确列出的叶字段：profile.displayName/grade/school/targetMajor/targetSchools、goals.satTarget/apTargets、preferences.timezone/weeklyAvailableMinutes/selectedCourses/notifications。每个字段有范围和格式校验，不能任意追加子树。
 
-禁止写入 studentId、entitlements、mastery、assessments、predictionSummary、version；email 更新走身份提供方的验证流程。旧 `subscriptions` 字段不再接受。后台开通使用独立管理员工具（§6.5.6，Step 42），不暴露学生可调用的 entitlement 写接口。
+禁止写入 studentId、entitlements、mastery、assessments、predictionSummary、version；email 更新走身份提供方的验证流程。旧 `subscriptions` 字段不再接受。`selectedCourses` 只是偏好，不等于注册；注册走 `POST /api/courses/enroll`（§1.7）。
 
 ### 1.2 Agent / SubjectPack
 
-`GET /api/agents`、`GET /api/packs`、`GET /api/packs/{courseId}` 返回产品能力摘要，不暴露内部工具服务地址或私有检索索引。
+课程与 agent 摘要通过课程接口读取（§1.7）：`GET /api/courses/catalog`、`GET /api/courses/{courseId}`、`GET /api/courses/{courseId}/agent`。早期计划的 `GET /api/agents`、`GET /api/packs`、`GET /api/packs/{courseId}` 没有实现，也不再计划。这些接口不暴露内部工具服务地址、system prompt 或私有检索索引。
 
-```json
-{
-  "courseId": "calc_bc",
-  "name": "AP Calculus BC",
-  "version": "1.0.0",
-  "availability": "active",
-  "supportedTaskTypes": ["SOCRATIC_STUDY", "FRQ_PRACTICE"],
-  "supportedModes": ["GPA_SYNC", "EXAM_CRUNCH"]
-}
-```
-
-首发 calc_bc active；其他已列出但尚未验证的课程为 planned。未知 courseId 为 404；对 planned 课程创建任务/Session 为 409 `COURSE_NOT_AVAILABLE`。active 课程无 entitlement 为 403 `COURSE_ACCESS_REQUIRED`。
+未知 courseId 为 404；对 planned 或 retired 课程创建任务/Session 为 409 `COURSE_NOT_AVAILABLE`；未注册为 409 `COURSE_NOT_ENROLLED`。
 
 ### 1.3 Task
 
@@ -218,7 +208,7 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
 }
 ```
 
-无 Session/Run 的 Planner 事件相应字段为 null。sequence 在同一学生范围递增。常见事件：session.started、run.queued、run.started、run.waiting_input、run.completed、run.failed、run.cancelled、assessment.completed、mastery.updated、session.completed、session.abandoned、plan.updated、course.enrolled、course.unenrolled、access.changed（Step 42，见 §6.5.6）。
+无 Session/Run 的 Planner 事件相应字段为 null。sequence 在同一学生范围递增。常见事件：session.started、run.queued、run.started、run.waiting_input、run.completed、run.failed、run.cancelled、assessment.completed、mastery.updated、session.completed、session.abandoned、plan.updated、course.enrolled、course.unenrolled。`access.changed` 是已删除的按学生授权工具（Step 42）留下的旧类型：不再产生，只为已存储的事件仍能回放而保留。
 
 事件由服务端在事务中创建。客户端不能声明事件来源或伪造结果。UI 只接收脱敏的学生事件，不接收内部 outbox、原始模型推理或敏感工具参数。
 
@@ -226,7 +216,7 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
 
 ### 1.7 课程目录与注册
 
-学生先浏览课程目录，再注册感兴趣的课程。只有注册后的课程才出现在工作台，并激活对应的 per-course agent。注册是 entitlement 检查之上的用户主动行为 —— 有权限不等于已注册。
+学生先浏览课程目录，再注册感兴趣的课程。只有注册后的课程才出现在工作台，并激活对应的 per-course agent。任何学生都可以注册任何 active 课程；注册是学生的主动行为。
 
 #### 课程目录
 
@@ -261,16 +251,16 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
 }
 ```
 
-M1：`status` 为派生字段 —— `enrolled`、`available`（active + entitled，未注册）、`locked`（active，无 entitlement）、`coming_soon`（planned）。`GET /api/courses/{courseId}` 返回同结构单条；未知 courseId 404。
+M1：`status` 为派生字段 —— `enrolled`、`available`（active，未注册）、`coming_soon`（planned）。`entitled` 等于“课程 active”，所以 `locked` 虽仍在枚举中，但不会再出现。`GET /api/courses/{courseId}` 返回同结构单条；未知 courseId 404。
 
 可见性规则：
 
 | 状态组合 | 目录可见 | 可注册 | 工作台可见 |
 |---|---|---|---|
-| active + entitled + enrolled | ✓ | 已注册 | ✓ agent 激活 |
-| active + entitled + not enrolled | ✓ | ✓ | ✗ |
-| active + not entitled | ✓ (标记 locked) | ✗ 403 | ✗ |
+| active + enrolled | ✓ | 已注册 | ✓ agent 激活 |
+| active + not enrolled | ✓ | ✓ | ✗ |
 | planned | ✓ (标记 coming soon) | ✗ 409 | ✗ |
+| retired | ✗（`GET /api/courses/{id}` 仍可读） | ✗ 409 | 记录可读，无新工作 |
 
 #### 注册课程
 
@@ -290,7 +280,7 @@ M1：`status` 为派生字段 —— `enrolled`、`available`（active + entitle
 }
 ```
 
-服务端在事务中验证：课程 active、学生持有 entitlement、未重复注册。重复注册同一课程幂等返回已有记录。对 planned 课程返回 409 `COURSE_NOT_AVAILABLE`；无 entitlement 返回 403 `COURSE_ACCESS_REQUIRED`。
+服务端在事务中验证：课程存在、课程 active、未重复注册。重复注册同一课程幂等返回已有记录。对 planned 或 retired 课程返回 409 `COURSE_NOT_AVAILABLE`。
 
 注册写入 Firestore `students/{studentId}/enrollments/{courseId}`，同时生成 `course.enrolled` 事件。
 
@@ -355,7 +345,7 @@ M1：`status` 为派生字段 —— `enrolled`、`available`（active + entitle
 ### 2.1 列出任务与学生重排
 
 - `GET /api/tasks?date=2026-10-29&cursor=...&limit=50` → tasks、nextCursor；日期按 preferences.timezone 解释，GET 不触发重新规划。M1：`date` 可省略（全部）或为 `today`（按学生时区当天）；另支持 `status`、`courseId`；只返回 active 注册课程的任务（取消注册后隐藏、重新注册后恢复）。
-- 对未注册课程的 Task/Session/命令操作返回 409 `COURSE_NOT_ENROLLED`（M1 新增错误码）；检查顺序：课程存在（404）→ active（409 `COURSE_NOT_AVAILABLE`）→ entitlement（403 `COURSE_ACCESS_REQUIRED`）→ 注册（409 `COURSE_NOT_ENROLLED`）。
+- 对未注册课程的 Task/Session/命令操作返回 409 `COURSE_NOT_ENROLLED`（M1 新增错误码）；检查顺序：课程存在（404）→ active（409 `COURSE_NOT_AVAILABLE`）→ 注册（409 `COURSE_NOT_ENROLLED`）。排队中的 Run 执行时再次检查后两项。
 - `PATCH /api/tasks/{taskId}` + If-Match → 只允许 scheduledDate、studentLocked、status=SKIPPED（仅未开始任务）。M3：`skipReason`（`no_time`/`already_know`/`not_relevant`/`other`）只能与 status=SKIPPED 同时出现；改 scheduledDate 默认同时锁定（studentLocked=true），除非同一 patch 显式给出 studentLocked。Task 新增只读字段 `dueDate`、`skipReason`、`reason.explanation`（服务端写的说明，非模型输出）。
 - `POST /api/plans/replan` + Idempotency-Key → 202 返回 PLANNING Run；重排保留进行中、已完成与锁定任务，并返回可解释变更。
 
@@ -367,7 +357,7 @@ M1：`status` 为派生字段 —— `enrolled`、`available`（active + entitle
 {"taskId": "task_calc_01"}
 ```
 
-返回 201 与 Session。服务端由 Task 推导 agent、courseId、模式和技能，校验归属、内容可用性与 entitlement，在事务内创建 Session、更新 Task 并发 session.started。请求中不接受 caller 指定任意 tool/namespace/course 覆盖 Task。
+返回 201 与 Session。服务端由 Task 推导 agent、courseId、模式和技能，校验归属、内容可用性、课程 active 与注册，在事务内创建 Session、更新 Task 并发 session.started。请求中不接受 caller 指定任意 tool/namespace/course 覆盖 Task。
 
 已有 OPEN Session 时返回 200 与该 Session；COMPLETED/SKIPPED Task 返回 409 `TASK_NOT_OPEN`，新练习由新任务表达。重复同幂等键返回第一次结果。
 
@@ -472,7 +462,7 @@ M2：流开始前先校验 cursor，所以 400/410 是真正的 HTTP 错误；�
 
 ## 5. 前端接入与权限投影
 
-启动先认证，再并行获取 Twin、entitlements、packs、tasks。恢复已有 Session 和 Run；状态与事件均以后端为准。API 失败显示真实错误/重试，不自动切换合成学生数据。
+启动先认证，再并行获取 Twin、entitlements、课程目录、tasks、sessions（`web/js/data-provider.js` 的 `bootstrap()`）。恢复已有 Session 和 Run；状态与事件均以后端为准。API 失败显示真实错误/重试，不自动切换合成学生数据。
 
 离线演示只在显式 demo 模式使用 fixtures，明显标识，与真实身份/存储分开。输入草稿可保存在本地，发送前告知状态；不得声称已保存或已评估。断线重试使用同一 Idempotency-Key。
 
@@ -483,7 +473,9 @@ M2：流开始前先校验 cursor，所以 400/410 是真正的 HTTP 错误；�
 以下只对服务身份开放，不属于学生 SDK：
 
 - Run 执行、outbox 派发、超时回收和消费者重放。
-- 定时日程扫描、通知派发与后台 entitlement 配置。
+- 定时日程扫描、通知派发、运维检查与事件保留清理。
+
+Worker 路由（前缀 `/internal`，只接受服务身份）：`/runs/execute`、`/runs/recover`、`/outbox/dispatch`、`/consumers/process`、`/planning/schedule`、`/reminders/deliver`、`/ops/check`、`/retention/events`。
 - `commitAssessment()`、`completeSession()` 的事务实现。
 
 内部路径也校验 OIDC/IAM、受众与请求 schema。队列不是认证替代。运维日志、queue delivery payload 与学生事件分别存储。
@@ -526,7 +518,11 @@ Run FAILED 的 `error.code`（面向学生，不含供应商消息）：`BUDGET_
 - `GET /api/review/packages?status=submitted&status=approved`（默认这两种；draft 永远不可见）。
 - `GET /api/review/packages/{courseId}/versions/{version}`（含 `package`）。
 - `POST .../approve` body `{notes, licenseAttested, modelEvaluationAttested}`；条件不满足 409 `REVIEW_REQUIREMENTS_NOT_MET`。
-- `POST .../reject` body `{notes}`（必填）。
+- `POST .../reject` body `{notes}`（必填）。审核员只能批准或驳回。
+
+平台管理员（发布，见文首政策）：
+
+- `GET /api/admin/packages`：approved、active、superseded、retired 版本摘要。
 - Admin only: `POST /api/admin/packages/{courseId}/versions/{version}/activate`, body `{}`; approved → active, previous active → superseded.
 - `POST /api/admin/courses/{courseId}/retire` body `{notes}`。
 
@@ -602,7 +598,7 @@ The old individual and cohort course-grant API is removed.
 | 旧设计 | 新契约 |
 |---|---|
 | email / `X-User-Email` 作为身份 | 已验证 ID token → 稳定 studentId；本地 Auth emulator |
-| PATCH subscriptions | PATCH selectedCourses 仅改偏好；后台 entitlements 控制权限 |
+| PATCH subscriptions | PATCH selectedCourses 仅改偏好；注册用 POST /api/courses/enroll；课程可用性由管理员发布决定 |
 | Task 与 Session 同记录 | Task、Session、Run 独立持久资源 |
 | POST /api/ap/session/start、/api/session/start | POST /api/sessions，由 Task 推导课程 |
 | POST /api/session/{id}/settle 接受 outcome/scoreDelta | POST /api/sessions/{id}/submissions；服务端评估；完成另用 complete |

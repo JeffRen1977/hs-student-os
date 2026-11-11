@@ -1,8 +1,8 @@
 > Current course publication policy (2026-11-07): author submits → reviewer approves
 > → admin publishes to the platform catalog → any student can enroll. Admins do not
 > grant courses to individual students or cohorts. Reviewer publication endpoints and
-> the old student-grant API are removed. Earlier descriptions of that workflow below
-> are superseded. See [API contract](../doc/API.md) and the Digital SAT walkthrough.
+> the old student-grant API are removed; this document follows the policy. See
+> [API contract](../doc/API.md) and the Digital SAT walkthrough.
 
 # High School Student OS — 前端
 
@@ -46,12 +46,12 @@ python3 -m http.server 8000 -d web
 | `js/app.js` | 选择 provider → `bootstrap()` → 根据请求状态渲染 `StatusScreen` 或 `Workspace`。`AGENT_MODULES` 注册表。 |
 | `config.js` | 部署设置（`HS_API_BASE_URL`、`HS_FIREBASE_CONFIG`）。仓库里为空；`deploy/staging/deploy_web.sh` 只在托管构建中写入。 |
 | `author.html`、`js/portal/` | 作者门户（M5 Step 34.1）：上传/替换 draft、校验报告与评测结果、提交审核、审核意见与历史、学生视角预览、课程聚合指标。`portal-api.js` 是纯脚本（Node 可测，`tests/portal.test.js`）；本地登录只提供合成平台成员（`author_hsos`、`author_sample`、`reviewer_platform`）。作者门户不能批准或激活。 |
-| `review.html`、`js/portal/review_portal.js`、`js/portal/review-api.js` | 审核界面（Step 41）：审核队列（升级/旧版本标记）、校验报告、含答案键的完整内容、学生视角预览、与当前 active 版本的对比（删除的题目/技能 ID 给出警告）、状态历史、逐题检查清单（只存在本浏览器 `localStorage`，不是审核记录）；批准（许可证声明）/驳回（必须写意见）/激活/下线，每个操作先确认，带 Idempotency-Key，服务器错误转成易懂的说明。只调用现有 `/api/review/*`，角色由服务器检查；非审核员只看到"不是平台审核员"。`review-api.js` 可在 Node 中测试（`tests/review.test.js`）；作者门户与学生应用不加载它。 |
-| `admin.html`、`js/portal/admin_portal.js`、`js/portal/admin-api.js` | 课程权限管理（Step 42）：按 studentId 查找学生，查看权限、注册与权限审计历史；授予/撤销（必须写原因，先确认）；按班级/批次批量授予，逐个学生报告结果。只调用 `/api/admin/*`，角色由服务器检查；不显示作答、对话、评估或掌握度。`admin-api.js` 可在 Node 中测试（`tests/admin.test.js`）；其他页面不加载它。 |
+| `review.html`、`js/portal/review_portal.js`、`js/portal/review-api.js` | 审核界面（Step 41）：审核队列（升级/旧版本标记）、校验报告、含答案键的完整内容、学生视角预览、与当前 active 版本的对比（删除的题目/技能 ID 给出警告）、状态历史、逐题检查清单（只存在本浏览器 `localStorage`，不是审核记录）；批准（许可证声明）/驳回（必须写意见），每个操作先确认；审核员不能激活或下线，带 Idempotency-Key，服务器错误转成易懂的说明。只调用现有 `/api/review/*`，角色由服务器检查；非审核员只看到"不是平台审核员"。`review-api.js` 可在 Node 中测试（`tests/review.test.js`）；作者门户与学生应用不加载它。 |
+| `admin.html`、`js/portal/admin_portal.js`、`js/portal/admin-api.js` | 课程发布：列出审核通过、已发布、被取代和已下线的版本；把审核通过的版本发布到目录（对所有学生生效）或下线课程（必须写原因），每个操作先确认。没有按学生授权。只调用 `/api/admin/*`，角色由服务器检查；不显示任何学生数据。`admin-api.js` 可在 Node 中测试（`tests/admin.test.js`）；其他页面不加载它。 |
 | `js/portal/portal_ui.js` | 两个门户共用的组件：状态标签、错误提示、登录、校验报告、学生视角预览。 |
 | `tests/` | `node --test web/tests/`（无需 npm install）。 |
 
-作者门户：`make server-memory` + `make web`，打开 `http://localhost:8000/author.html`；审核界面在 `http://localhost:8000/review.html`（以 `reviewer_platform` 登录），课程权限管理在 `http://localhost:8000/admin.html`（以 `admin_platform` 登录）。申请工作区（Step 35）与家长摘要（Step 36）目前只有 API，没有学生/家长界面；`js/agents/admissions.js` 仍是演示面板。
+作者门户：`make server-memory` + `make web`，打开 `http://localhost:8000/author.html`；审核界面在 `http://localhost:8000/review.html`（以 `reviewer_platform` 登录），课程发布在 `http://localhost:8000/admin.html`（以 `admin_platform` 登录）。申请工作区（Step 35）与家长摘要（Step 36）目前只有 API，没有学生/家长界面；`js/agents/admissions.js` 仍是演示面板。
 
 ## 数据接缝
 
@@ -64,7 +64,6 @@ python3 -m http.server 8000 -d web
 ```js
 provider.fetchTwin()                 // GET /api/twin
 provider.fetchEntitlements()         // GET /api/me/entitlements
-provider.fetchPacks()                // GET /api/packs
 provider.fetchCatalog()              // GET /api/courses/catalog
 provider.fetchTasks({date, cursor})  // GET /api/tasks
 provider.fetchSessions({taskId})     // GET /api/sessions

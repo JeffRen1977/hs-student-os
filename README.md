@@ -79,7 +79,7 @@ flowchart LR
 |---|---|---|
 | Web workspace | Course catalog, per-course agent (chat, submit, progress), tasks and weekly plan | `web/index.html`, `web/js/` |
 | Author portal | Upload packages, see validator/evaluation reports, submit for review, preview, metrics | `web/author.html`, `web/js/portal/` |
-| Reviewer screen | Review queue, full content with answer keys, upgrade comparison, approve / reject / activate / retire | `web/review.html`, `web/js/portal/` |
+| Reviewer screen | Review queue, full content with answer keys, upgrade comparison, approve / reject | `web/review.html`, `web/js/portal/` |
 | Course access screen | Platform admins publish reviewer-approved courses for all students or retire courses | `web/admin.html`, `web/js/portal/` |
 | API | Thin FastAPI layer: token verification, Pydantic validation, delegation to domain | `server/app/api/` |
 | Domain | All business rules, typed ports, no infrastructure imports | `server/app/domain/` |

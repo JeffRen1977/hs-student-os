@@ -1,12 +1,12 @@
 > Current course publication policy (2026-11-07): author submits → reviewer approves
 > → admin publishes to the platform catalog → any student can enroll. Admins do not
 > grant courses to individual students or cohorts. Reviewer publication endpoints and
-> the old student-grant API are removed. Earlier descriptions of that workflow below
-> are superseded. See [API contract](API.md) and the Digital SAT walkthrough.
+> the old student-grant API are removed; this document follows the policy (checked against
+> the code on 2026-11-10). See [API contract](API.md) and the Digital SAT walkthrough.
 
 # High School Student OS — 后端设计 v0.4
 
-更新：2026-11-04：M5 数据布局（§3）、家长身份与 summary:read（§2）、申请 Run 与平台能力（§7）。2026-10-30：增加课程注册数据模型（§3）、对话上下文装载策略（§5.4）、SubjectPack manifest 与 system prompt（§7.1）。采纳 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md)，替代 v0.2 的单文件 HTTP、JSON 生产存储、email 主键、内存 Session 和强制 Jev 依赖。本文件是目标设计，不是已实现能力清单。产品边界见 [HIGH_SCHOOL_STUDENT_OS.md](HIGH_SCHOOL_STUDENT_OS.md)，接口以 [API.md](API.md) v0.3 为准。
+更新：2026-11-10：与代码核对；课程发布政策（管理员发布给所有学生，按学生授权工具已删除）、能力注册表（Step 44）。2026-11-04：M5 数据布局（§3）、家长身份与 summary:read（§2）、申请 Run 与平台能力（§7）。2026-10-30：增加课程注册数据模型（§3）、对话上下文装载策略（§5.4）、SubjectPack manifest 与 system prompt（§7.1）。采纳 [架构建议](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md)，替代 v0.2 的单文件 HTTP、JSON 生产存储、email 主键、内存 Session 和强制 Jev 依赖。本文件是目标设计，不是已实现能力清单。产品边界见 [HIGH_SCHOOL_STUDENT_OS.md](HIGH_SCHOOL_STUDENT_OS.md)，接口以 [API.md](API.md) v0.3 为准。
 
 ## 1. 形态与技术栈
 
@@ -51,7 +51,7 @@ flowchart TD
 - 验证 Firebase ID token 的签名、issuer、audience、有效期；使用经验证的 subject 映射 studentId。生产拒绝 emulator token 与调用者自行声明的用户头。
 - 每个存储与领域函数显式接收 `ActorContext`，包含 actorId、studentId、权限范围。客户端不能靠 body 中的 studentId 选择他人身份。
 - email 是可变联系方式，不用于主键、文件路径或共享 JWT 密钥。未来参考产品账号通过独立映射和授权协议接入。
-- 学生可改 profile、goals、preferences 的叶字段白名单；`entitlements` 仅管理员配置，按 courseId 授予（`apCourses` / `courses`），课程类别不授予权限。学生勾选一门课程不等于获准使用。
+- 学生可改 profile、goals、preferences 的叶字段白名单。`entitlements`（`access/current`）只读，没有 API 写入；目前只有 `admissions` 生效。课程是否可用只由管理员发布决定，任何学生都可以注册 active 课程；旧的 `apCourses` / `courses` 列表不再影响访问。学生勾选一门课程（`selectedCourses`）只是偏好，不等于注册。
 - 平台管理员（`role: admin`，权限 `packages:publish`）同样是 `PlatformActor`，只负责发布审核通过的课程版本或下架课程，对所有学生生效；不再按学生授予课程权限（2026-11-07 起；Step 42 的 `AccessService`、`ActorContext.for_admin` 与 `save_entitlements` 已删除）。平台角色不能构造 `ActorContext`，因此进不了任何学生数据。
 - 课程作者与平台审核员（Step 26）由 `platformMembers/{uid}` 解析为 `PlatformActor`（actorId、role、orgId、权限），它与 `ActorContext` 是不同类型、没有 studentId，因此无法传给任何学生存储或学习服务。作者只能访问本组织的课程包，其他组织的包返回 404。
 - Task、Session、Run、Submission、Assessment、事件、文件与检索均校验归属。跨学生 ID 查询返回 404，避免暴露存在性。
@@ -86,7 +86,7 @@ students/{studentId}/runInputs/{inputRequestId}   # M1：WAITING_INPUT 的类型
 identities/{uid}                                  # M1：已验证 uid → studentId，仅服务端读写
 packageCourses/{courseId}                         # Step 26：课程归属组织、状态、active 版本
 packageVersions/{courseId}@{version}              # 包内容（规范 JSON）、校验报告、审核决定、状态历史
-platformMembers/{uid}                             # 作者（含 orgId）、平台审核员或平台管理员（Step 42）
+platformMembers/{uid}                             # 作者（含 orgId）、平台审核员或平台管理员
 platformMembers/{uid}/idempotency/{keyHash}       # 平台成员命令的幂等记录
 courseMetrics/{courseId}                          # M5 34.4：课程聚合指标（无学生数据）
 students/{studentId}/metricsMembership/{courseId} # 该学生已计入不同学生数的标记
@@ -117,7 +117,7 @@ M5 实现说明（2026-11-04）：Run 增加 `subjectId`，新 Run 类型 `ADMIS
 
 | 数据 | 规则 |
 |---|---|
-| Enrollment | 学生主动注册记录；注册前校验 entitlement + availability；取消注册保留历史，不删除 mastery/assessment |
+| Enrollment | 学生主动注册记录；注册前校验课程存在且 active；取消注册保留历史，不删除 mastery/assessment |
 | Submission | 不可变作答版本；修改建立新提交，引用之前版本 |
 | Assessment | 引用题目/rubric/提示/工具/模型/工作流版本；可重评为新版本 |
 | Mastery | 由 accepted assessment 投影；同一证据只应用一次，可从证据重建 |
@@ -201,7 +201,7 @@ ContextLoader 不加载其他课程的 Session 消息，也不加载其他课程
 
 Registry 加载版本化 manifest（agent、pack、skill），只启用已验证内容。第一方参考课程包 calc_bc；Digital SAT（dsat）是独立课程、M3 第二门课程（选择题按答案键评分）；APUSH（apush）是 M5 以作者包形式上线的第三门课程（待审核）。申请工作区不是课程包，是平台功能（Step 35，需 `entitlements.admissions`）。Run 固定 pack/skill/rubric/workflow 版本，升级不改变正在运行的行为。
 
-M5 平台能力（Step 34.2）：能力目录为 `socratic-guidance`、`rubric-assessment`、`choice-scoring`、`source-analysis`。`source-analysis` 是 rubric 评分的扩展：题目的 `sourceMaterialIds` 指向课程材料，材料作为不可信内容（`<source_document>` 隔离）进入评分上下文；输出逐条 criterion 给出 `documentsCited`，引用题目材料之外的文档即输出无效；得分证据仍只能取自学生作答。路由下限 strong。申请技能 `admissions-facts` 与 `admissions-feedback` 由 worker 执行（下限 balanced），服务端校验：提议事实必须引用回答原文，提纲只能引用已确认事实，条目有字数上限（防止代写）。
+M5 平台能力（Step 34.2）：能力目录为 `socratic-guidance`、`rubric-assessment`、`choice-scoring`、`source-analysis`。Step 44 起能力在一个注册表中声明（`app/domain/skills/catalog.py` 的类型化列表 → `app/domain/ability_registry.py`）：执行器和校验器都从注册表查找能力，不再按能力名分支；每个 Session 固定能力版本，版本变化时 Run 以 `CONTENT_VERSION_CHANGED` 失败。`source-analysis` 是 rubric 评分的扩展：题目的 `sourceMaterialIds` 指向课程材料，材料作为不可信内容（`<source_document>` 隔离）进入评分上下文；输出逐条 criterion 给出 `documentsCited`，引用题目材料之外的文档即输出无效；得分证据仍只能取自学生作答。路由下限 strong。申请技能 `admissions-facts` 与 `admissions-feedback` 由 worker 执行（下限 balanced），服务端校验：提议事实必须引用回答原文，提纲只能引用已确认事实，条目有字数上限（防止代写）。
 
 ### 7.1 SubjectPack manifest 与 system prompt
 

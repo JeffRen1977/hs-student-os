@@ -1,18 +1,19 @@
 > Current course publication policy (2026-11-07): author submits → reviewer approves
 > → admin publishes to the platform catalog → any student can enroll. Admins do not
 > grant courses to individual students or cohorts. Reviewer publication endpoints and
-> the old student-grant API are removed. Earlier descriptions of that workflow below
-> are superseded. See [API contract](API.md) and the Digital SAT walkthrough.
+> the old student-grant API are removed. Steps written before that date (10–13, 26, 41,
+> 42) keep their original text as history and carry a note where the policy changed them.
+> See [API contract](API.md) and the Digital SAT walkthrough.
 
 # High School Student OS — Step-by-Step Implementation Plan v5.0
 
-Updated: 2026-11-05 (Firestore emulator suite run: 8/8 pass; M5 backend redeployed to staging). Previously 2026-11-04 (M5 Steps 34–38 implemented ahead of the pilot gate at the owner's request; Step 30 deployed to staging on 2026-11-03). Previously 2026-11-01 (v5.0: M3 redefined from Calc→SAT transfer to a course platform; see M3). Previously 2026-10-31. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). Checked boxes mark sub-tasks implemented in the working tree; each step's **Status** line records what was actually verified.
+Updated: 2026-11-10 (docs checked against the code; course publication policy recorded; per-student grant code removed; local `make check` and emulator suite rerun). Previously 2026-11-05 (Firestore emulator suite run: 8/8 pass; M5 backend redeployed to staging). Previously 2026-11-04 (M5 Steps 34–38 implemented ahead of the pilot gate at the owner's request; Step 30 deployed to staging on 2026-11-03). Previously 2026-11-01 (v5.0: M3 redefined from Calc→SAT transfer to a course platform; see M3). Previously 2026-10-31. Python/FastAPI backend. This plan builds on [the architecture recommendations](STUDENT_OS_ARCHITECTURE_RECOMMENDATIONS.md) and implements [API v0.3](API.md), [backend v0.4](BACKEND.md), and [the milestone plan](IMPLEMENTATION_PLAN.md). Checked boxes mark sub-tasks implemented in the working tree; each step's **Status** line records what was actually verified.
 
 The product is a **course platform with one shared runtime**: third parties add courses as data (skills, question bank, rubrics and criteria, course requirements, completion criteria) and every course runs the same loop: **practice → supported assessment → saved evidence → in-course follow-up → an explained plan across enrolled courses**. Courses are independent; there is no cross-course inference. Calc BC is the first-party reference course. M0–M4 deliver the pilot (Calc BC plus one course authored through the package path); M5 contains independently selectable extensions.
 
 ## Current state
 
-### Implementation status (as of 2026-11-05)
+### Implementation status (as of 2026-11-10)
 
 | Milestone | Steps | Status |
 |---|---|---|
@@ -21,9 +22,9 @@ The product is a **course platform with one shared runtime**: third parties add 
 | M2 Calculus learning loop | 16–21 | **Implemented; verified with a scripted model over the in-memory backend**: first real-model evaluation run with OpenAI (Step 21, draft content, 1 false credit for review); Anthropic smoke test pending a key; emulator suite passed 2026-11-05 |
 | M3 Course platform | 22–27 | **Redefined 2026-11-01.** Calc→SAT mapping layer removed (Step 22.4); course-agnostic parts kept (consumer infrastructure, planner, `choice-scoring`, task controls); Digital SAT is an independent course and the chosen second course. **Steps 26–27 implemented 2026-11-01** (package contract v1 + validator, author/reviewer roles, review gate, version pinning, retire; Digital SAT rebuilt as an authored package; course-driven frontend). Not started: ability catalog contract (23), course-internal follow-up rules (24.2), package-sourced deadlines (25.4), re-expressing Calc BC as a package (22.3). |
 | M4 Proactive planning and pilot | 28–33 | **Steps 28, 29, 31 implemented 2026-11-01; verified over the in-memory backend** (scheduled planning, student controls + opt-in reminders, structured logs/metrics/alerts, backup/restore/delete, event retention). **Step 30 deployed to staging 2026-11-03** (project `hs-student-os`; real Firebase Auth + Firestore + Cloud Tasks + worker + model smoke test passed, see [OPERATIONS.md](OPERATIONS.md) §5; the deployed image predates M5). **Step 32** now unblocked, not yet run. **Step 33 gate recorded as not passed** ([PILOT_GATE.md](PILOT_GATE.md)). |
-| M5 Optional expansion | 34–44 | **Steps 34–38 implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. 41 (reviewer screen `web/review.html`) and 42 (course access admin tool `web/admin.html`): implemented 2026-11-07, locally verified in the browser, not deployed. 39 (author import from PDF and photos), 40 (conversational authoring agent) and 43 (review assistant agent; workflow and skills to be defined by reviewers): planned 2026-11-07, not started. 44 (registry-driven ability dispatch): implemented 2026-11-08, local, not deployed. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
+| M5 Optional expansion | 34–44 | **Steps 34–38 implemented 2026-11-04 over the in-memory backend, at the owner's request before the pilot gate passed** (M5 is formally "after pilot evidence"; M3 Steps 22.3, 23, 24.2, 25.4 are still open). 34: author portal page + student-view preview, platform ability `source-analysis`, APUSH as an authored package (submitted, awaiting review), aggregate author metrics with small-cohort suppression. 35: admissions interview → proposed facts → student confirmation → outline/feedback runs, sourced deadlines, confirmed-fact activities (API only; no student UI yet). 36: parent identity, student-created invites, revocation, `summary:read` projection (API only). 37: calibration pipeline + prediction gate; predictions stay `unavailable` (no real outcomes exist). 38: assessment written, no optional infrastructure adopted. 41 (reviewer screen `web/review.html`): implemented 2026-11-07, locally verified in the browser, not deployed. 42 (per-student course access tool): implemented 2026-11-07, then **superseded the same day** by the publication policy (admins publish approved courses to every student; `web/admin.html` is now the publication screen); its remaining code was removed 2026-11-10. 39 (author import from PDF and photos), 40 (conversational authoring agent) and 43 (review assistant agent; workflow and skills to be defined by reviewers): planned 2026-11-07, not started. 44 (registry-driven ability dispatch): implemented 2026-11-08, local, not deployed. Not deployed to staging. Browser check (2026-11-04, `make server-memory` + `make web`): author portal sign-in as `author_hsos`, package list, APUSH student-view preview with both source documents, suppressed metrics; no console errors (upload/submit buttons not clicked in the browser). |
 
-Last local verification (`make check`, 2026-11-01, after M4 Steps 28–31): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **561 passed, 9 skipped** (8 emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **34 passed**. Docker image built and smoke-checked locally. Browser check over `make server-memory` + `make web`: Beth locked a task date, turned reminders off, and skipped a task with a reason; no console errors.
+Last local verification (`make check`, 2026-11-10, after removing the per-student grant code): ruff lint/format clean, `mypy app/` (strict) clean, backend pytest **683 passed, 11 skipped** (emulator tests skip without emulators; 1 opt-in real-provider smoke test), web `node --test` **53 passed**; `make test-emulator` **10 passed**. Earlier (2026-11-01, after M4 Steps 28–31): backend 561 passed, 9 skipped; web 34 passed. Docker image built and smoke-checked locally. Browser check over `make server-memory` + `make web`: Beth locked a task date, turned reminders off, and skipped a task with a reason; no console errors.
 
 Open items before M0–M2 can be called complete:
 - **Real-model evaluation (Steps 16, 21):** first run done 2026-11-01 with OpenAI `gpt-5.5` (`content/evaluation/calc_bc/report-v1.md`): 17/18 criteria, 6/6 statuses. One false credit (parametric `second-derivative-method`) awaits the reviewer's decision. Not yet run against Anthropic. These are draft-content results only, so they don't measure quality until content review is done and thresholds are set.
@@ -286,6 +287,8 @@ Each step below is a reviewable change with verification criteria.
 
 ### Step 10 — Implement Twin, Entitlements, and Course Catalog API routes
 
+> **Changed 2026-11-07:** course entitlements no longer gate anything. The catalog's `entitled` equals "course is active", so `locked` no longer occurs; `GET /api/me/entitlements` remains, read-only, and only `admissions` has an effect. See API.md §1.1 and §1.7.
+
 **Goal:** Wire up the REST endpoints for reading/patching student data and browsing available courses.
 
 - [x] 10.1 `GET /api/twin` — returns bounded summary with ETag (version)
@@ -315,6 +318,8 @@ Each step below is a reviewable change with verification criteria.
 ---
 
 ### Step 11 — Implement course enrollment and per-course agent activation
+
+> **Changed 2026-11-07:** any student may enroll in any active course. The entitlement check and its 403 `COURSE_ACCESS_REQUIRED` below are history; the check order is now exists (404) → active (409 `COURSE_NOT_AVAILABLE`) → enrolled (409 `COURSE_NOT_ENROLLED`).
 
 **Goal:** Students can enroll in available courses; each enrolled course activates a per-course agent in their workspace.
 
@@ -397,6 +402,8 @@ Each step below is a reviewable change with verification criteria.
 ---
 
 ### Step 13 — Implement Session creation and lifecycle
+
+> **Changed 2026-11-07:** Session creation (and Task interaction in Step 12) no longer checks course entitlements; it checks that the course is active and the student is enrolled.
 
 **Goal:** Sessions tie to Tasks, enforce one-OPEN-per-Task, and support idempotent creation. Sessions are the per-course agent conversation boundary.
 
@@ -823,6 +830,8 @@ Decisions behind this milestone:
 
 ### Step 26 — Author role, review gate and publishing
 
+> **Changed 2026-11-07:** reviewers only approve or reject. Activating and retiring moved to platform admins (`/api/admin/*`), and published courses are open to every student (26.5's per-courseId entitlements no longer gate courses).
+
 **Goal:** A third-party author can submit a course; only platform-approved versions reach students.
 
 - [x] 26.1 Identities and roles: `platformMembers/{uid}` → `PlatformActor` (role `author` with an `orgId`, or `platform_reviewer`), a separate type from `ActorContext` with no `studentId`; permissions `packages:author` / `packages:review`. Students get 403 on authoring/review routes; platform members get 403 on student routes.
@@ -1124,6 +1133,8 @@ Conversation stages (the author can move between them at any time): course basic
 
 ### Step 41 — Reviewer screen in the portal
 
+> **Changed 2026-11-07:** the screen now offers only approve and reject. Activate and retire moved to the admin publication screen (`web/admin.html`); the record below describes the original version.
+
 **Goal:** Platform reviewers review, approve, reject, activate and retire course packages in a web screen instead of API calls. Found while publishing Digital SAT 2.0.0 on staging (2026-11-07): every reviewer action was a `curl` call with a hand-obtained ID token.
 
 - [x] 41.1 Reuse the existing review API (`GET /api/review/packages`, version detail, preview, `approve`, `reject`, `activate`, `retire`); no new authority. Only the `platform_reviewer` role sees the screen; authors and students get 403 from the API as today
@@ -1194,7 +1205,7 @@ Verified in Chrome against a local in-memory API:
 - The history lists both changes with reasons.
 - A bulk grant to `stu_beth`, `stu_nobody` and `stu_alex` reported 1 changed, 1 unchanged, 1 failed ("No student with this id").
 
-On staging, access is still a direct Firestore edit until this is deployed and `seed_staging` creates the `admin_platform` account.
+On staging, access is still a direct Firestore edit until this is deployed and `seed_staging` creates the `admin_platform` account. (History: after the publication policy, staging needs only the publication screen; no access edits.)
 
 ### Step 43 — Review assistant agent (future; workflow and skills to be defined by reviewers)
 
@@ -1261,7 +1272,7 @@ On staging, access is still a direct Firestore edit until this is deployed and `
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; emulator run 2026-11-05; real-model evaluation review and Step 32 pending |
 | M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
 | M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 deployed to staging 2026-11-03; 32 not yet run; 33 not passed |
-| M5 Optional expansion | 34–44 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course-access tool, review assistant agent, registry-driven ability dispatch) | 34–38 implemented 2026-11-04 (in-memory, synthetic); 41–42 implemented 2026-11-07 (local); 44 implemented 2026-11-08 (local); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39, 40, 43 planned, not started |
+| M5 Optional expansion | 34–44 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course publication, review assistant agent, registry-driven ability dispatch) | 34–38 implemented 2026-11-04 (in-memory, synthetic); 41 implemented 2026-11-07 (local); 42 superseded by admin publication 2026-11-07, code removed 2026-11-10; 44 implemented 2026-11-08 (local); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39, 40, 43 planned, not started |
 
 ## Superseded patterns
 
@@ -1273,5 +1284,7 @@ The following old patterns are replaced and must not be carried forward:
 - Public event POST → server-generated events from typed commands
 - Uncalibrated predictions (4.5/4.8) → `unavailable` until calibrated
 - Jev/MCP as M0–M4 prerequisites → optional M5 evaluation
+- Per-student or per-cohort course grants (entitlement lists, Step 42) → admin publishes an approved version to every student (2026-11-07)
+- Reviewer activate/retire → reviewers approve or reject; admins publish and retire
 - Cross-course prerequisite mappings (Calc BC → SAT suspected/confirmed findings, `/api/prerequisites`, `prerequisite.*` events) → independent course packages; follow-up rules act only inside their own course
 - Course-specific runtime code → course packages as data, platform abilities shared by all courses

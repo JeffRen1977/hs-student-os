@@ -61,7 +61,7 @@
 - 每次状态变化记录在版本的 `history` 中（from、to、actorId、时间、备注），审核决定记录在 `review` 中。
 - 激活后旧的 active 版本变为 `superseded`，继续服务固定在它上面的 Session；不能用较旧版本替换较新的 active 版本。
 - 退役：课程不再出现在目录中；新注册、新 Session、新提交返回 409 `COURSE_NOT_AVAILABLE`；学生的 Session、评估、掌握度保留可读，打开的 Session 可以放弃。
-- 访问权限仍由平台管理（`entitlements.apCourses` / `entitlements.courses`，按 courseId），作者无法授予。作者与审核员不是学生，调用学生接口返回 403；包记录中没有学生数据。
+- 审核员批准后，由平台管理员发布（activate）或下线（retire）；发布后任何学生都可以注册，不按学生授权。作者和审核员都不能发布或下线。作者与审核员不是学生，调用学生接口返回 403；包记录中没有学生数据。
 
 ## 4. 版本固定
 

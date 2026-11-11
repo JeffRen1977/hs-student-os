@@ -93,6 +93,7 @@ M4 发现：此前的默认租约 120 s 小于最坏模型调用时间 180 s。f
 | Firestore 模拟器测试（含新增备份测试） | ✅ 已运行（2026-11-05） | `make test-emulator`（openjdk 21）：8/8 通过——评估原子提交、备份、消费者效果 + 回执 + 偏移同一事务且重放无副作用、PLANNING 原子提交、核心流程、种子。首次运行时消费者测试失败：它写于 M3，假定只有测试用 `ProbeConsumer`，而 M5 的 `course-metrics` 默认注册，产生第二条回执（模拟器 harness 不像 contract harness 那样关闭它）。修正为只按 `PROBE` 取回执，并断言 `course-metrics` 在同一事件上各自记账、重放不增加回执 |
 | 托管备份恢复演练 | ❌ 未运行 | 需要 staging |
 | 告警策略实际触发 | ❌ 未运行 | 两条策略已创建并启用；需在 staging 制造一次积压确认通知送达 |
+| staging 与 `main` 的差距 | ⚠️ 未部署（核对于 2026-11-10） | 最近一次记录的 staging 部署是 `16df5a5-dirty-20261107b`。之后的提交都只在本地验证：审核界面（Step 41，`9ab930f`）、课程发布政策（管理员发布给所有学生，`ea70fce`）、能力注册表（Step 44，`d5daea8`）、删除按学生授权的代码（`dee041a`）。上面 2026-11-07 的记录中“审核员激活”“管理员授权后选课”“403 `COURSE_ACCESS_REQUIRED`”描述的是旧政策。重新部署后需按 [examples/DIGITAL_SAT_WALKTHROUGH.md](examples/DIGITAL_SAT_WALKTHROUGH.md) 在 staging 再跑一次发布流程 |
 | 已知风险 | ⚠️ | 2026-11-03 开启邮箱登录时，Identity Toolkit 返回的密码哈希 `signerKey` 被打印进一次会话记录（未提交到仓库）。项目只有合成用户；将其视为仅测试用项目，引入真实用户前先评估轮换方式 |
 
 ### Step 32 清单（staging 部署后执行）
