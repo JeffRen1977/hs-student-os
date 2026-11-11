@@ -36,7 +36,7 @@ class CatalogEntry(ApiModel):
     availability: Availability
     entitled: bool  # active for every student; no individual access grant
     enrolled: bool
-    # Derived: enrolled | available | locked (needs access grant) | coming_soon (planned).
+    # Derived: enrolled | available | coming_soon (not active).
     status: CatalogStatus
     agent: AgentSummary
 

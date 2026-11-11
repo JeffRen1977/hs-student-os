@@ -287,7 +287,7 @@ Each step below is a reviewable change with verification criteria.
 
 ### Step 10 — Implement Twin, Entitlements, and Course Catalog API routes
 
-> **Changed 2026-11-07:** course entitlements no longer gate anything. The catalog's `entitled` equals "course is active", so `locked` no longer occurs; `GET /api/me/entitlements` remains, read-only, and only `admissions` has an effect. See API.md §1.1 and §1.7.
+> **Changed 2026-11-07:** course entitlements no longer gate anything. The catalog's `entitled` equals "course is active", and the `locked` status was removed (2026-11-10); `GET /api/me/entitlements` remains, read-only, and only `admissions` has an effect. See API.md §1.1 and §1.7.
 
 **Goal:** Wire up the REST endpoints for reading/patching student data and browsing available courses.
 

@@ -21,7 +21,7 @@ The former `/api/admin/students/*/access` and `/api/admin/access/bulk` routes ar
 Reviewer activation/retirement routes are removed; reviewers only approve/reject.
 The catalog's existing `entitled` field now means the course is active for everyone,
 independent of the legacy per-student entitlement lists. Admissions entitlement is unchanged.
-`COURSE_ACCESS_REQUIRED` is no longer returned by any course route.
+The `COURSE_ACCESS_REQUIRED` error code was removed on 2026-11-10.
 
 
 ---
@@ -251,7 +251,7 @@ accepted 也不代表考试预测有效。首版没有对外预测分生成接�
 }
 ```
 
-M1：`status` 为派生字段 —— `enrolled`、`available`（active，未注册）、`coming_soon`（planned）。`entitled` 等于“课程 active”，所以 `locked` 虽仍在枚举中，但不会再出现。`GET /api/courses/{courseId}` 返回同结构单条；未知 courseId 404。
+M1：`status` 为派生字段 —— `enrolled`、`available`（active，未注册）、`coming_soon`（planned）。`entitled` 等于“课程 active”，保留只为兼容；旧的 `locked` 状态已于 2026-11-10 删除。`GET /api/courses/{courseId}` 返回同结构单条；未知 courseId 404。
 
 可见性规则：
 

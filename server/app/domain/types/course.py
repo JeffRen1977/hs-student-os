@@ -18,7 +18,6 @@ class CatalogStatus(StrEnum):
 
     ENROLLED = "enrolled"
     AVAILABLE = "available"
-    LOCKED = "locked"
     COMING_SOON = "coming_soon"
 
 
@@ -68,7 +67,8 @@ class CourseCatalogEntry:
             return CatalogStatus.COMING_SOON
         if self.enrolled:
             return CatalogStatus.ENROLLED
-        return CatalogStatus.AVAILABLE if self.entitled else CatalogStatus.LOCKED
+        # Every active course is open to every student (`entitled` always follows `active`).
+        return CatalogStatus.AVAILABLE
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

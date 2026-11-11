@@ -78,13 +78,13 @@ function Decisions({ version, activeVersion, onDone }) {
     } catch (err) { setError(err); setPending(null); } finally { setBusy(false); }
   }
 
-  const needsNotes = actions.some((a) => a === "approve" || a === "reject" || a === "retire");
+  const needsNotes = actions.some((a) => a === "approve" || a === "reject");
   return (
     <div className="mt-4 rounded-xl ring-1 ring-slate-200 p-3">
       <div className="font-semibold text-sm">Decision</div>
       {needsNotes && (
         <textarea className={INPUT + " mt-2 h-20"} maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)}
-          placeholder={version.status === "active" ? "Why the course is retired (required)" : "Notes for the author (required to reject)"} />
+          placeholder="Notes for the author (required to reject)" />
       )}
       {actions.includes("approve") && (
         <div className="mt-2 space-y-1 text-sm">

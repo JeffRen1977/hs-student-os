@@ -10,7 +10,6 @@ ERROR_STATUS: Mapping[ErrorCode, int] = {
     ErrorCode.IDEMPOTENCY_KEY_REQUIRED: 400,
     ErrorCode.UNAUTHENTICATED: 401,
     ErrorCode.FORBIDDEN: 403,
-    ErrorCode.COURSE_ACCESS_REQUIRED: 403,
     ErrorCode.NOT_FOUND: 404,
     ErrorCode.METHOD_NOT_ALLOWED: 405,
     ErrorCode.VERSION_CONFLICT: 409,

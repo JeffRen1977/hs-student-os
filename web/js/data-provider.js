@@ -187,7 +187,6 @@
     CONTENT_VERSION_CHANGED: "The course content was updated. Please start a new practice session.",
     COURSE_CONTENT_UNAVAILABLE: "Course content is not available right now.",
     COURSE_NOT_ENROLLED: "You are not enrolled in this course.",
-    COURSE_ACCESS_REQUIRED: "You need access to this course.",
     COURSE_NOT_AVAILABLE: "This course is coming soon.",
     RUN_IN_PROGRESS: "Your last request is still being processed. Please wait.",
     COMPLETION_REQUIREMENTS_NOT_MET: "You need an accepted assessment before completing this session.",
@@ -341,7 +340,6 @@
         return request("/api/twin", { method: "PATCH", body: patch, ifMatch: version });
       },
       fetchEntitlements: function () { return request("/api/me/entitlements"); },
-      fetchPacks: function () { return request("/api/packs"); },
       fetchCatalog: function () { return request("/api/courses/catalog"); },
       fetchTasks: function (params) { return request("/api/tasks" + buildQuery(params)); },
       fetchSessions: function (params) { return request("/api/sessions" + buildQuery(params)); },
@@ -499,7 +497,6 @@
       mode: "demo",
       fetchTwin: function () { return data().then(function (d) { return d.twin; }); },
       fetchEntitlements: function () { return data().then(function (d) { return d.entitlements; }); },
-      fetchPacks: function () { return data().then(function (d) { return { packs: d.packs || [] }; }); },
       fetchCatalog: function () { return data().then(function (d) { return d.catalog; }); },
       fetchTasks: function () { return data().then(function (d) { return d.tasks; }); },
       fetchSessions: function () { return data().then(function (d) { return d.sessions; }); },
