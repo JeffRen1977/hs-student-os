@@ -44,6 +44,56 @@ test("a definitive error releases the key (a later attempt is a new command)", a
   assert.notEqual(calls[0].init.headers["Idempotency-Key"], calls[1].init.headers["Idempotency-Key"]);
 });
 
+for (const lostResponse of ["upload", "message"]) {
+  test("photo send retries after a lost " + lostResponse + " response reuse the same file", async () => {
+    const committed = new Map();
+    let uploads = 0;
+    let messages = 0;
+    let lost = false;
+    const { api, calls } = provider((url, init) => {
+      const key = init.headers["Idempotency-Key"];
+      const type = url.endsWith("/files") ? "upload" : "message";
+      let result;
+      if (committed.has(key)) {
+        const prior = committed.get(key);
+        if (prior.body !== init.body) {
+          return jsonResponse(409, { error: { code: "IDEMPOTENCY_CONFLICT", retryable: false } });
+        }
+        result = prior.result;
+      } else {
+        result = type === "upload"
+          ? { fileId: "file_" + (++uploads) }
+          : { messageId: "msg_" + (++messages), runId: "run_1", status: "QUEUED" };
+        committed.set(key, { body: init.body, result });
+      }
+      if (!lost && type === lostResponse) {
+        lost = true;
+        throw new TypeError("Response lost after commit");
+      }
+      return jsonResponse(type === "upload" ? 201 : 202, result);
+    });
+    const previews = [];
+    const send = P.createMessageSend(api, "session_1", "My work", "action_1",
+      { mediaType: "image/jpeg", dataBase64: "photo" }, (file) => previews.push(file.fileId));
+    await assert.rejects(send(), (e) => e.code === "NOT_CONNECTED");
+    const accepted = await send();
+    assert.equal(accepted.messageId, "msg_1");
+    assert.equal(uploads, 1);
+    assert.equal(messages, 1);
+    assert.deepEqual(previews, ["file_1"]);
+    const sends = calls.filter((c) => c.url.endsWith("/messages"));
+    assert.ok(sends.every((c) => JSON.parse(c.init.body).fileIds[0] === "file_1"));
+    const requestCount = calls.length;
+    assert.deepEqual(await send(), accepted); // a later refresh retry must not resend
+    assert.equal(calls.length, requestCount);
+
+    await P.createMessageSend(api, "session_1", "New work", "action_2",
+      { mediaType: "image/jpeg", dataBase64: "another photo" })();
+    assert.equal(uploads, 2);
+    assert.equal(messages, 2);
+  });
+}
+
 test("submissions send answers only — never scores or statuses", async () => {
   const { api, calls } = provider(() => jsonResponse(202, { submissionId: "x", runId: "r", status: "QUEUED" }));
   await api.submitAnswer("s1", { questionId: "q1", questionVersion: "1", answer: { text: "work", fileIds: [] } }, "d1");

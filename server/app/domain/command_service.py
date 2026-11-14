@@ -22,7 +22,7 @@ from app.domain.runs import enqueue_run, finish_run
 from app.domain.session_service import get_owned_session, with_active_run
 from app.domain.types.actor import ActorContext, Permission
 from app.domain.types.common import PageRequest
-from app.domain.types.file import FileStatus
+from app.domain.types.file import FileStatus, ImageContent, StoredFile, validate_image
 from app.domain.types.message import Message, MessageRole
 from app.domain.types.outbox import RunInput
 from app.domain.types.run import Run, RunKind, RunStatus
@@ -32,6 +32,7 @@ from app.domain.types.submission import Submission, SubmissionInput
 SUBMISSION_RESOURCE = "submission"
 MESSAGE_RESOURCE = "message"
 RUN_RESOURCE = "run"
+FILE_RESOURCE = "file"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -211,6 +212,45 @@ class CommandService:
                 value=AcceptedSubmission(submission=submission, run=run),
                 delivery_id=entry.delivery_id,
             )
+
+        return await self._uow.transaction(write)
+
+    # ---- Files ------------------------------------------------------------------------
+
+    async def upload_image(
+        self, actor: ActorContext, *, media_type: str, data_base64: str, cmd: CommandKey
+    ) -> Outcome[StoredFile]:
+        """Store a photo of the student's work under their own record, ready to attach to a
+        message. Validated before the transaction; nothing external happens inside it."""
+        actor.require(Permission.LEARNING_COMMAND)
+        size = validate_image(media_type, data_base64)
+
+        async def write(tx: Tx) -> Outcome[StoredFile]:
+            replay = await find_replay(tx, actor, cmd)
+            if replay is not None:
+                prior = await tx.files.get(actor, replay.resource_id)
+                if prior is None:  # pragma: no cover - written atomically
+                    raise DomainError(ErrorCode.NOT_FOUND, "File not found.")
+                return Outcome(value=prior, replayed=True, created=False)
+            now = self._clock.now()
+            stored = StoredFile(
+                file_id=self._ids.new("file"),
+                student_id=actor.student_id,
+                status=FileStatus.READY,
+                media_type=media_type,
+                size_bytes=size,
+            )
+            tx.files.save_image(
+                actor,
+                stored,
+                ImageContent(media_type=media_type, data_base64=data_base64),
+                now=now,
+            )
+            remember(
+                tx, actor, cmd, resource_type=FILE_RESOURCE,
+                resource_id=stored.file_id, response_status=201, now=now,
+            )  # fmt: skip
+            return Outcome(value=stored)
 
         return await self._uow.transaction(write)
 

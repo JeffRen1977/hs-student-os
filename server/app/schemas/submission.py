@@ -53,6 +53,21 @@ class CreateMessageRequest(RequestModel):
     file_ids: list[OpaqueId] = Field(default_factory=list, max_length=5)
 
 
+class UploadImageRequest(RequestModel):
+    """`POST /api/files`: a photo of the student's work (JPEG, PNG or WebP, max 600 KB).
+
+    The browser downscales before upload; the server checks type, size and content."""
+
+    media_type: Annotated[str, StringConstraints(min_length=1, max_length=32)]
+    data_base64: Annotated[str, StringConstraints(min_length=1, max_length=820_000)]
+
+
+class FileAccepted(ApiModel):
+    file_id: OpaqueId
+    media_type: str
+    size_bytes: int
+
+
 class MessageAccepted(ApiModel):
     message_id: OpaqueId
     run_id: OpaqueId

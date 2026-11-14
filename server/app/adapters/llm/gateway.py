@@ -29,6 +29,7 @@ from app.adapters.llm.provider import (
 from app.adapters.llm.router import ModelRouter
 from app.domain.budget import BudgetLedger
 from app.domain.ports.llm import (
+    IMAGE_TOKENS,
     LlmConfigurationError,
     LlmOutputInvalidError,
     LlmRefusedError,
@@ -46,7 +47,8 @@ CHARS_PER_TOKEN = 3  # deliberately pessimistic estimate for reservations
 def estimate_input_tokens(request: LlmRequest) -> int:
     chars = len(request.system) + sum(len(m.text) for m in request.messages)
     chars += len(json.dumps(request.output_schema))
-    return chars // CHARS_PER_TOKEN + 64
+    images = sum(len(m.images) for m in request.messages)
+    return chars // CHARS_PER_TOKEN + images * IMAGE_TOKENS + 64
 
 
 class Gateway:

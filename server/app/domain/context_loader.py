@@ -12,12 +12,13 @@ rather than letting the model invent a source.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from app.domain.ports.content import MaterialContent, PackContent, SubjectPackRegistry
 from app.domain.ports.execution import ExecutionRequest
-from app.domain.ports.llm import LlmMessage, LlmRole
+from app.domain.ports.llm import IMAGE_TOKENS, LlmImage, LlmMessage, LlmRole
+from app.domain.types.file import ImageContent
 from app.domain.types.message import Message, MessageRole
 
 CHARS_PER_TOKEN = 4
@@ -90,7 +91,7 @@ def materials_block(retrieval: Retrieval) -> str:
     return "\n\n".join(parts)
 
 
-def conversation(history: Sequence[Message], budget_tokens: int) -> list[LlmMessage]:
+def conversation_messages(history: Sequence[Message], budget_tokens: int) -> list[Message]:
     """Session messages oldest → newest, truncated from the oldest end to fit the budget.
 
     Synthetic (test-pipeline) replies are excluded: they are not tutoring.
@@ -100,6 +101,8 @@ def conversation(history: Sequence[Message], budget_tokens: int) -> list[LlmMess
     used = 0
     for m in reversed(usable):
         cost = len(m.text) // CHARS_PER_TOKEN + 4
+        if m.role is MessageRole.STUDENT:
+            cost += len(m.file_ids) * IMAGE_TOKENS
         if kept and used + cost > budget_tokens:
             break
         kept.append(m)
@@ -107,10 +110,24 @@ def conversation(history: Sequence[Message], budget_tokens: int) -> list[LlmMess
     kept.reverse()
     while kept and kept[0].role is not MessageRole.STUDENT:
         kept.pop(0)  # the model conversation must start with the student
+    return kept
+
+
+def conversation(
+    history: Sequence[Message],
+    budget_tokens: int,
+    images_by_file_id: Mapping[str, ImageContent] | None = None,
+) -> list[LlmMessage]:
+    images = images_by_file_id or {}
     return [
         LlmMessage(
             role=LlmRole.USER if m.role is MessageRole.STUDENT else LlmRole.ASSISTANT,
             text=m.text,
+            images=tuple(
+                LlmImage(media_type=images[f].media_type, data_base64=images[f].data_base64)
+                for f in m.file_ids
+                if m.role is MessageRole.STUDENT and f in images
+            ),
         )
-        for m in kept
+        for m in conversation_messages(history, budget_tokens)
     ]

@@ -82,7 +82,8 @@ function Workspace({ data, onReload }) {
         <TodayTasks S={S} />
 
         <main className={(S.mobileTab === "tasks" || S.mobileTab === "events" ? "hidden" : "block") + " md:block overflow-y-auto p-3 sm:p-4 space-y-3"}>
-          {S.activeAgent === "AP_BASE" && S.pack && (S.demo ? <ApPanel S={S} /> : <CourseSessionPanel S={S} />)}
+          {/* A new task gets fresh photo and send state, including pending image preparation. */}
+          {S.activeAgent === "AP_BASE" && S.pack && (S.demo ? <ApPanel S={S} /> : <CourseSessionPanel key={S.currentTask ? S.currentTask.taskId : ""} S={S} />)}
           {S.activeAgent === "AP_BASE" && !S.pack && (
             <section className={CARD + " p-4 text-xs text-slate-500"}>You are not enrolled in any course yet. Open the course catalog to add an available course.</section>
           )}

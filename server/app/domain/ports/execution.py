@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from app.domain.types.assessment_draft import AssessmentDraft
 from app.domain.types.course import CourseDefinition
+from app.domain.types.file import ImageContent
 from app.domain.types.message import Message
 from app.domain.types.outbox import Delivery
 from app.domain.types.run import Run
@@ -25,6 +26,8 @@ class ExecutionRequest:
     student_name: str = ""
     mastery_context: str = ""
     mode: str = ""
+    # Validated photos referenced by the retained conversation, keyed by file ID.
+    images_by_file_id: Mapping[str, ImageContent] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

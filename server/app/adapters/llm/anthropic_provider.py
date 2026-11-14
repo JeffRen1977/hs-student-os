@@ -26,6 +26,22 @@ from app.domain.ports.llm import Effort, LlmMessage, LlmRole
 TRANSIENT_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504, 529})
 
 
+def message_param(m: LlmMessage) -> MessageParam:
+    if m.role is not LlmRole.USER:
+        return {"role": "assistant", "content": m.text}
+    if not m.images:
+        return {"role": "user", "content": m.text}
+    blocks: list[Any] = [
+        {
+            "type": "image",
+            "source": {"type": "base64", "media_type": im.media_type, "data": im.data_base64},
+        }
+        for im in m.images
+    ]
+    blocks.append({"type": "text", "text": m.text})
+    return {"role": "user", "content": blocks}
+
+
 class AnthropicProvider:
     def __init__(self, client: anthropic.AsyncAnthropic) -> None:
         self._client = client
@@ -52,12 +68,7 @@ class AnthropicProvider:
         effort: Effort,
         timeout_seconds: float,
     ) -> ProviderResponse:
-        params: list[MessageParam] = []
-        for m in messages:
-            if m.role is LlmRole.USER:
-                params.append({"role": "user", "content": m.text})
-            else:
-                params.append({"role": "assistant", "content": m.text})
+        params: list[MessageParam] = [message_param(m) for m in messages]
         try:
             response = await self._client.messages.create(
                 model=model,

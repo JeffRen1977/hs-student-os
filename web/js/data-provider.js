@@ -96,6 +96,22 @@
     };
   }
 
+  // Keep both command results for the lifetime of one send action. Retrying a message
+  // must reuse its uploaded file ID, even though the upload's key has been released.
+  function createMessageSend(api, sessionId, text, actionId, photo, onUploaded) {
+    let uploaded = null;
+    let accepted = null;
+    return async function () {
+      if (accepted) return accepted;
+      if (photo && !uploaded) {
+        uploaded = await api.uploadImage(photo, actionId);
+        if (onUploaded) onUploaded(uploaded);
+      }
+      accepted = await api.sendMessage(sessionId, text, actionId, uploaded ? [uploaded.fileId] : []);
+      return accepted;
+    };
+  }
+
   // ---- Events -----------------------------------------------------------------------
 
   // Merge server events into a log: dedupe by eventId AND sequence, keep ascending
@@ -321,8 +337,12 @@
       createSession: function (taskId) { return command("session:" + taskId, "/api/sessions", { taskId: taskId }); },
       // `actionId` identifies the student's send action (e.g. a draft id) so a retry of
       // the same send reuses its key, while a new send gets a new one.
-      sendMessage: function (sessionId, text, actionId) {
-        return command("message:" + actionId, "/api/sessions/" + encodeURIComponent(sessionId) + "/messages", { text: text, fileIds: [] });
+      // A photo of the student's work: {mediaType, dataBase64} → {fileId, mediaType, sizeBytes}.
+      uploadImage: function (image, actionId) {
+        return command("file:" + actionId, "/api/files", { mediaType: image.mediaType, dataBase64: image.dataBase64 });
+      },
+      sendMessage: function (sessionId, text, actionId, fileIds) {
+        return command("message:" + actionId, "/api/sessions/" + encodeURIComponent(sessionId) + "/messages", { text: text, fileIds: fileIds || [] });
       },
       submitAnswer: function (sessionId, submission, actionId) {
         return command("submit:" + actionId, "/api/sessions/" + encodeURIComponent(sessionId) + "/submissions", submission);
@@ -606,6 +626,7 @@
     isDemoMode: isDemoMode,
     newIdempotencyKey: newIdempotencyKey,
     createActionKeys: createActionKeys,
+    createMessageSend: createMessageSend,
     mergeEvents: mergeEvents,
     createDraftStore: createDraftStore,
     memoryStorage: memoryStorage,

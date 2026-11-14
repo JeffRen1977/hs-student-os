@@ -33,6 +33,19 @@ REASONING: dict[Effort, Reasoning] = {
 TRANSIENT_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504})
 
 
+def input_param(m: LlmMessage) -> Any:
+    if m.role is not LlmRole.USER:
+        return {"role": "assistant", "content": m.text}
+    if not m.images:
+        return {"role": "user", "content": m.text}
+    parts: list[Any] = [
+        {"type": "input_image", "image_url": f"data:{im.media_type};base64,{im.data_base64}"}
+        for im in m.images
+    ]
+    parts.append({"type": "input_text", "text": m.text})
+    return {"role": "user", "content": parts}
+
+
 class OpenAIProvider:
     def __init__(self, client: openai.AsyncOpenAI | Callable[[], openai.AsyncOpenAI]) -> None:
         # A factory defers client creation to the first call. The OpenAI SDK raises at
@@ -67,12 +80,7 @@ class OpenAIProvider:
         effort: Effort,
         timeout_seconds: float,
     ) -> ProviderResponse:
-        params: ResponseInputParam = []
-        for m in messages:
-            if m.role is LlmRole.USER:
-                params.append({"role": "user", "content": m.text})
-            else:
-                params.append({"role": "assistant", "content": m.text})
+        params: ResponseInputParam = [input_param(m) for m in messages]
         try:
             response = await self._get_client().responses.create(
                 model=model,

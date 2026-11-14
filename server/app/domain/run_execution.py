@@ -23,9 +23,11 @@ from typing import Protocol
 from app.domain.access import is_enrolled
 from app.domain.admissions_runs import AdmissionsJob, AdmissionsRunner
 from app.domain.assessment_service import AssessmentRejectedError, AssessmentService
+from app.domain.context_loader import conversation_messages
 from app.domain.errors import ErrorCode
 from app.domain.planner_service import PlannerService
 from app.domain.ports.catalog import CourseCatalog
+from app.domain.ports.content import SubjectPackRegistry
 from app.domain.ports.execution import (
     ExecutionFailure,
     ExecutionOutput,
@@ -40,6 +42,7 @@ from app.domain.runs import finish_run
 from app.domain.types.actor import ActorContext, Permission
 from app.domain.types.common import PageRequest
 from app.domain.types.event import EventType
+from app.domain.types.file import ImageContent
 from app.domain.types.message import Message, MessageRole
 from app.domain.types.outbox import Delivery
 from app.domain.types.run import ADMISSIONS_KINDS, Run, RunError, RunKind, RunResult, RunStatus
@@ -92,6 +95,7 @@ class RunExecutionService:
         worker_id: str,
         lease_seconds: int,
         max_attempts: int,
+        packs: SubjectPackRegistry,
         assessments: AssessmentService | None = None,
         planner: PlannerService | None = None,
         metrics: Metrics | None = None,
@@ -99,6 +103,7 @@ class RunExecutionService:
         content: PinnedContent | None = None,
     ) -> None:
         self._uow = uow
+        self._packs = packs
         self._content = content
         self._admissions = admissions
         self._metrics: Metrics = metrics or NullMetrics()
@@ -228,6 +233,9 @@ class RunExecutionService:
 
             student_text = await self._student_text(tx, actor, run)
             history = await self._history(tx, actor, session.session_id)
+            pack = self._packs.pack(session.course_id, session.context_version.pack)
+            retained = conversation_messages(history, pack.context_budget_tokens) if pack else []
+            images = await self._images(tx, actor, retained) if run.kind is RunKind.HINT else {}
             submission = (
                 await tx.submissions.get(actor, run.submission_id) if run.submission_id else None
             )
@@ -269,6 +277,7 @@ class RunExecutionService:
                     student_name=student.profile.display_name if student else "",
                     mastery_context=self._mastery_context(student, session),
                     mode=task.mode.value if task else "",
+                    images_by_file_id=images,
                 ),
             )
 
@@ -442,6 +451,23 @@ class RunExecutionService:
             if skill.startswith(prefix)
         ]
         return "\n".join(lines[:20])
+
+    async def _images(
+        self, tx: Tx, actor: ActorContext, history: list[Message]
+    ) -> dict[str, ImageContent]:
+        """Load each photo once, only for student turns that fit the context budget."""
+        images: dict[str, ImageContent] = {}
+        file_ids = dict.fromkeys(
+            file_id
+            for message in history
+            if message.role is MessageRole.STUDENT
+            for file_id in message.file_ids
+        )
+        for file_id in file_ids:
+            image = await tx.files.get_image(actor, file_id)
+            if image is not None:
+                images[file_id] = image
+        return images
 
     async def _student_text(self, tx: Tx, actor: ActorContext, run: Run) -> str:
         if run.kind is RunKind.ASSESS_SUBMISSION and run.submission_id:

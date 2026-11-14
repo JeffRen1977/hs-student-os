@@ -180,6 +180,28 @@ async def submit_answer(
     )
 
 
+@router.post("/files", response_model=sb.FileAccepted, status_code=201)
+async def upload_image(
+    body: sb.UploadImageRequest,
+    request: Request,
+    actor: Actor,
+    services: ServicesDep,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    cmd = command_key(request, idempotency_key, body)
+    outcome = await services.commands.upload_image(
+        actor, media_type=body.media_type, data_base64=body.data_base64, cmd=cmd
+    )
+    stored = outcome.value
+    return respond(
+        sb.FileAccepted(
+            file_id=stored.file_id, media_type=stored.media_type, size_bytes=stored.size_bytes
+        ),
+        status=201,
+        replayed=outcome.replayed,
+    )
+
+
 @router.post("/sessions/{session_id}/messages", response_model=sb.MessageAccepted, status_code=202)
 async def send_message(
     session_id: IdPath,

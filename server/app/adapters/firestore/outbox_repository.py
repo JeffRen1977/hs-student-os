@@ -7,7 +7,7 @@ from app.adapters.firestore import paths
 from app.adapters.firestore.documents import Doc, DocTxn, Filter, GroupReader, QuerySpec
 from app.adapters.firestore.run_repository import run_from_doc
 from app.domain.types.actor import ActorContext
-from app.domain.types.file import FileStatus, StoredFile
+from app.domain.types.file import FileStatus, ImageContent, StoredFile
 from app.domain.types.outbox import OutboxEntry, OutboxKind, OutboxStatus
 from app.domain.types.run import Run, RunStatus
 
@@ -52,7 +52,8 @@ class FirestoreOutboxStore:
 
 
 class FirestoreFileStore:
-    """File metadata only (`students/{studentId}/files/{fileId}`); uploads land in Step 21."""
+    """`students/{studentId}/files/{fileId}`. Photo answers keep their (size-capped, base64)
+    bytes in the same document until Cloud Storage uploads exist (Step 21)."""
 
     def __init__(self, txn: DocTxn) -> None:
         self._txn = txn
@@ -62,7 +63,33 @@ class FirestoreFileStore:
         if doc is None:
             return None
         return StoredFile(
-            file_id=file_id, student_id=actor.student_id, status=FileStatus(doc["status"])
+            file_id=file_id,
+            student_id=actor.student_id,
+            status=FileStatus(doc["status"]),
+            media_type=doc.get("mediaType", ""),
+            size_bytes=doc.get("sizeBytes", 0),
+        )
+
+    async def get_image(self, actor: ActorContext, file_id: str) -> ImageContent | None:
+        doc = await self._txn.get(paths.sub(actor, "files", file_id))
+        if doc is None or not doc.get("dataBase64"):
+            return None
+        return ImageContent(media_type=doc["mediaType"], data_base64=doc["dataBase64"])
+
+    def save_image(
+        self, actor: ActorContext, file: StoredFile, image: ImageContent, *, now: datetime
+    ) -> None:
+        self._txn.set(
+            paths.sub(actor, "files", file.file_id),
+            {
+                "fileId": file.file_id,
+                "studentId": actor.student_id,
+                "status": file.status.value,
+                "mediaType": image.media_type,
+                "sizeBytes": file.size_bytes,
+                "dataBase64": image.data_base64,
+                "createdAt": now,
+            },
         )
 
 

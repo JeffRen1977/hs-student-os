@@ -32,7 +32,7 @@ from app.domain.types.consumer import ConsumerOffset, ConsumerReceipt
 from app.domain.types.course import CourseEnrollment, EnrollmentStatus
 from app.domain.types.course_metrics import CourseMetrics
 from app.domain.types.event import DomainEvent, EventType
-from app.domain.types.file import StoredFile
+from app.domain.types.file import ImageContent, StoredFile
 from app.domain.types.mastery import MasteryState
 from app.domain.types.message import Message
 from app.domain.types.outbox import OutboxEntry, RunInput
@@ -148,6 +148,12 @@ class RunInputStore(Protocol):
 
 class FileStore(Protocol):
     async def get(self, actor: ActorContext, file_id: str) -> StoredFile | None: ...
+
+    async def get_image(self, actor: ActorContext, file_id: str) -> ImageContent | None: ...
+
+    def save_image(
+        self, actor: ActorContext, file: StoredFile, image: ImageContent, *, now: datetime
+    ) -> None: ...
 
 
 class IdempotencyStore(Protocol):

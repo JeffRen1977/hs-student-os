@@ -16,6 +16,8 @@ from app.domain.ports.content import ModelTier
 from app.domain.ports.execution import ExecutionFailure, RetryableExecutionError
 from app.domain.types.usage import BudgetScope
 
+IMAGE_TOKENS = 1_600  # estimated cost of one downscaled photo
+
 
 class LlmRole(StrEnum):
     USER = "user"
@@ -29,9 +31,18 @@ class Effort(StrEnum):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class LlmImage:
+    """A student's photo (e.g. handwritten work), sent to the model with a user turn."""
+
+    media_type: str
+    data_base64: str
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class LlmMessage:
     role: LlmRole
     text: str
+    images: Sequence[LlmImage] = ()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

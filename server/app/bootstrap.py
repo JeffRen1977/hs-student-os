@@ -364,6 +364,7 @@ def build_services(
         worker_id=worker_id or f"worker-{socket.gethostname()}-{ids.new('w')}",
         lease_seconds=settings.run_lease_seconds,
         max_attempts=settings.run_max_attempts,
+        packs=packs,
         assessments=assessments,
         planner=planner,
         metrics=metrics,

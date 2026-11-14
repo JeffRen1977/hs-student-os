@@ -14,6 +14,41 @@ function newActionId() {
   return "a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+// Photos of handwritten work are downscaled in the browser before upload: the server
+// accepts JPEG/PNG/WebP up to 600 KB, and a ~1568px image is all the model needs to read.
+const PHOTO_MAX_BYTES = 600000;
+const PHOTO_DEFAULT_TEXT = "Here is a photo of my work.";
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read that image.")); };
+    img.src = url;
+  });
+}
+
+async function preparePhoto(file) {
+  const img = await loadImage(file);
+  for (const [edge, quality] of [[1568, 0.85], [1568, 0.7], [1200, 0.7], [1000, 0.6]]) {
+    const scale = Math.min(1, edge / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff"; // transparent PNGs become white paper, not black
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", quality);
+    const dataBase64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    if (Math.floor(dataBase64.length * 3 / 4) <= PHOTO_MAX_BYTES) {
+      return { mediaType: "image/jpeg", dataBase64: dataBase64, previewUrl: dataUrl, name: file.name };
+    }
+  }
+  throw new Error("That photo is too large even after shrinking it.");
+}
+
 function CourseSessionPanel({ S }) {
   const task = S.currentTask;
   const api = S.api;
@@ -29,6 +64,24 @@ function CourseSessionPanel({ S }) {
   const [newDate, setNewDate] = React.useState("");
   const [skipReason, setSkipReason] = React.useState("");
   const actionIdRef = React.useRef(newActionId());
+  const [photo, setPhoto] = React.useState(null); // {mediaType, dataBase64, previewUrl, name}
+  const [photoError, setPhotoError] = React.useState("");
+  const photoInputRef = React.useRef(null);
+  // Previews of photos sent from this page, by fileId (the server does not echo images back).
+  const [sentPhotos, setSentPhotos] = React.useState({});
+
+  const pickPhoto = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoError("");
+    try {
+      setPhoto(await preparePhoto(file));
+    } catch (err) {
+      setPhoto(null);
+      setPhotoError(err.message || "Could not use that photo.");
+    }
+  };
 
   const reload = React.useCallback(async (sessionId) => {
     if (!sessionId) return;
@@ -116,18 +169,24 @@ function CourseSessionPanel({ S }) {
 
   const send = () => {
     const answeringChoices = kind === "answer" && items;
-    const text = answeringChoices ? choiceText : S.draft.trim();
+    const withPhoto = kind === "ask" && photo;
+    const text = answeringChoices ? choiceText : (S.draft.trim() || (withPhoto ? PHOTO_DEFAULT_TEXT : ""));
     if (!text || !session) return;
     const actionId = actionIdRef.current; // same id → same Idempotency-Key on retry
     const act = session.activity;
+    const sendMessage = HSProvider.createMessageSend(
+      api, session.sessionId, text, actionId, withPhoto ? photo : null,
+      (uploaded) => setSentPhotos((prev) => Object.assign({}, prev, { [uploaded.fileId]: photo.previewUrl }))
+    );
     return perform(async () => {
       const accepted = kind === "answer" && act
         ? await api.submitAnswer(session.sessionId, {
             questionId: act.questionId, questionVersion: act.questionVersion,
             answer: { text: text, fileIds: [] },
           }, actionId)
-        : await api.sendMessage(session.sessionId, text, actionId);
+        : await sendMessage();
       actionIdRef.current = newActionId();
+      if (withPhoto) setPhoto(null);
       if (answeringChoices) setChoices({});
       else S.clearDraft();
       setRun({ runId: accepted.runId, status: accepted.status });
@@ -163,7 +222,7 @@ function CourseSessionPanel({ S }) {
 
   const open = session && session.status === "OPEN";
   const canSend = open && !active && !busy;
-  const answerReady = kind === "answer" && items ? !!choiceText : !!S.draft.trim();
+  const answerReady = kind === "answer" && items ? !!choiceText : !!S.draft.trim() || (kind === "ask" && !!photo);
   return (
     <React.Fragment>
       <section className={CARD + " p-4 space-y-3"}>
@@ -217,7 +276,7 @@ function CourseSessionPanel({ S }) {
       {session && (
         <section className={CARD + " p-4 space-y-2"} aria-live="polite">
           {messages.length === 0 && <div className="text-xs text-slate-500">Ask the agent a question, or submit your solution.</div>}
-          {messages.map((m) => <MessageBubble key={m.messageId} message={m} />)}
+          {messages.map((m) => <MessageBubble key={m.messageId} message={m} photos={sentPhotos} />)}
           {run && <RunLine run={run} architect={S.architect} onCancel={open && active ? cancel : null} busy={busy} />}
         </section>
       )}
@@ -260,11 +319,28 @@ function CourseSessionPanel({ S }) {
               </div>
             </div>
           ) : (
+          <div className="space-y-2">
+          {kind === "ask" && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={pickPhoto} aria-label="Photo of your work" />
+              <button type="button" disabled={!canSend} onClick={() => photoInputRef.current && photoInputRef.current.click()}
+                className={"px-3 min-h-[36px] rounded-full ring-1 ring-slate-300 dark:ring-slate-700 disabled:opacity-40 " + BTN}>📷 {photo ? "Change photo" : "Add photo of your work"}</button>
+              {photo && (
+                <span className="inline-flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl ring-1 ring-indigo-200 dark:ring-indigo-500/40 bg-indigo-50 dark:bg-indigo-950/40">
+                  <img src={photo.previewUrl} alt="Selected photo of your work" className="h-10 w-10 object-cover rounded-lg" />
+                  <span className="text-[11px] text-slate-600 dark:text-slate-300">Photo ready · the tutor will read it</span>
+                  <button type="button" onClick={() => setPhoto(null)} aria-label="Remove photo" className="px-1.5 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900">✕</button>
+                </span>
+              )}
+              {photoError && <span role="alert" className="text-rose-600 dark:text-rose-300">{photoError}</span>}
+            </div>
+          )}
           <div className="flex gap-2">
             <textarea value={S.draft} onChange={(e) => S.setDraft(e.target.value)} rows={kind === "answer" ? 4 : 2}
-              placeholder={kind === "answer" ? "Show all your steps; only what you write is assessed…" : "Ask a question; the agent gives hints, not answers…"}
+              placeholder={kind === "answer" ? "Show all your steps; only what you write is assessed…" : photo ? "Optional: tell the tutor where you got stuck…" : "Ask a question, or add a photo of your work; the agent gives hints, not answers…"}
               className="flex-1 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800 rounded-2xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
             <button disabled={!canSend || !answerReady} className={"self-end px-5 min-h-[44px] rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-semibold " + BTN}>Send</button>
+          </div>
           </div>
           )}
           <div className="text-[10px] text-slate-400 px-2">
@@ -290,13 +366,17 @@ const COMPLETION_REASON = {
   session_closed: "",
 };
 
-function MessageBubble({ message }) {
+function MessageBubble({ message, photos }) {
   const mine = message.role === "student";
+  const fileIds = message.fileIds || [];
   return (
     <div className={"flex " + (mine ? "justify-end" : "justify-start")}>
       <div className={"max-w-[85%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap " + (mine ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100")}>
         {message.isSubmission && <div className="text-[10px] font-semibold opacity-80 mb-1">Submitted solution</div>}
         {message.synthetic && <div className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 mb-1">Synthetic reply · pipeline testing only, not tutoring or grading</div>}
+        {fileIds.map((id) => photos && photos[id]
+          ? <img key={id} src={photos[id]} alt="Photo of the student's work" className="mb-2 max-h-48 rounded-xl ring-1 ring-white/40" />
+          : <div key={id} className="text-[10px] font-semibold opacity-80 mb-1">📷 Photo attached</div>)}
         {message.text}
       </div>
     </div>
