@@ -1076,6 +1076,8 @@ Each extension is independently selected and verified. None are prerequisites fo
 
 ### Step 39 — Import questions from PDFs and photos in the author portal (future)
 
+> **Re-scoped 2026-11-15 (approved, see Step 45 and [QUESTION_BANK.md](QUESTION_BANK.md)):** imports also accept pasted text and links, and write `extracted` items into the organization's question bank instead of a draft package. Confirmed items are approved, keyed and selected by the organization's content reviewer; the package is built from that selection. License/copyright refusal (39.3) is deferred by owner decision: source and license are recorded but not enforced.
+
 **Goal:** Authors can bring existing question material (PDF files, photos of printed pages) into a draft package without writing JSON. The platform proposes items; the author confirms every item before it can enter a package; the existing validator and review gate are unchanged.
 
 ```
@@ -1102,6 +1104,8 @@ Upload PDF / photos ─► extraction Run (text layer, or OCR + vision-capable m
 **Status:** ⏳ Planned 2026-11-07 (Option B of the import discussion); not started.
 
 ### Step 40 — Conversational authoring agent (future)
+
+> **Re-scoped 2026-11-15 (approved, see Step 45):** the agent's question work happens in the organization's question bank (create, edit and flag items, suggest keys as `agent-suggested`). Answer keys are confirmed by the organization's **content reviewer**, not the author, and the package's questions come from the content reviewer's selection. The other stages (course basics, skills, rubrics, starter plan) are unchanged.
 
 **Goal:** Authors build a course package by talking with an authoring agent instead of writing JSON. The agent asks for what the package needs (course basics, skills, practice-set design, questions and answer keys, rubric criteria and skill tags, the starter plan), proposes changes to a server-side draft, and the author accepts, rejects or adjusts each change in conversation. The package JSON becomes an artifact the agent maintains; submission and the platform review gate are unchanged.
 
@@ -1223,7 +1227,7 @@ On staging, access is still a direct Firestore edit until this is deployed and `
 - It runs on the shared runtime (worker Run through the LLM gateway, usage budgets, no external calls inside transactions), with read-only tools: the package, the validator, the preview, the Step 41 comparison and `math-verify`. No access to student data or to other organizations' drafts.
 - Its own quality is measured offline on annotated packages with known problems (missed issues and false alarms) before reviewers rely on it.
 
-**Relationship to other steps:** requires Step 44 first; builds on the reviewer screen (Step 41), where findings would appear beside each item; mirrors the authoring agent (Step 40) on the author side.
+**Relationship to other steps:** requires Step 44 first; builds on the reviewer screen (Step 41), where findings would appear beside each item; mirrors the authoring agent (Step 40) on the author side. Note (2026-11-15): with Step 45, item-level review (keys, selection) happens inside the author's organization by its content reviewer; this agent stays an aid to the **platform** reviewer's package decision.
 
 **Status:** ⏳ Intent recorded 2026-11-07; workflow and skills to be defined by reviewers; not started.
 
@@ -1261,6 +1265,26 @@ On staging, access is still a direct Firestore edit until this is deployed and `
 - 44.5: `Session.ability_versions` is internal and not exposed by the API. Sessions opened before this step have nothing pinned and keep running. Bump an ability's version only for a change in grading behavior: open Sessions on the old version then fail with `CONTENT_VERSION_CHANGED`.
 - Tests: `tests/unit/test_ability_dispatch.py`.
 
+### Step 45 — Organization question bank and content reviewer (approved 2026-11-15)
+
+**Goal:** Each author organization keeps a **question bank** between raw inputs and course packages. Authors (and the authoring agent, Steps 39/40) put extracted or hand-written questions into it; a **content reviewer of the same organization** approves items, supplies missing answer keys and solutions, and decides which approved items make up a package (a *selection*). A deterministic builder turns the selection into a package version, which then goes through the unchanged platform review gate. Contract: [QUESTION_BANK.md](QUESTION_BANK.md).
+
+Owner decisions (2026-11-15): the person who selects questions and supplies keys is a content reviewer in the author's organization, not the platform reviewer; the content reviewer is also an author (one person may write, approve and select their own items; submitter and approver are recorded); license and copyright enforcement in the bank is deferred (fields recorded, not enforced).
+
+- [ ] 45.1 Contract first: `content_reviewer` role and `bank:author` / `bank:review` permissions; `BankSource`, `ImportJob`, `BankItem` + versions, `BankPassage`, `Selection`; state machine and error codes; API.md, COURSE_PACKAGE.md, BACKEND.md and CLAUDE.md updated before handlers
+- [ ] 45.2 Store and domain service: org-scoped Firestore collections (`orgs/{orgId}/…`), versioned items (approved versions immutable; edits create a new version), optimistic concurrency (409), Idempotency-Key on every POST, other organizations → 404
+- [ ] 45.3 Item workflow: create by hand, confirm, submit, discard (author); key + solution, approve, reject with notes, retire (content reviewer, who also holds every author permission and may approve items they submitted; submitter and approver recorded); keys with `answerSource: agent-suggested` cannot be approved until the reviewer confirms them
+- [ ] 45.4 Selections and builder: only approved item versions; sets ≤10 items, shared passages kept together; deterministic build (same selection → same package JSON) with rubric criteria, evaluation cases, starter tasks and `source.bankItems` provenance; hand-off to the existing validator, preview and submit
+- [ ] 45.5 Portal screens: author bank view (filter by state/flag, side-by-side source and item, edit/confirm/submit); content reviewer queue (item in review, key and solution entry, approve/reject, disputed-key and duplicate flags shown); selection editor with live validator report
+- [ ] 45.6 Dev seeding: import the git-ignored local SAT bank (`server/content/private/bank`) into a dev organization through the import path (`kind: bank-jsonl`, dev only), keeping its flags, keys and provenance
+- [ ] 45.7 Tests: isolation, role gating (author cannot key/approve/select; platform reviewer cannot edit items; students 403), idempotency, state machine, self-approval allowed and recorded, selection of unapproved items rejected, builder determinism and validator pass, concurrent edits
+
+**Relationship to other steps:** Steps 39 (import) and 40 (authoring agent) write into this bank instead of directly into a draft package; the platform review gate (Steps 26, 41) and Step 43 are unchanged. Figures as images remain a separate prerequisite (Step 39); until then figures are written out as text.
+
+**Verify:** In a dev organization, an author imports the local SAT bank, confirms and submits items; a content reviewer supplies two missing keys, approves a set of items, builds a selection into a package version that passes the validator, and submits it; a platform reviewer approves it. No other organization can see any of it, and the author could not approve or select at any point.
+
+**Status:** ⏳ Design approved by the owner 2026-11-15. 45.1 contract documents done 2026-11-15: QUESTION_BANK.md (contract v1), API.md §6.5.7, BACKEND.md §2–3, COURSE_PACKAGE.md §7, CLAUDE.md (roles, components, §6.1 license exception). Not done in 45.1: Pydantic schemas and domain types (`app/schemas/`, `app/domain/types/`), which come first in implementation. 45.2–45.7 not started.
+
 ---
 
 ## Delivery Map
@@ -1272,7 +1296,7 @@ On staging, access is still a direct Firestore edit until this is deployed and `
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; emulator run 2026-11-05; real-model evaluation review and Step 32 pending |
 | M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
 | M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 deployed to staging 2026-11-03; 32 not yet run; 33 not passed |
-| M5 Optional expansion | 34–44 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course publication, review assistant agent, registry-driven ability dispatch) | 34–38 implemented 2026-11-04 (in-memory, synthetic); 41 implemented 2026-11-07 (local); 42 superseded by admin publication 2026-11-07, code removed 2026-11-10; 44 implemented 2026-11-08 (local); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39, 40, 43 planned, not started |
+| M5 Optional expansion | 34–44 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course publication, review assistant agent, registry-driven ability dispatch) | 34–38 implemented 2026-11-04 (in-memory, synthetic); 41 implemented 2026-11-07 (local); 42 superseded by admin publication 2026-11-07, code removed 2026-11-10; 44 implemented 2026-11-08 (local); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39, 40, 43 planned, not started; 45 (organization question bank + content reviewer) approved 2026-11-15, contract documents done, implementation not started |
 
 ## Superseded patterns
 

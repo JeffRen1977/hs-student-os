@@ -23,6 +23,12 @@ The catalog's existing `entitled` field now means the course is active for every
 independent of the legacy per-student entitlement lists. Admissions entitlement is unchanged.
 The `COURSE_ACCESS_REQUIRED` error code was removed on 2026-11-10.
 
+Question bank (approved 2026-11-15, Step 45, not implemented): authors bring questions into an
+organization question bank (by hand or through the authoring agent's import), and a content
+reviewer of the same organization (who may also be the author) approves items, supplies missing
+keys and solutions, and builds the package version from a selection. The package then follows the
+policy above unchanged. See §6.5.7 and [QUESTION_BANK.md](QUESTION_BANK.md).
+
 
 ---
 
@@ -592,6 +598,55 @@ M5 是试点后的可选扩展，各项单独验收（见 [STEP_BY_STEP_PLAN.md]
 Admins publish reviewer-approved course versions for the whole platform. See the current
 policy at the beginning of this document for endpoints, permissions and enrollment rules.
 The old individual and cohort course-grant API is removed.
+
+### 6.5.7 Organization question bank and content review (Step 45, approved 2026-11-15, not implemented)
+
+Full contract: [QUESTION_BANK.md](QUESTION_BANK.md). Every route is scoped to the caller's author
+organization (`platformMembers/{uid}.orgId`); another organization's sources, jobs, items and
+selections return 404. Students, parents, platform reviewers and admins get 403. Every POST requires
+`Idempotency-Key` (same key + same body replays; same key + different body → 409 `IDEMPOTENCY_CONFLICT`).
+
+Roles: `author` holds `packages:author` + `bank:author`. The new `content_reviewer` role (one
+organization) holds `packages:author` + `bank:author` + `bank:review`: a content reviewer is also an
+author and may approve and select items they wrote or submitted; submitter and approver are recorded.
+The platform reviewer still only approves or rejects package versions (§6.3) and never edits items.
+
+Author and content reviewer (`bank:author`):
+
+- `POST /api/bank/sources` body `{kind: image|pdf|text|link, title, license?, attribution?, text?|url?|fileName?, contentType?}`
+  → 201 `BankSource`; for files the response carries a signed upload URL. Link guard failures
+  (non-http(s), private or loopback address after DNS, redirect to such an address, size or type limits)
+  → 422 `IMPORT_SOURCE_REJECTED`. License fields are recorded, not enforced (owner decision 2026-11-15).
+- `POST /api/bank/imports` body `{sourceIds[], courseHint?}` → 202 `ImportJob` (`QUEUED`); the extraction runs
+  as a worker Run. `GET /api/bank/imports/{jobId}` → status, `itemCount`, `errors[]`, `usage`.
+- `GET /api/bank/items?state=&courseId=&flag=&cursor=` → paged `BankItemSummary[]`;
+  `GET /api/bank/items/{itemId}` → `BankItem` with versions and provenance.
+- `POST /api/bank/items` body `{courseId?, version: BankItemVersionInput}` → 201 (provenance `author`).
+- `PATCH /api/bank/items/{itemId}` body `{expectedVersion, changes}` → edits the current `draft` version;
+  stale `expectedVersion` → 409 `VERSION_CONFLICT`; editing an approved item creates a new `draft` version.
+- `POST /api/bank/items/{itemId}/confirm` (`extracted` → `draft`), `/submit` (`draft` → `in_review`),
+  `/discard` (→ `discarded`, before approval). Other transitions → 409 `INVALID_STATE_TRANSITION`.
+
+Content reviewer only (`bank:review`; authors get 403):
+
+- `POST /api/bank/items/{itemId}/key` body `{answer, solution?}` → sets `answerSource: reviewer` on the
+  version in review; `spr` items with a reviewer key need a `solution`.
+- `POST /api/bank/items/{itemId}/approve` body `{notes?}` → `approved`; no final key, or a key whose
+  `answerSource` is `agent-suggested` → 409 `ITEM_KEY_REQUIRED`.
+- `POST /api/bank/items/{itemId}/reject` body `{notes}` (required) → `rejected`; `/retire` body `{notes}` → `retired`.
+- `GET /api/bank/selections`, `GET /api/bank/selections/{id}` (readable by authors too);
+  `POST /api/bank/selections`, `PATCH /api/bank/selections/{id}` (content reviewer). Referencing an item
+  version that is not approved → 409 `ITEM_NOT_APPROVED`; structural problems (set over 10 items,
+  passage split across sets, unknown skill) → 409 `SELECTION_INVALID`.
+- `POST /api/bank/selections/{id}/build` body `{version}` → 201 `PackageVersion` (draft, with validator
+  report) built deterministically from the selection; then the normal §6.3 submit path.
+
+Resources (fields in QUESTION_BANK.md §4): `BankSource`, `ImportJob`, `BankItem` (header + immutable
+versions: `stem`, `choices`, `type` mc|spr, `answer`, `answerSource` source-key|compiled-key|reviewer|agent-suggested,
+`solution`, `figure`, `provenance`, `flags[]`, `submittedBy`, `review`), `BankPassage`, `Selection`.
+Answer keys and bank data never appear in any student response.
+
+New error codes: `ITEM_NOT_APPROVED`, `ITEM_KEY_REQUIRED`, `SELECTION_INVALID`, `IMPORT_SOURCE_REJECTED`.
 
 ## 7. v0.1 → v0.2 迁移与验收
 

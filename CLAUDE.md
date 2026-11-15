@@ -3,6 +3,12 @@
 > grant courses to individual students or cohorts. Reviewer publication endpoints and
 > the old student-grant API are removed. The rest of this file follows this policy.
 > See [API contract](doc/API.md) and the Digital SAT walkthrough.
+>
+> Question bank (approved 2026-11-15, Step 45, not implemented): authors (and the authoring agent)
+> put questions into an organization question bank; a **content reviewer of the same organization**
+> (who may also be the author) approves items, supplies missing keys/solutions and builds the package
+> from a selection; then the publication policy above applies unchanged. License enforcement in the
+> bank is deferred. Contract: [doc/QUESTION_BANK.md](doc/QUESTION_BANK.md).
 
 # High School Student OS — Development Rules
 
@@ -146,6 +152,7 @@ INFRASTRUCTURE (Google Cloud)
 | **LLM Gateway** | Provider abstraction, static routing, usage budgets, retry logic | `app/adapters/llm/` |
 | **Course Package Registry** | Loads validated, approved course packages (skills, questions, rubrics, requirements, criteria); pins versions per Run | `app/registries/` |
 | **Package Validator & Publishing** | Validates submitted packages; author → platform reviewer → active workflow; retire/version | `app/domain/`, `app/registries/` |
+| **Question Bank Service** (Step 45, planned) | Org-scoped question bank: import jobs, versioned items, content-reviewer approval and keys, selections, deterministic package build | `app/domain/` |
 | **Skill Executor** | Platform ability catalog: Socratic guidance, rubric assessment, choice (answer-key) scoring, source analysis (writing from provided documents), diagnostic (planned) — selected and configured by each package | `app/domain/skills/` |
 | **Tool Registry** | Math verification, content retrieval, OCR (whitelisted per skill) | `app/registries/` |
 | **Assessment Service** | Validates evidence, atomic commit of assessment + mastery + events | `app/domain/` |
@@ -361,7 +368,8 @@ Rules:
 - A package selects abilities from the platform catalog; it cannot add code, prompts that override grading rules, or new tools. A missing capability becomes a platform ability available to every course.
 - Each Run pins the package version; a new version never changes open sessions or past assessments. Retiring a course stops new work without deleting student records.
 - Evidence in one course never creates findings, tasks or mastery changes in another course.
-- Authors never see individual student data and cannot publish or retire courses. Reviewers approve or reject only. Another organization's packages return 404.
+- Authors never see individual student data and cannot publish or retire courses. Platform reviewers approve or reject package versions only and never edit content. Another organization's packages return 404.
+- Question bank (Step 45, see doc/QUESTION_BANK.md): inputs (images, PDFs, text, links) become `extracted` items in the organization's bank; agent output is a proposal, never content. A `content_reviewer` of the same organization — who also holds every author permission and may review their own items — approves items, supplies answer keys and solutions, and selects which approved item versions form the package. Agent-suggested keys cannot be approved until the content reviewer confirms them. Submitter and approver are recorded on every item version. Another organization's bank returns 404.
 
 ## 1. Boundaries — what you must not do
 
@@ -550,6 +558,7 @@ Every step must have tests covering:
 - All questions must have: questionId, version, source/license, reviewer, rubric reference.
 - Rubrics must have: criterionId, maxPoints, evidence requirements, version.
 - Never use College Board official test questions verbatim without explicit permission. Use original or clearly licensed content.
+- Exception in force (owner decision 2026-11-15): the organization question bank records source and license per item but does **not** enforce them at import or selection yet. Publication is unchanged: the package validator's College Board rule and the platform reviewer's license attestation still apply.
 
 ### 6.2 Course packages (first- and third-party)
 - Every package passes the validator and a platform reviewer before `active`; the same gate applies to first-party courses.

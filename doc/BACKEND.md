@@ -54,6 +54,7 @@ flowchart TD
 - 学生可改 profile、goals、preferences 的叶字段白名单。`entitlements`（`access/current`）只读，没有 API 写入；目前只有 `admissions` 生效。课程是否可用只由管理员发布决定，任何学生都可以注册 active 课程；旧的 `apCourses` / `courses` 列表不再影响访问。学生勾选一门课程（`selectedCourses`）只是偏好，不等于注册。
 - 平台管理员（`role: admin`，权限 `packages:publish`）同样是 `PlatformActor`，只负责发布审核通过的课程版本或下架课程，对所有学生生效；不再按学生授予课程权限（2026-11-07 起；Step 42 的 `AccessService`、`ActorContext.for_admin` 与 `save_entitlements` 已删除）。平台角色不能构造 `ActorContext`，因此进不了任何学生数据。
 - 课程作者与平台审核员（Step 26）由 `platformMembers/{uid}` 解析为 `PlatformActor`（actorId、role、orgId、权限），它与 `ActorContext` 是不同类型、没有 studentId，因此无法传给任何学生存储或学习服务。作者只能访问本组织的课程包，其他组织的包返回 404。
+- 题库（Step 45，2026-11-15 批准，未实现，契约见 [QUESTION_BANK.md](QUESTION_BANK.md)）：新增组织内角色 `content_reviewer`（权限 `packages:author` + `bank:author` + `bank:review`），它同时是作者，可以审核并选用自己提交的题目（不设四眼原则，记录提交人与审核人）；`author` 增加 `bank:author`。两者都是带 `orgId` 的 `PlatformActor`，只能访问本组织的题库，其他组织返回 404。平台审核员不编辑题目、答案或选题，仍只批准或驳回课程包版本。
 - Task、Session、Run、Submission、Assessment、事件、文件与检索均校验归属。跨学生 ID 查询返回 404，避免暴露存在性。
 - 家长不是学生会话的别名（Step 36 已实现）。家长账号由 `parents/{uid}` 解析为 `ParentActor`（无 studentId）；学生创建邀请（只存邀请码哈希），家长兑换后链接生效，学生可随时撤销。每次读取都在同一事务里先校验学生侧链接（`students/{id}/parentLinks/{linkId}`，权威）再构造只带 `summary:read` 的 `ActorContext.for_parent`；家长索引 `parents/{uid}/children/{studentId}` 只用于列出，不作授权依据。摘要投影逐字段构造，不含作答/对话/反馈/文书/申请数据。
 - 服务端 Firestore Admin SDK 绕过客户端规则，故 API/worker 仍必须做归属检查；浏览器不直接读写权威学习数据。
@@ -89,6 +90,12 @@ packageVersions/{courseId}@{version}              # 包内容（规范 JSON）�
 platformMembers/{uid}                             # 作者（含 orgId）、平台审核员或平台管理员
 platformMembers/{uid}/idempotency/{keyHash}       # 平台成员命令的幂等记录
 courseMetrics/{courseId}                          # M5 34.4：课程聚合指标（无学生数据）
+orgs/{orgId}/sources/{sourceId}                   # Step 45：作者提供的图片/PDF/文本/链接（文件在组织前缀的对象存储）
+orgs/{orgId}/imports/{jobId}                      # 抽取任务：状态、runId、错误、用量
+orgs/{orgId}/bankItems/{itemId}                   # 题目头：state、currentVersion、approvedVersion、courseId、tags
+orgs/{orgId}/bankItems/{itemId}/versions/{n}      # 题目版本（离开 draft 后不可变）：题干、选项、答案及来源、解答、出处、flags、审核
+orgs/{orgId}/bankPassages/{passageId}             # 共享文章/材料（同样版本化）
+orgs/{orgId}/selections/{selectionId}             # 内容审核员的选题：题组、题目版本引用、起始任务、已构建的包版本
 students/{studentId}/metricsMembership/{courseId} # 该学生已计入不同学生数的标记
 students/{studentId}/parentLinks/{linkId}         # M5 36：家长链接（权威）：scope、状态、邀请码哈希
 parentInvites/{codeHash}                          # 一次性邀请 → (studentId, linkId)；兑换后记录 redeemedBy
@@ -112,6 +119,8 @@ M3 实现说明：新增 `consumerReceipts/{consumer}:{eventId}:{target}`、`con
 Step 26 实现说明：课程包记录位于任何学生子树之外。运行时注册表由两部分组成：内置课程（`content/packs/`，Calc BC 与计划中的课程）和经审核的课程包（active、superseded、retired 版本）。`PackageContentSync` 重新校验并按内容哈希缓存后整体安装；激活/退役的实例立即刷新，其他实例（API 副本、worker）在副本超过 `HSOS_PACKAGE_REFRESH_SECONDS`（默认 30 秒）时于请求或投递前刷新。查找可指定版本：Session 固定的 `contextVersion.pack` 在新版本激活或课程退役后仍可加载，新 Session 使用 active 版本。
 
 M5 实现说明（2026-11-04）：Run 增加 `subjectId`，新 Run 类型 `ADMISSIONS_FACTS` / `ADMISSIONS_FEEDBACK` 与 PLANNING 一样没有 Session；worker 在租约事务中复查 `entitlements.admissions` 并读取输入，事务外调用模型，在带 fencing token 的提交事务中写入提议事实或反馈条目与 Run 终态。文书 `activeRunId` 保证同一文书同时只有一个反馈 Run，`finish_run` 在任何终态释放它。`courseMetrics` 由 `course-metrics` 消费者在学生自己的消费事务里更新（回执 + 标记 + 聚合同一事务）；它是一个热点文档，试点规模可接受，规模扩大后改为分片计数。删除学生时同时删除其家长索引项与邀请；聚合指标不含学生数据，保留不动。M5 新查询都只按单字段排序，不需要新的复合索引。
+
+Step 45 说明（已批准，未实现）：题库记录位于任何学生子树之外，按组织隔离；所有命令沿用平台成员幂等记录（`platformMembers/{uid}/idempotency`）。题目状态机 extracted → draft → in_review → approved | rejected，另有 discarded / retired；approved 版本不可变，修改生成新的 draft 版本；乐观并发用 `expectedVersion`。抽取任务是 worker Run（无学生 Session，与 PLANNING 类似），模型调用在事务外，结果在带 fencing token 的事务中整体写入，失败不留下部分题目；链接由平台抓取（只允许 http(s)，DNS 解析后拒绝私有/回环地址，重定向重新校验，大小与类型限制），抓取副本存为来源以便复现。由选题构建课程包是确定性的（无模型调用），构建结果走现有上传、校验与提交路径。题库查询按 `state` + `updatedAt`、`courseId` + `state` 需要复合索引。许可证字段记录但暂不强制（2026-11-15 所有者决定）。
 
 按 studentId、状态、到期时间等实际查询建立索引。后台 outbox collection-group 查询仅服务身份可用；客户端不得用全局查询绕过学生边界。题目、rubric 与技能都属于各自的课程包，是独立版本化内容目录；课程之间不互相引用（2026-11-01 起不再有跨课程技能映射）。
 

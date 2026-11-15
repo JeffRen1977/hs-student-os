@@ -78,3 +78,13 @@ Session 创建时固定 `contextVersion.pack`。运行时按固定版本加载�
 - **新增课程（Step 34.3）**：APUSH 1.0.0（`content/authored/apush`）：一道简答题（rubric-assessment）、一道基于两份公有领域文献的 DBQ 式写作题（source-analysis）、一组材料分析选择题（choice-scoring）；评测集 3 条选择题用例（上传时自动运行，全部通过）+ 4 条模型评分用例（审核员批准时须声明 `modelEvaluationAttested`）。本地种子把它放在 **submitted**（等待平台审核），不是 active。内容为草稿，文献摘录的措辞需在内容审核时与原文核对。
 - **回归（Step 34.5）**：`tests/unit/test_platform_abilities.py` 在每次新增能力后检查所有作者包仍通过校验并通过自动评测用例，内置课程不受影响。
 
+
+## 7. 由题库选题构建课程包（Step 45，2026-11-15 批准，未实现）
+
+契约见 [QUESTION_BANK.md](QUESTION_BANK.md)。组织的内容审核员（`content_reviewer`，同时也是作者）在题库中批准题目、补充答案与解答，并建立选题（selection）；`POST /api/bank/selections/{id}/build` 按选题**确定性地**（无模型调用，同一选题生成同一 JSON）构建一个 draft 包版本，之后与手工上传的包走完全相同的校验、预览、提交与平台审核路径。
+
+- 每个题组（≤10 题，同一文章的题目在同一组）→ 一个带 `items` 的选择题组（`choice-scoring`）；`spr`（学生作答数值）题目在答案为数值时构建为带 `answerCheck`（`math-verify`）的自由作答题，否则报告为暂不可构建。
+- 每题一个 rubric criterion；每组生成评测用例（全对 / 一错 / 无法读取）；起始任务与练习顺序来自选题；manifest 沿用该课程现有 manifest。
+- 契约变更：`ContentSource` 增加可选字段 `bankItems: [{itemId, version}]`，记录每道包内题目来自哪个题库题目版本，供平台审核员与之后的审计追溯到来源页面和内容审核员。
+- 只有 `approved` 的题目版本可以进入选题；`answerSource: agent-suggested` 的答案在内容审核员确认前不能批准。
+- 许可证：题库里的来源与许可证字段只记录、暂不强制（所有者决定 2026-11-15）。**现有包校验规则不变**：署名为 College Board 的题目需要 `source.type: "licensed"`，平台审核员批准时仍须声明 `licenseAttested`。
