@@ -1,0 +1,97 @@
+"""Step 45.2: the question bank on real Firestore — item + version + history commit together,
+concurrent edits resolve to exactly one winner, array-contains flag filtering, and another
+organization cannot read the item."""
+
+from __future__ import annotations
+
+import asyncio
+import secrets
+from typing import Any
+
+import pytest
+
+from tests.emulator.test_firestore_flows import make_env
+from tests.support import emulator_token, idem
+
+ITEMS = "/api/bank/items"
+ORG = "org_hsos_content"
+MC = {
+    "stem": "If 2x + 4 = 100, what is the value of 6x + 12?",
+    "type": "mc",
+    "choices": {"A": "400", "B": "300", "C": "288", "D": "48"},
+}
+
+
+@pytest.fixture
+async def env() -> Any:
+    return await make_env()
+
+
+def headers(env: dict[str, Any], uid: str, key: str | None = None) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {emulator_token(uid, now=env['clock'].now())}",
+        "Idempotency-Key": key or idem(),
+    }
+
+
+async def create(env: dict[str, Any], flag: str, **content: Any) -> dict[str, Any]:
+    r = await env["http"].post(
+        ITEMS,
+        json={"content": {**MC, "flags": [flag], **content}},
+        headers=headers(env, "author_hsos"),
+    )
+    assert r.status_code == 201, r.text
+    return dict(r.json())
+
+
+async def test_review_workflow_commits_header_versions_and_history(env: dict[str, Any]) -> None:
+    flag = "run-" + secrets.token_hex(4)
+    item = await create(env, flag, answer="B", answerSource="source-key")
+    iid, http = item["itemId"], env["http"]
+    for uid, action in (("author_hsos", "submit"), ("reviewer_hsos", "approve")):
+        r = await http.post(f"{ITEMS}/{iid}/{action}", json={}, headers=headers(env, uid))
+        assert r.status_code == 200, r.text
+    header = (await env["db"].document(f"orgs/{ORG}/bankItems/{iid}").get()).to_dict()
+    v1 = (await env["db"].document(f"orgs/{ORG}/bankItems/{iid}/versions/000001").get()).to_dict()
+    assert header["state"] == "approved" and header["approvedVersion"] == 1
+    assert [h["action"] for h in header["history"]] == ["create", "submit", "approve"]
+    assert v1["submittedBy"] == "author_hsos" and v1["review"]["reviewerId"] == "reviewer_hsos"
+    # a revision opens version 2 without touching version 1
+    r = await http.patch(
+        f"{ITEMS}/{iid}",
+        json={"expectedRevision": header["revision"], "changes": {"stem": "Find 6x + 12."}},
+        headers=headers(env, "author_hsos"),
+    )
+    assert r.status_code == 200 and r.json()["currentVersion"] == 2, r.text
+    again = await env["db"].document(f"orgs/{ORG}/bankItems/{iid}/versions/000001").get()
+    assert again.to_dict()["content"]["stem"] == MC["stem"]
+
+
+async def test_concurrent_edits_have_exactly_one_winner(env: dict[str, Any]) -> None:
+    item = await create(env, "run-" + secrets.token_hex(4))
+    path = f"{ITEMS}/{item['itemId']}"
+    bodies = [{"expectedRevision": 1, "changes": {"stem": f"Version {n}"}} for n in ("one", "two")]
+    a, b = await asyncio.gather(
+        *(
+            env["http"].patch(path, json=body, headers=headers(env, "author_hsos"))
+            for body in bodies
+        )
+    )
+    assert sorted((a.status_code, b.status_code)) == [200, 409], (a.text, b.text)
+    loser = a if a.status_code == 409 else b
+    assert loser.json()["error"]["code"] == "VERSION_CONFLICT"
+    final = (await env["http"].get(path, headers=headers(env, "author_hsos"))).json()
+    assert final["revision"] == 2 and final["current"]["stem"] in ("Version one", "Version two")
+
+
+async def test_flag_filter_and_organization_isolation(env: dict[str, Any]) -> None:
+    flag = "run-" + secrets.token_hex(4)
+    mine = [await create(env, flag) for _ in range(2)]
+    await create(env, "run-" + secrets.token_hex(4))  # a different flag
+    r = await env["http"].get(f"{ITEMS}?flag={flag}", headers=headers(env, "reviewer_hsos"))
+    assert r.status_code == 200, r.text
+    assert sorted(i["itemId"] for i in r.json()["items"]) == sorted(m["itemId"] for m in mine)
+    other = await env["http"].get(
+        f"{ITEMS}/{mine[0]['itemId']}", headers=headers(env, "author_sample")
+    )
+    assert other.status_code == 404

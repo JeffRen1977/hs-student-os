@@ -40,6 +40,10 @@ class ErrorCode(StrEnum):
     PARENT_LINK_LIMIT = "PARENT_LINK_LIMIT"  # Step 36
     ADMISSIONS_ACCESS_REQUIRED = "ADMISSIONS_ACCESS_REQUIRED"  # Step 35
     FACTS_NOT_CONFIRMED = "FACTS_NOT_CONFIRMED"  # Step 35.4
+    ITEM_NOT_APPROVED = "ITEM_NOT_APPROVED"  # Step 45: selection references an unapproved item
+    ITEM_KEY_REQUIRED = "ITEM_KEY_REQUIRED"  # Step 45: approval needs a confirmed key
+    SELECTION_INVALID = "SELECTION_INVALID"  # Step 45.4
+    IMPORT_SOURCE_REJECTED = "IMPORT_SOURCE_REJECTED"  # Step 39: link/file guard
     # Events
     EVENT_CURSOR_EXPIRED = "EVENT_CURSOR_EXPIRED"
     # Legacy endpoints

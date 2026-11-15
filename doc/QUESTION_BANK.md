@@ -1,6 +1,7 @@
 # Organization question bank, authoring agents and content review — contract v1
 
-Status: **approved by the owner 2026-11-15; not implemented** (Step 45). This document is the contract for the
+Status: **approved by the owner 2026-11-15.** Implemented 2026-11-15: roles, items and their review (45.1–45.3).
+Not yet: sources, imports, selections and the builder (45.4, Step 39), portal screens (45.5), seeding (45.6). This document is the contract for the
 question bank. API.md §6.5.7, BACKEND.md §2–3, COURSE_PACKAGE.md §7 and CLAUDE.md summarize it and point here;
 where they differ, this document wins until the code exists.
 
@@ -71,9 +72,12 @@ Created with Idempotency-Key; same key + same body replays the job.
 
 ### 4.3 `bankItems/{itemId}` + `bankItems/{itemId}/versions/{n}` — the question bank
 Item header: `itemId`, `courseId` (target course, optional until selection), `state`, `currentVersion`,
-`approvedVersion` (latest approved version or null), `tags[]`, `createdBy`, timestamps.
+`approvedVersion` (latest approved version or null), `revision` (write counter for optimistic concurrency),
+`tags[]`, `flags[]` (copy of the current version's flags, for filtering), `history[]` (every command: action,
+version, actor, time, from/to state, notes), `createdBy`, timestamps.
 
-Item version (immutable once the version leaves `draft`; records `submittedBy`):
+Item version (records `submittedBy`; never changes once decided — approved or rejected — or discarded/retired;
+while `in_review` only the content reviewer may change it, e.g. text fixes or the key):
 
 | Field | Notes |
 |---|---|
@@ -163,7 +167,7 @@ All POSTs require Idempotency-Key; all routes are org-scoped by the caller's mem
 | `GET /api/bank/items?state=&courseId=&flag=` | author+ | list items (paged) |
 | `GET /api/bank/items/:itemId` | author+ | item with versions and provenance |
 | `POST /api/bank/items` | author+ | create an item by hand (`provenance.by = author`) |
-| `PATCH /api/bank/items/:itemId` | author+ | edit the current `draft` version (expected `version` → 409 on conflict) |
+| `PATCH /api/bank/items/:itemId` | author+ | edit (`expectedRevision` → 409 `VERSION_CONFLICT` when stale; see API.md §6.5.7) |
 | `POST /api/bank/items/:itemId/confirm` | author+ | `extracted` → `draft` |
 | `POST /api/bank/items/:itemId/submit` | author+ | `draft` → `in_review` |
 | `POST /api/bank/items/:itemId/discard` | author+ | → `discarded` (before approval) |

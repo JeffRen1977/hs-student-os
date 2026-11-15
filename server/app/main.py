@@ -18,6 +18,7 @@ from app.api.routes import (
     admin,
     admissions,
     assessments,
+    bank,
     courses,
     events,
     health,
@@ -104,6 +105,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     app.include_router(packages.authoring)
     app.include_router(packages.review)
     app.include_router(admin.router)
+    app.include_router(bank.router)
     return app
 
 

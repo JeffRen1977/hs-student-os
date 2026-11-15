@@ -30,6 +30,8 @@ def _matches(doc: Doc, flt: Filter) -> bool:
             return bool(value == flt.value)
         case "in":
             return value in flt.value
+        case "array_contains":
+            return isinstance(value, list) and flt.value in value
         case "<":
             return value is not None and value < flt.value
         case "<=":

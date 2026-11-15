@@ -23,7 +23,7 @@ The catalog's existing `entitled` field now means the course is active for every
 independent of the legacy per-student entitlement lists. Admissions entitlement is unchanged.
 The `COURSE_ACCESS_REQUIRED` error code was removed on 2026-11-10.
 
-Question bank (approved 2026-11-15, Step 45, not implemented): authors bring questions into an
+Question bank (approved 2026-11-15, Step 45; item workflow implemented, sources/imports/selections not yet): authors bring questions into an
 organization question bank (by hand or through the authoring agent's import), and a content
 reviewer of the same organization (who may also be the author) approves items, supplies missing
 keys and solutions, and builds the package version from a selection. The package then follows the
@@ -599,7 +599,7 @@ Admins publish reviewer-approved course versions for the whole platform. See the
 policy at the beginning of this document for endpoints, permissions and enrollment rules.
 The old individual and cohort course-grant API is removed.
 
-### 6.5.7 Organization question bank and content review (Step 45, approved 2026-11-15, not implemented)
+### 6.5.7 Organization question bank and content review (Step 45; items implemented 2026-11-15)
 
 Full contract: [QUESTION_BANK.md](QUESTION_BANK.md). Every route is scoped to the caller's author
 organization (`platformMembers/{uid}.orgId`); another organization's sources, jobs, items and
@@ -619,20 +619,28 @@ Author and content reviewer (`bank:author`):
   → 422 `IMPORT_SOURCE_REJECTED`. License fields are recorded, not enforced (owner decision 2026-11-15).
 - `POST /api/bank/imports` body `{sourceIds[], courseHint?}` → 202 `ImportJob` (`QUEUED`); the extraction runs
   as a worker Run. `GET /api/bank/imports/{jobId}` → status, `itemCount`, `errors[]`, `usage`.
-- `GET /api/bank/items?state=&courseId=&flag=&cursor=` → paged `BankItemSummary[]`;
-  `GET /api/bank/items/{itemId}` → `BankItem` with versions and provenance.
-- `POST /api/bank/items` body `{courseId?, version: BankItemVersionInput}` → 201 (provenance `author`).
-- `PATCH /api/bank/items/{itemId}` body `{expectedVersion, changes}` → edits the current `draft` version;
-  stale `expectedVersion` → 409 `VERSION_CONFLICT`; editing an approved item creates a new `draft` version.
-- `POST /api/bank/items/{itemId}/confirm` (`extracted` → `draft`), `/submit` (`draft` → `in_review`),
-  `/discard` (→ `discarded`, before approval). Other transitions → 409 `INVALID_STATE_TRANSITION`.
+- `GET /api/bank/items?state=&courseId=&flag=&cursor=&limit=` → `{items: BankItemSummary[], nextCursor}`
+  (listed by itemId, `limit` ≤ 200, `nextCursor` null on the last page);
+  `GET /api/bank/items/{itemId}` → `BankItem` with every version, provenance and history.
+- `POST /api/bank/items` body `{courseId?, tags[], content: ItemContent, provenance?}` → 201 `draft` item, version 1
+  (provenance defaults to `author`). An author may record `answerSource` `source-key`, `compiled-key` or
+  `agent-suggested`; `reviewer` from an author → 403. An answer needs an `answerSource` (400).
+- `PATCH /api/bank/items/{itemId}` body `{expectedRevision, changes}`: `revision` is the item's write counter
+  (bumped by every command); stale → 409 `VERSION_CONFLICT`. Only fields present in `changes` change.
+  `extracted`/`draft` items change in place; an `in_review` item changes in place only for a content reviewer
+  (author → 409 `INVALID_STATE_TRANSITION`); an `approved` or `rejected` item gets a new `draft` version (the
+  approved version stays usable); `discarded`/`retired` items cannot change.
+- `POST /api/bank/items/{itemId}/confirm` body `{}` (`extracted` → `draft`), `/submit` body `{}` (`draft` →
+  `in_review`, records `submittedBy`), `/discard` body `{notes?}` (→ `discarded`; only for items never approved).
+  Other transitions → 409 `INVALID_STATE_TRANSITION`.
 
 Content reviewer only (`bank:review`; authors get 403):
 
-- `POST /api/bank/items/{itemId}/key` body `{answer, solution?}` → sets `answerSource: reviewer` on the
-  version in review; `spr` items with a reviewer key need a `solution`.
-- `POST /api/bank/items/{itemId}/approve` body `{notes?}` → `approved`; no final key, or a key whose
-  `answerSource` is `agent-suggested` → 409 `ITEM_KEY_REQUIRED`.
+- `POST /api/bank/items/{itemId}/key` body `{answer, solution?}` → sets `answerSource: reviewer` on a `draft`
+  or `in_review` version (also how an agent-suggested or disputed key is confirmed or replaced).
+- `POST /api/bank/items/{itemId}/approve` body `{notes?}` → `approved`; no key, an `agent-suggested` key, or a
+  reviewer key on an `spr` item without a `solution` → 409 `ITEM_KEY_REQUIRED`; an empty stem or an `mc` item
+  without non-empty choices A–D → 400 `VALIDATION_FAILED`.
 - `POST /api/bank/items/{itemId}/reject` body `{notes}` (required) → `rejected`; `/retire` body `{notes}` → `retired`.
 - `GET /api/bank/selections`, `GET /api/bank/selections/{id}` (readable by authors too);
   `POST /api/bank/selections`, `PATCH /api/bank/selections/{id}` (content reviewer). Referencing an item

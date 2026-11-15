@@ -305,6 +305,11 @@ class FirestorePlatformDirectory:
             return await txn.get(member_path(uid))
 
         doc: dict[str, Any] | None = await self._store.run_transaction(body)
-        if doc is None or doc.get("role") not in ("author", "platform_reviewer", "admin"):
+        if doc is None or doc.get("role") not in (
+            "author",
+            "content_reviewer",
+            "platform_reviewer",
+            "admin",
+        ):
             return None
         return PlatformMember(uid=uid, role=str(doc["role"]), org_id=doc.get("orgId"))

@@ -16,6 +16,7 @@ from fastapi import Request
 
 from app.adapters.auth import FirebaseTokenVerifier
 from app.adapters.execution.synthetic import SyntheticExecutor
+from app.adapters.firestore.bank_repository import DocumentBankUnitOfWork
 from app.adapters.firestore.documents import DocumentStore
 from app.adapters.firestore.identity_repository import FirestoreIdentityDirectory
 from app.adapters.firestore.memory_store import MemoryDocumentStore
@@ -44,6 +45,7 @@ from app.config import (
 from app.domain.admissions_runs import AdmissionsRunner
 from app.domain.admissions_service import AdmissionsService
 from app.domain.assessment_service import AssessmentService
+from app.domain.bank_service import BankService
 from app.domain.budget import BudgetLedger, BudgetLimits
 from app.domain.command_service import CommandService
 from app.domain.course_service import CourseService
@@ -113,6 +115,7 @@ class Services:
     content: ContentRegistry
     content_sync: PackageContentSync
     packages: PackageService
+    bank: BankService  # Step 45: organization question bank
     catalog: CourseCatalog
     packs: SubjectPackRegistry
     budget: BudgetLedger
@@ -407,6 +410,7 @@ def build_services(
             clock,
             reserved_course_ids=content.bundled_course_ids,
         ),
+        bank=BankService(DocumentBankUnitOfWork(store), clock, ids),
         catalog=catalog,
         packs=packs,
         budget=ledger,

@@ -9,6 +9,9 @@ class ActorRole(StrEnum):
     SERVICE = "service"  # worker / scheduler identities (OIDC), never a browser
     ADMIN = "admin"  # publishes reviewer-approved courses for the whole platform
     AUTHOR = "author"  # course-package author, member of one author organization
+    # Step 45: approves bank items, supplies keys and selects items for packages; one
+    # organization; also holds every author permission (may review their own items).
+    CONTENT_REVIEWER = "content_reviewer"
     PLATFORM_REVIEWER = "platform_reviewer"  # approves or rejects content
     PARENT = "parent"  # reads a scoped summary of a linked student (Step 36)
 
@@ -22,6 +25,8 @@ class Permission(StrEnum):
     PACKAGES_AUTHOR = "packages:author"
     PACKAGES_REVIEW = "packages:review"
     PACKAGES_PUBLISH = "packages:publish"  # admins publish reviewer-approved courses
+    BANK_AUTHOR = "bank:author"  # Step 45: create, edit and submit question-bank items
+    BANK_REVIEW = "bank:review"  # Step 45: key, approve/reject/retire items; selections
     SUMMARY_READ = "summary:read"  # parent: the summary projection only (Step 36)
 
 
@@ -43,10 +48,17 @@ SERVICE_ACTOR_PREFIX = "svc:"
 PARENT_SCOPES = frozenset({Permission.SUMMARY_READ})
 
 PLATFORM_ROLE_PERMISSIONS: dict[ActorRole, frozenset[Permission]] = {
-    ActorRole.AUTHOR: frozenset({Permission.PACKAGES_AUTHOR}),
+    ActorRole.AUTHOR: frozenset({Permission.PACKAGES_AUTHOR, Permission.BANK_AUTHOR}),
+    ActorRole.CONTENT_REVIEWER: frozenset(
+        {Permission.PACKAGES_AUTHOR, Permission.BANK_AUTHOR, Permission.BANK_REVIEW}
+    ),
     ActorRole.PLATFORM_REVIEWER: frozenset({Permission.PACKAGES_REVIEW}),
     ActorRole.ADMIN: frozenset({Permission.PACKAGES_PUBLISH}),
 }
+
+
+# Roles that belong to exactly one author organization.
+ORG_ROLES = frozenset({ActorRole.AUTHOR, ActorRole.CONTENT_REVIEWER})
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -72,7 +84,12 @@ class ActorContext:
             raise ValueError("service actor ids start with 'svc:' so they never collide with uids")
         if self.role is ActorRole.STUDENT and self.actor_id.startswith(SERVICE_ACTOR_PREFIX):
             raise ValueError("student ids may not use the service prefix")
-        if self.role in (ActorRole.ADMIN, ActorRole.AUTHOR, ActorRole.PLATFORM_REVIEWER):
+        if self.role in (
+            ActorRole.ADMIN,
+            ActorRole.AUTHOR,
+            ActorRole.CONTENT_REVIEWER,
+            ActorRole.PLATFORM_REVIEWER,
+        ):
             # Platform members act through `PlatformActor` and never inside a student's data.
             raise ValueError("platform roles have no student context")
         if self.role is ActorRole.PARENT and (
@@ -154,14 +171,15 @@ class ParentActor:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PlatformActor:
-    """An author, platform reviewer (Step 26) or platform admin (Step 42). Deliberately a
+    """An author or content reviewer (Steps 26, 45), platform reviewer (Step 26) or
+    platform admin (Step 42). Deliberately a
     different type from `ActorContext`: it has no `student_id`, so it cannot be passed to
     any student store or learning service, and authors never see student data. Admins
     publish and retire courses for every student; they never grant access per student.
 
-    Authors belong to exactly one author organization (`org_id`) and see only that
-    organization's packages. Reviewers and admins act for the platform and have no
-    organization.
+    Authors and content reviewers belong to exactly one author organization (`org_id`) and
+    see only that organization's packages and question bank. Platform reviewers and admins
+    act for the platform and have no organization.
     """
 
     actor_id: str
@@ -174,9 +192,14 @@ class PlatformActor:
         if not self.actor_id or self.actor_id.startswith(SERVICE_ACTOR_PREFIX):
             raise ValueError("platform actors need a real uid")
         if self.role not in PLATFORM_ROLE_PERMISSIONS:
-            raise ValueError("platform actors are authors, platform reviewers or admins")
-        if (self.role is ActorRole.AUTHOR) != (self.org_id is not None):
-            raise ValueError("authors belong to one organization; reviewers and admins to none")
+            raise ValueError(
+                "platform actors are authors, content reviewers, platform reviewers or admins"
+            )
+        if (self.role in ORG_ROLES) != (self.org_id is not None):
+            raise ValueError(
+                "authors and content reviewers belong to one organization; "
+                "platform reviewers and admins to none"
+            )
 
     @classmethod
     def for_member(
@@ -189,6 +212,9 @@ class PlatformActor:
             permissions=PLATFORM_ROLE_PERMISSIONS[role],
             request_id=request_id,
         )
+
+    def can(self, permission: Permission) -> bool:
+        return permission in self.permissions
 
     def require(self, permission: Permission) -> None:
         if permission not in self.permissions:

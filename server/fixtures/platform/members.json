@@ -9,6 +9,13 @@
       "displayName": "HS Student OS content author"
     },
     {
+      "uid": "reviewer_hsos",
+      "role": "content_reviewer",
+      "orgId": "org_hsos_content",
+      "email": "content.reviewer.hsos@example.test",
+      "displayName": "HS Student OS content reviewer"
+    },
+    {
       "uid": "author_sample",
       "role": "author",
       "orgId": "org_sample_press",

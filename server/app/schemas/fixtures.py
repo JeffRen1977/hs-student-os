@@ -72,15 +72,18 @@ class TaskFixture(ApiModel):
 
 class PlatformMemberFixture(ApiModel):
     uid: Annotated[str, StringConstraints(pattern=r"^(author|reviewer|admin)_[a-z0-9_]+$")]
-    role: Literal["author", "platform_reviewer", "admin"]
+    role: Literal["author", "content_reviewer", "platform_reviewer", "admin"]
     org_id: Annotated[str, StringConstraints(pattern=r"^org_[a-z0-9_]+$")] | None
     email: SyntheticEmail
     display_name: Annotated[str, StringConstraints(min_length=1, max_length=80)]
 
     @model_validator(mode="after")
     def _authors_have_an_org(self) -> Self:
-        if (self.role == "author") != (self.org_id is not None):
-            raise ValueError("authors belong to one organization; reviewers and admins to none")
+        if (self.role in ("author", "content_reviewer")) != (self.org_id is not None):
+            raise ValueError(
+                "authors and content reviewers belong to one organization; "
+                "platform reviewers and admins to none"
+            )
         return self
 
 

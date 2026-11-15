@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
 Doc = dict[str, Any]
-Op = Literal["==", "in", "<", "<=", ">", ">="]
+Op = Literal["==", "in", "<", "<=", ">", ">=", "array_contains"]
 
 
 @dataclass(frozen=True, slots=True)
