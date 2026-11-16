@@ -34,11 +34,13 @@ from app.domain.types.bank import (
     EDITABLE_IN_PLACE,
     ITEM_TRANSITIONS,
     MAX_CHOICE_CHARS,
+    MAX_PASSAGE_CHARS,
     MAX_STEM_CHARS,
     AnswerSource,
     BankItem,
     BankItemState,
     BankItemVersion,
+    BankPassage,
     ItemChange,
     ItemContent,
     ItemReview,
@@ -49,6 +51,7 @@ from app.domain.types.bank import (
 from app.domain.types.common import IdempotencyRecord
 
 ITEM_RESOURCE = "bank_item"
+PASSAGE_RESOURCE = "bank_passage"
 DIFFICULTIES = frozenset({"easy", "medium", "hard"})
 MAX_LIST = 200
 
@@ -164,7 +167,60 @@ class BankService:
 
         return await self._uow.transaction(read)
 
+    async def get_passage(self, actor: PlatformActor, passage_id: str) -> BankPassage:
+        actor.require(Permission.BANK_AUTHOR)
+        org = self._org(actor)
+
+        async def read(tx: BankTx) -> BankPassage:
+            passage = await tx.passages.get(org, passage_id)
+            if passage is None:
+                raise DomainError(ErrorCode.NOT_FOUND, "Passage not found.")
+            return passage
+
+        return await self._uow.transaction(read)
+
     # ---- Author commands --------------------------------------------------------------------
+
+    async def create_passage(
+        self,
+        actor: PlatformActor,
+        title: str,
+        text: str,
+        provenance: Provenance,
+        cmd: CommandKey,
+        flags: Sequence[str] = (),
+    ) -> Outcome[BankPassage]:
+        """A shared passage items can reference (`passageId`). Idempotent per key."""
+        actor.require(Permission.BANK_AUTHOR)
+        org = self._org(actor)
+        if not text.strip():
+            raise _invalid("A passage needs text.")
+        if len(text) > MAX_PASSAGE_CHARS:
+            raise _invalid(f"A passage is limited to {MAX_PASSAGE_CHARS} characters.")
+
+        async def write(tx: BankTx) -> Outcome[BankPassage]:
+            replay = await self._replay(tx, actor, cmd)
+            if replay is not None:
+                existing = await tx.passages.get(org, replay.resource_id)
+                if existing is None:  # pragma: no cover - passages are never deleted
+                    raise DomainError(ErrorCode.NOT_FOUND, "Passage not found.")
+                return Outcome(value=existing, replayed=True, created=True)
+            now = self._clock.now()
+            passage = BankPassage(
+                passage_id=self._ids.new("bkp"),
+                org_id=org,
+                title=title,
+                text=text,
+                provenance=provenance,
+                created_by=actor.actor_id,
+                created_at=now,
+                flags=tuple(flags),
+            )
+            tx.passages.save(passage)
+            self._remember(tx, actor, cmd, passage.passage_id, 201, now, PASSAGE_RESOURCE)
+            return Outcome(value=passage, created=True)
+
+        return await self._uow.transaction(write)
 
     async def create(
         self,
@@ -191,6 +247,7 @@ class BankService:
                     replayed=True,
                     created=replay.response_status == 201,
                 )
+            await self._check_passage(tx, org, inp.content.passage_id)
             now = self._clock.now()
             item_id = self._ids.new("bki")
             version = BankItemVersion(
@@ -276,6 +333,8 @@ class BankService:
                 )
             self._check_author_key(actor, content, previous=current.content)
             check_content(content)
+            if content.passage_id != current.content.passage_id:
+                await self._check_passage(tx, org, content.passage_id)
             now = self._clock.now()
 
             if item.state in EDITABLE_IN_PLACE or (
@@ -596,6 +655,11 @@ class BankService:
             raise _invalid("Unknown answerSource.")
 
     @staticmethod
+    async def _check_passage(tx: BankTx, org: str, passage_id: str | None) -> None:
+        if passage_id is not None and await tx.passages.get(org, passage_id) is None:
+            raise _invalid(f"passageId {passage_id} is not a passage of this organization.")
+
+    @staticmethod
     def _org(actor: PlatformActor) -> str:
         if actor.org_id is None:  # platform reviewers and admins have no bank
             raise DomainError(ErrorCode.FORBIDDEN, "This account has no organization bank.")
@@ -637,7 +701,13 @@ class BankService:
 
     @staticmethod
     def _remember(
-        tx: BankTx, actor: PlatformActor, cmd: CommandKey, item_id: str, status: int, now: datetime
+        tx: BankTx,
+        actor: PlatformActor,
+        cmd: CommandKey,
+        item_id: str,
+        status: int,
+        now: datetime,
+        resource_type: str = ITEM_RESOURCE,
     ) -> None:
         tx.idempotency.save(
             actor.actor_id,
@@ -645,7 +715,7 @@ class BankService:
                 key_hash=cmd.key_hash(actor),
                 scope=cmd.scope,
                 request_digest=cmd.request_digest,
-                resource_type=ITEM_RESOURCE,
+                resource_type=resource_type,
                 resource_id=item_id,
                 response_status=status,
                 created_at=now,

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.domain.ports.packages import PlatformIdempotencyStore
-from app.domain.types.bank import BankItem, BankItemState, BankItemVersion
+from app.domain.types.bank import BankItem, BankItemState, BankItemVersion, BankPassage
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -40,9 +40,18 @@ class BankItemStore(Protocol):
     def save_version(self, org_id: str, version: BankItemVersion) -> None: ...
 
 
+class BankPassageStore(Protocol):
+    async def get(self, org_id: str, passage_id: str) -> BankPassage | None: ...
+
+    def save(self, passage: BankPassage) -> None: ...
+
+
 class BankTx(Protocol):
     @property
     def items(self) -> BankItemStore: ...
+
+    @property
+    def passages(self) -> BankPassageStore: ...
 
     @property
     def idempotency(self) -> PlatformIdempotencyStore: ...

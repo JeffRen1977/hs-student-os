@@ -173,6 +173,25 @@ class BankItem:
     history: Sequence[ItemChange] = field(default_factory=tuple)
 
 
+MAX_PASSAGE_CHARS = 60_000
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class BankPassage:
+    """A shared stimulus (reading/writing passage, data table, shared math setup) referenced
+    by items through `ItemContent.passage_id`. Version 1 only for now: editing passages
+    (with versions, like items) arrives with the portal screens (45.5)."""
+
+    passage_id: str
+    org_id: str
+    title: str
+    text: str
+    provenance: Provenance
+    created_by: str
+    created_at: datetime
+    flags: Sequence[str] = ()
+
+
 # ---- Later Step 45 / Step 39 records (contract defined, services not yet implemented) -------
 
 

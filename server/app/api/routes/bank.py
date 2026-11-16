@@ -77,6 +77,17 @@ def _changes(c: bk.ItemChangesIn) -> dict[str, Any]:
     return out
 
 
+def _provenance_view(p: Provenance) -> bk.ProvenanceView:
+    return bk.ProvenanceView(
+        kind=p.kind.value,
+        source_id=p.source_id,
+        page=p.page,
+        region=p.region,
+        import_job_id=p.import_job_id,
+        reference=p.reference,
+    )
+
+
 def _version_view(v: BankItemVersion) -> bk.ItemVersionView:
     c, p, r = v.content, v.provenance, v.review
     return bk.ItemVersionView(
@@ -186,6 +197,27 @@ async def list_items(
 @router.get("/items/{item_id}", response_model=bk.BankItemView)
 async def get_item(item_id: ItemPath, actor: Platform, services: ServicesDep) -> JSONResponse:
     return respond(item_view(await services.bank.get_item(actor, item_id)))
+
+
+PassagePath = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+
+
+@router.get("/passages/{passage_id}", response_model=bk.BankPassageView)
+async def get_passage(
+    passage_id: PassagePath, actor: Platform, services: ServicesDep
+) -> JSONResponse:
+    p = await services.bank.get_passage(actor, passage_id)
+    return respond(
+        bk.BankPassageView(
+            passage_id=p.passage_id,
+            title=p.title,
+            text=p.text,
+            provenance=_provenance_view(p.provenance),
+            flags=list(p.flags),
+            created_by=p.created_by,
+            created_at=p.created_at,
+        )
+    )
 
 
 # ---- Author commands ------------------------------------------------------------------------

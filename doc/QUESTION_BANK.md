@@ -1,7 +1,8 @@
 # Organization question bank, authoring agents and content review — contract v1
 
 Status: **approved by the owner 2026-11-15.** Implemented 2026-11-15: roles, items and their review (45.1–45.3).
-Not yet: sources, imports, selections and the builder (45.4, Step 39), portal screens (45.5), seeding (45.6). This document is the contract for the
+Also implemented: passages (version 1, read endpoint) and development seeding (45.6). Not yet: sources,
+imports, selections and the builder (45.4, Step 39), portal screens (45.5). This document is the contract for the
 question bank. API.md §6.5.7, BACKEND.md §2–3, COURSE_PACKAGE.md §7 and CLAUDE.md summarize it and point here;
 where they differ, this document wins until the code exists.
 
@@ -151,9 +152,14 @@ Deterministic, no model calls:
   platform step.
 - **Student-produced responses:** need the free-response + `math-verify` path described in §6; non-numeric
   answers stay unbuildable until a platform ability covers them.
-- **Seeding for local testing:** the local bank in `server/content/private/bank` (git-ignored) can be imported
-  into a dev organization as `extracted`/`draft` items with their existing flags and keys, through the same
-  ImportJob path (`kind: bank-jsonl`, dev environment only).
+- **Seeding for local testing (45.6, implemented):** `make seed-bank` (`scripts/seed_bank.py`) loads the
+  git-ignored local bank in `server/content/private/bank` into `org_hsos_content`, emulator + `demo-*` project
+  only. Every record goes through `BankService.create` (the call the Step 39 import uses), arriving as
+  `extracted` (or `draft` for page-image-verified records with `--verified-as-draft`), with provenance
+  (`imported`, source file, page, local id as `region`), its flags plus `seed-status:*`, and key origin
+  (`official-key` → `source-key`, compiled → `compiled-key`, worked out → `agent-suggested`). Shared passages
+  become `bankPassages`. Re-running replays; a locally changed record is reported and skipped. The ImportJob
+  record (`kind: bank-jsonl`) is not created yet; it arrives with Step 39.
 
 ## 9. API (summarized in API.md §6.5.7)
 

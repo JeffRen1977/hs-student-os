@@ -622,6 +622,10 @@ Author and content reviewer (`bank:author`):
 - `GET /api/bank/items?state=&courseId=&flag=&cursor=&limit=` → `{items: BankItemSummary[], nextCursor}`
   (listed by itemId, `limit` ≤ 200, `nextCursor` null on the last page);
   `GET /api/bank/items/{itemId}` → `BankItem` with every version, provenance and history.
+- `GET /api/bank/passages/{passageId}` → `BankPassage` (`title`, `text`, `provenance`, `flags`): shared passages
+  that items reference through `content.passageId`. An item's `passageId` must name a passage of the same
+  organization (400 otherwise). Passages are created by the import/seed path for now; editing them arrives with
+  the portal screens.
 - `POST /api/bank/items` body `{courseId?, tags[], content: ItemContent, provenance?}` → 201 `draft` item, version 1
   (provenance defaults to `author`). An author may record `answerSource` `source-key`, `compiled-key` or
   `agent-suggested`; `reviewer` from an author → 403. An answer needs an `answerSource` (400).

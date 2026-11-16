@@ -16,7 +16,7 @@ EMULATOR_ENV := FIRESTORE_EMULATOR_HOST=$(FIRESTORE_EMULATOR_HOST) \
 WEB_ORIGIN_ENV := HSOS_CORS_ALLOWED_ORIGINS='["http://localhost:$(WEB_PORT)","http://127.0.0.1:$(WEB_PORT)"]'
 
 .PHONY: help install dev server server-memory web emulators seed typecheck lint format test \
-	test-unit test-contract test-emulator test-web check
+	test-unit test-contract test-emulator test-web check seed-bank
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "} {printf "  %-15s %s\n", $$1, $$2}'
@@ -45,6 +45,9 @@ emulators: ## Start Firebase Auth + Firestore emulators (requires Java 11+)
 
 seed: ## Seed running emulators with synthetic students
 	cd $(SERVER_DIR) && $(EMULATOR_ENV) uv run python -m scripts.seed_emulator
+
+seed-bank: ## Dev only: load the git-ignored local question bank (server/content/private/bank) into org_hsos_content
+	cd $(SERVER_DIR) && $(EMULATOR_ENV) uv run python -m scripts.seed_bank $(SEED_BANK_ARGS)
 
 typecheck: ## mypy (strict) over app/
 	cd $(SERVER_DIR) && uv run mypy app/

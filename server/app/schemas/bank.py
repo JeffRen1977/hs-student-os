@@ -179,6 +179,16 @@ class BankItemView(BankItemSummaryView):
     history: list[ItemChangeView]
 
 
+class BankPassageView(ApiModel):
+    passage_id: str
+    title: str
+    text: str
+    provenance: ProvenanceView
+    flags: list[str]
+    created_by: str
+    created_at: UtcDatetime
+
+
 class BankItemListView(ApiModel):
     items: list[BankItemSummaryView]
     next_cursor: str | None

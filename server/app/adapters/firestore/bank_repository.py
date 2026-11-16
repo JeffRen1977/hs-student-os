@@ -4,6 +4,7 @@ Layout (outside every student's subtree):
 
     orgs/{orgId}/bankItems/{itemId}                    item header: state, versions, history
     orgs/{orgId}/bankItems/{itemId}/versions/{n:06d}   one item version (content, review)
+    orgs/{orgId}/bankPassages/{passageId}              shared passage / stimulus
 
 Commands reuse the platform member idempotency records (`platformMembers/{uid}/idempotency`).
 """
@@ -20,6 +21,7 @@ from app.domain.types.bank import (
     BankItem,
     BankItemState,
     BankItemVersion,
+    BankPassage,
     FigureMode,
     ItemChange,
     ItemContent,
@@ -31,6 +33,7 @@ from app.domain.types.bank import (
 
 ORGS = "orgs"
 ITEMS = "bankItems"
+PASSAGES = "bankPassages"
 VERSIONS = "versions"
 
 
@@ -46,6 +49,36 @@ def items_collection(org_id: str) -> str:
 
 def item_path(org_id: str, item_id: str) -> str:
     return f"{items_collection(org_id)}/{_id(item_id)}"
+
+
+def passage_path(org_id: str, passage_id: str) -> str:
+    return f"{ORGS}/{_id(org_id)}/{PASSAGES}/{_id(passage_id)}"
+
+
+def passage_to_doc(p: BankPassage) -> Doc:
+    return {
+        "passageId": p.passage_id,
+        "orgId": p.org_id,
+        "title": p.title,
+        "text": p.text,
+        "provenance": provenance_to_doc(p.provenance),
+        "createdBy": p.created_by,
+        "createdAt": p.created_at,
+        "flags": list(p.flags),
+    }
+
+
+def passage_from_doc(d: Doc) -> BankPassage:
+    return BankPassage(
+        passage_id=d["passageId"],
+        org_id=d["orgId"],
+        title=d.get("title", ""),
+        text=d.get("text", ""),
+        provenance=provenance_from_doc(d["provenance"]),
+        created_by=d["createdBy"],
+        created_at=d["createdAt"],
+        flags=tuple(d.get("flags", [])),
+    )
 
 
 def version_path(org_id: str, item_id: str, number: int) -> str:
@@ -266,9 +299,22 @@ class FirestoreBankItemStore:
         )
 
 
+class FirestoreBankPassageStore:
+    def __init__(self, txn: DocTxn) -> None:
+        self._txn = txn
+
+    async def get(self, org_id: str, passage_id: str) -> BankPassage | None:
+        doc = await self._txn.get(passage_path(org_id, passage_id))
+        return passage_from_doc(doc) if doc else None
+
+    def save(self, passage: BankPassage) -> None:
+        self._txn.set(passage_path(passage.org_id, passage.passage_id), passage_to_doc(passage))
+
+
 class FirestoreBankTx:
     def __init__(self, txn: DocTxn) -> None:
         self.items = FirestoreBankItemStore(txn)
+        self.passages = FirestoreBankPassageStore(txn)
         self.idempotency = FirestorePlatformIdempotencyStore(txn)
 
 
