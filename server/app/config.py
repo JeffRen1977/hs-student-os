@@ -102,6 +102,10 @@ class Settings(BaseSettings):
     llm_run_token_budget: int = Field(default=40_000, ge=1_000)
     llm_session_token_budget: int = Field(default=200_000, ge=1_000)
     llm_daily_token_budget: int = Field(default=400_000, ge=1_000)
+    # Authoring work (Steps 39/40) is charged to the organization, not to a student.
+    org_job_token_budget: int = Field(default=600_000, ge=1_000)
+    org_daily_token_budget: int = Field(default=3_000_000, ge=1_000)
+    link_import_enabled: bool = True  # platform fetches `link` sources under the link guard
     # Production refuses to serve content that has not passed human review.
     require_reviewed_content: bool = False
 

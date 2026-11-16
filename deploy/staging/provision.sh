@@ -186,6 +186,7 @@ schedule hsos-outbox-dispatch   "* * * * *"    /internal/outbox/dispatch
 schedule hsos-run-recovery      "*/5 * * * *"  /internal/runs/recover
 schedule hsos-planning-schedule "*/15 * * * *" /internal/planning/schedule
 schedule hsos-reminders         "*/5 * * * *"  /internal/reminders/deliver
+schedule hsos-bank-imports      "* * * * *"    /internal/imports/process
 schedule hsos-ops-check         "*/5 * * * *"  /internal/ops/check
 schedule hsos-event-retention   "30 3 * * *"   /internal/retention/events
 

@@ -105,6 +105,12 @@ async def schedule_planning(request: Request) -> ScanResponse:
     return ScanResponse(count=sum(outcomes.values()))
 
 
+@router.post("/imports/process", response_model=ScanResponse)
+async def process_imports(request: Request) -> ScanResponse:
+    """Cloud Scheduler, every minute: run due question-bank import jobs (Step 39B)."""
+    return ScanResponse(count=await get_services(request).import_processor.process_due())
+
+
 @router.post("/reminders/deliver", response_model=ScanResponse)
 async def deliver_reminders(request: Request) -> ScanResponse:
     """Cloud Scheduler, every 5 minutes: deliver due opt-in reminders (Step 29)."""

@@ -76,6 +76,7 @@ class ParseResult:
     questions: Sequence[ProposedQuestion]
     passages: Sequence[ProposedPassage]
     problems: Sequence[str] = ()  # about the whole input
+    answer_key: Mapping[int, str] = field(default_factory=dict)  # from an answer block
 
 
 @dataclass(slots=True)
@@ -231,7 +232,7 @@ def parse_text(text: str) -> ParseResult:
     if len(drafts) > MAX_QUESTIONS:
         problems.append(f"Only the first {MAX_QUESTIONS} questions are shown; split the text.")
         drafts = drafts[:MAX_QUESTIONS]
-    if not drafts:
+    if not drafts and not block_keys:
         problems.append("No numbered questions were found (expected lines like “1. …”).")
 
     questions: list[ProposedQuestion] = []
@@ -244,7 +245,7 @@ def parse_text(text: str) -> ParseResult:
                 f"{block_keys[d.number]}; the answer line was used."
             )
         questions.append(
-            _finish(
+            finish_question(
                 d.number,
                 _clean(d.stem),
                 {k: _clean(v) for k, v in d.choices.items()} or None,
@@ -260,10 +261,12 @@ def parse_text(text: str) -> ParseResult:
             problems.append(
                 f"“{p.title[:60]}”: no questions {p.range_from}–{p.range_to} follow it."
             )
-    return ParseResult(questions=questions, passages=passages, problems=problems)
+    return ParseResult(
+        questions=questions, passages=passages, problems=problems, answer_key=dict(block_keys)
+    )
 
 
-def _finish(
+def finish_question(
     number: int,
     stem: str,
     choices: Mapping[str, str] | None,
@@ -392,7 +395,7 @@ def parse_csv(text: str) -> ParseResult:
         if difficulty is not None and difficulty not in _DIFFICULTIES:
             extra.append(f"difficulty “{difficulty}” is not easy, medium or hard")
             difficulty = None
-        q = _finish(
+        q = finish_question(
             number,
             cell(row, "stem"),
             choices or None,

@@ -50,6 +50,7 @@ class BudgetContext:
     student_id: str
     session_id: str | None
     run_id: str
+    org_id: str | None = None  # authoring work (Steps 39/40): charged to the organization
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

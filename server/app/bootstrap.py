@@ -16,7 +16,10 @@ from fastapi import Request
 
 from app.adapters.auth import FirebaseTokenVerifier
 from app.adapters.execution.synthetic import SyntheticExecutor
-from app.adapters.firestore.bank_repository import DocumentBankUnitOfWork
+from app.adapters.firestore.bank_repository import (
+    DocumentBankUnitOfWork,
+    FirestoreImportQueueReader,
+)
 from app.adapters.firestore.documents import DocumentStore
 from app.adapters.firestore.identity_repository import FirestoreIdentityDirectory
 from app.adapters.firestore.memory_store import MemoryDocumentStore
@@ -32,6 +35,7 @@ from app.adapters.llm.provider import LlmProvider as LlmProviderAdapter
 from app.adapters.llm.router import ModelRouter
 from app.adapters.queue.local_queue import LocalQueue
 from app.adapters.runtime import RandomIdFactory, SystemClock
+from app.adapters.tools.link_fetcher import HttpLinkFetcher
 from app.adapters.tools.math_verify import MathVerifyTool
 from app.config import (
     AppEnv,
@@ -46,8 +50,15 @@ from app.domain.admissions_runs import AdmissionsRunner
 from app.domain.admissions_service import AdmissionsService
 from app.domain.assessment_service import AssessmentService
 from app.domain.bank_entry_service import BankEntryService
+from app.domain.bank_import_service import ImportProcessor, ImportService
 from app.domain.bank_service import BankService
-from app.domain.budget import BudgetLedger, BudgetLimits
+from app.domain.budget import (
+    BudgetLedger,
+    BudgetLimits,
+    OrgBudgetLedger,
+    OrgBudgetLimits,
+    TokenLedger,
+)
 from app.domain.command_service import CommandService
 from app.domain.course_service import CourseService
 from app.domain.event_feed import EventFeedService
@@ -59,6 +70,7 @@ from app.domain.package_service import PackageService
 from app.domain.parent_service import ParentService
 from app.domain.planner_service import PlannerService
 from app.domain.planning_schedule import PlanningSchedulePolicy
+from app.domain.ports.bank import LinkFetcher
 from app.domain.ports.catalog import CourseCatalog
 from app.domain.ports.content import ModelTier, SubjectPackRegistry
 from app.domain.ports.execution import JobQueue, RunExecutor
@@ -119,6 +131,8 @@ class Services:
     packages: PackageService
     bank: BankService  # Step 45: organization question bank
     bank_entry: BankEntryService  # Step 39A: quick entry (paste, CSV, batches)
+    imports: ImportService  # Step 39B: sources, pages and file-import jobs
+    import_processor: ImportProcessor  # Step 39B: the import scan (worker)
     selections: SelectionService  # Step 45.4: package selections and builds
     catalog: CourseCatalog
     packs: SubjectPackRegistry
@@ -258,7 +272,7 @@ def real_llm_provider(settings: Settings) -> LlmProviderAdapter:
 
 
 def _gateway(
-    settings: Settings, provider: LlmProviderAdapter | None, ledger: BudgetLedger
+    settings: Settings, provider: LlmProviderAdapter | None, ledger: TokenLedger
 ) -> Gateway | None:
     """The budgeted model gateway, or None under `mock` (no model: never grading)."""
     if provider is None:
@@ -304,6 +318,7 @@ def build_services(
     consumers: Sequence[Consumer] = (),
     reminder_sender_override: ReminderSender | None = None,
     metrics: Metrics | None = None,
+    link_fetcher: LinkFetcher | None = None,
 ) -> Services:
     """`consumers`: event consumers to run in addition to the platform's own. The platform
     registers the course-metrics consumer (Step 34.4) unless disabled; course follow-up
@@ -339,6 +354,16 @@ def build_services(
             daily_tokens=settings.llm_daily_token_budget,
         ),
     )
+    bank_uow = DocumentBankUnitOfWork(store)
+    org_ledger = OrgBudgetLedger(
+        bank_uow,
+        clock,
+        ids,
+        OrgBudgetLimits(
+            job_tokens=settings.org_job_token_budget,
+            daily_tokens=settings.org_daily_token_budget,
+        ),
+    )
     publisher = EventPublisher(frozenset().union(*(c.subscribes for c in consumers)))
     assessments = AssessmentService(uow, packs, clock, ids, publisher, catalog=catalog)
     operations = FirestoreOperationsStore(store)
@@ -361,6 +386,16 @@ def build_services(
     queue = queue or _queue(settings)
     dispatcher = OutboxDispatcher(uow, operations, queue, clock, metrics)
     gateway = _gateway(settings, llm_provider, ledger)
+    authoring_gateway = _gateway(settings, llm_provider, org_ledger)
+    worker = worker_id or f"worker-{socket.gethostname()}-{ids.new('w')}"
+    import_processor = ImportProcessor(
+        bank_uow,
+        FirestoreImportQueueReader(store),
+        authoring_gateway,
+        clock,
+        ids,
+        worker_id=worker,
+    )
     prompt_set = load_prompt_set()
     run_execution = RunExecutionService(
         uow,
@@ -368,7 +403,7 @@ def build_services(
         executor or _executor(gateway, packs, clock, ids),
         clock,
         ids,
-        worker_id=worker_id or f"worker-{socket.gethostname()}-{ids.new('w')}",
+        worker_id=worker,
         lease_seconds=settings.run_lease_seconds,
         max_attempts=settings.run_max_attempts,
         packs=packs,
@@ -390,7 +425,7 @@ def build_services(
             recovery=recovery,
             execution=deliveries,
             poll_seconds=settings.local_worker_poll_seconds,
-            scans=(planning_scheduler.run_due, reminders.deliver_due),
+            scans=(planning_scheduler.run_due, reminders.deliver_due, import_processor.process_due),
         )
         if isinstance(queue, LocalQueue)
         else None
@@ -402,7 +437,7 @@ def build_services(
         clock,
         reserved_course_ids=content.bundled_course_ids,
     )
-    bank_uow = DocumentBankUnitOfWork(store)
+    links = link_fetcher or (HttpLinkFetcher() if settings.link_import_enabled else None)
     return Services(
         settings=settings,
         store=store,
@@ -418,6 +453,10 @@ def build_services(
         packages=packages,
         bank=BankService(bank_uow, clock, ids),
         bank_entry=BankEntryService(bank_uow, clock, ids),
+        imports=ImportService(
+            bank_uow, clock, ids, links, model_available=authoring_gateway is not None
+        ),
+        import_processor=import_processor,
         selections=SelectionService(bank_uow, packages, clock, ids),
         catalog=catalog,
         packs=packs,

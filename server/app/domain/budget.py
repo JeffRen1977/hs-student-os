@@ -12,7 +12,9 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Protocol
 
+from app.domain.ports.bank import BankTx, BankUnitOfWork
 from app.domain.ports.llm import BudgetContext, BudgetExceededError
 from app.domain.ports.repositories import Tx, UnitOfWork
 from app.domain.ports.runtime import Clock, IdFactory
@@ -45,6 +47,101 @@ def usage_key(scope: BudgetScope, value: str) -> str:
 
 def day_key(now: datetime) -> str:
     return usage_key(BudgetScope.DAY, now.date().isoformat())
+
+
+class TokenLedger(Protocol):
+    """What the model gateway needs: reserve before a call, settle after it."""
+
+    async def reserve(self, ctx: BudgetContext, tokens: int) -> BudgetHold: ...
+
+    async def settle(self, ctx: BudgetContext, hold: BudgetHold, used_tokens: int) -> None: ...
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class OrgBudgetLimits:
+    job_tokens: int
+    daily_tokens: int
+    reservation_ttl_seconds: int = 600
+
+
+class OrgBudgetLedger:
+    """Authoring budgets (Steps 39/40): per import job or assistant turn (`run_id`) and per
+    organization per UTC day, same reserve/settle rules as the student ledger."""
+
+    def __init__(
+        self, uow: BankUnitOfWork, clock: Clock, ids: IdFactory, limits: OrgBudgetLimits
+    ) -> None:
+        self._uow = uow
+        self._clock = clock
+        self._ids = ids
+        self.limits = limits
+
+    def _scopes(self, ctx: BudgetContext, now: datetime) -> list[tuple[BudgetScope, str, int]]:
+        return [
+            (BudgetScope.RUN, usage_key(BudgetScope.RUN, ctx.run_id), self.limits.job_tokens),
+            (BudgetScope.DAY, day_key(now), self.limits.daily_tokens),
+        ]
+
+    @staticmethod
+    def _org(ctx: BudgetContext) -> str:
+        if not ctx.org_id:
+            raise ValueError("an authoring budget context needs org_id")
+        return ctx.org_id
+
+    def _live(self, counter: UsageCounter, now: datetime) -> dict[str, Reservation]:
+        ttl = self.limits.reservation_ttl_seconds
+        return {
+            k: r
+            for k, r in counter.reservations.items()
+            if (now - r.reserved_at).total_seconds() < ttl
+        }
+
+    async def reserve(self, ctx: BudgetContext, tokens: int) -> BudgetHold:
+        org = self._org(ctx)
+        reservation_id = self._ids.new("rsv")
+
+        async def body(tx: BankTx) -> BudgetHold:
+            now = self._clock.now()
+            scopes = self._scopes(ctx, now)
+            pending: list[UsageCounter] = []
+            for scope, key, limit in scopes:
+                counter = await tx.org_usage.get(org, key) or UsageCounter(key=key, scope=scope)
+                live = self._live(counter, now)
+                committed = counter.used_tokens + sum(r.tokens for r in live.values())
+                if committed + tokens > limit:
+                    raise BudgetExceededError(scope)
+                live[reservation_id] = Reservation(tokens=tokens, reserved_at=now)
+                pending.append(dataclasses.replace(counter, reservations=live, updated_at=now))
+            for counter in pending:
+                tx.org_usage.save(org, counter)
+            return BudgetHold(
+                reservation_id=reservation_id,
+                tokens=tokens,
+                counters=tuple((scope, key) for scope, key, _ in scopes),
+            )
+
+        return await self._uow.transaction(body)
+
+    async def settle(self, ctx: BudgetContext, hold: BudgetHold, used_tokens: int) -> None:
+        org = self._org(ctx)
+
+        async def body(tx: BankTx) -> None:
+            now = self._clock.now()
+            for scope, key in hold.counters:
+                counter = await tx.org_usage.get(org, key) or UsageCounter(key=key, scope=scope)
+                live = self._live(counter, now)
+                live.pop(hold.reservation_id, None)
+                tx.org_usage.save(
+                    org,
+                    dataclasses.replace(
+                        counter,
+                        used_tokens=counter.used_tokens + used_tokens,
+                        reservations=live,
+                        updated_at=now,
+                    ),
+                )
+
+        await self._uow.transaction(body)
 
 
 class BudgetLedger:

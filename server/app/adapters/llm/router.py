@@ -17,6 +17,7 @@ SKILL_MINIMUM_TIERS: Mapping[str, ModelTier] = {
     "source-analysis": ModelTier.STRONG,
     "admissions-facts": ModelTier.BALANCED,
     "admissions-feedback": ModelTier.BALANCED,
+    "question-extraction": ModelTier.BALANCED,  # Step 39B: transcription, never grading
 }
 
 

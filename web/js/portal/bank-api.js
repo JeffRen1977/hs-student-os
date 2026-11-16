@@ -38,6 +38,12 @@
       importBatch: (body, actionId) => request("POST", "/api/bank/imports/batch", body, actionId),
       listImports: () => request("GET", "/api/bank/imports"),
       getImport: (id) => request("GET", "/api/bank/imports/" + enc(id)),
+      // File import (Step 39B)
+      createSource: (body, actionId) => request("POST", "/api/bank/sources", body, actionId),
+      getSource: (id) => request("GET", "/api/bank/sources/" + enc(id)),
+      putPage: (id, n, body) => request("PUT", "/api/bank/sources/" + enc(id) + "/pages/" + n, body),
+      getPage: (id, n) => request("GET", "/api/bank/sources/" + enc(id) + "/pages/" + n),
+      startImport: (body, actionId) => request("POST", "/api/bank/imports", body, actionId),
     };
   }
 
@@ -317,7 +323,40 @@
     return p;
   }
 
+  // ---- File import (Step 39B) --------------------------------------------------------------
+
+  // pdf.js text items ({str, transform:[a,b,c,d,x,y]}) → reading-order lines.
+  function textItemsToLines(items) {
+    const rows = [];
+    for (const it of items) {
+      if (!it.str || !it.str.trim()) continue;
+      const y = Math.round(it.transform[5]);
+      let row = rows.find((r) => Math.abs(r.y - y) <= 2);
+      if (!row) { row = { y: y, parts: [] }; rows.push(row); }
+      row.parts.push({ x: it.transform[4], s: it.str });
+    }
+    rows.sort((a, b) => b.y - a.y);
+    return rows.map((r) => r.parts.sort((a, b) => a.x - b.x).map((p) => p.s).join(" ").replace(/\s+/g, " ").trim()).join("\n");
+  }
+
+  const PAGE_TEXT = { pending: "waiting", done: "done", failed: "failed" };
+
+  function jobProgress(job) {
+    const pages = job.pages || [];
+    const done = pages.filter((p) => p.status !== "pending").length;
+    const failed = pages.filter((p) => p.status === "failed").length;
+    const finished = job.status === "SUCCEEDED" || job.status === "FAILED";
+    return { done: done, total: pages.length, failed: failed, finished: finished,
+      percent: pages.length ? Math.round((100 * done) / pages.length) : (finished ? 100 : 0) };
+  }
+
+  function estimateText(tokens) {
+    if (!tokens) return "No model use expected (text layers only, or no model configured).";
+    return "Up to about " + Math.round(tokens / 1000) + "k model tokens if every page needs the model.";
+  }
+
   return {
+    textItemsToLines, jobProgress, estimateText, PAGE_TEXT,
     CSV_COLUMNS, CSV_TEMPLATE, settingsBody, batchFromPreview, chunkBatch, formBatch, formProblems,
     createBankApi, queryString, STATE_TEXT, KEY_TEXT, itemActions, approvalProblems,
     underlineSegments, formFromVersion, changesFromForm, emptySet, draftFromSelection,

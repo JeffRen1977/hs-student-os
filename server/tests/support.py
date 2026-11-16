@@ -243,6 +243,7 @@ def build_harness(
     reminder_sender: ReminderSender | None = None,
     store: MemoryDocumentStore | None = None,
     metrics: Metrics | None = None,
+    link_fetcher: Any = None,
     **settings_overrides: Any,
 ) -> Harness:
     """`seed_packages=False`: platform members only, no authored package installed, so a
@@ -271,6 +272,7 @@ def build_harness(
         consumers=consumers,
         reminder_sender_override=reminder_sender,
         metrics=metrics,
+        link_fetcher=link_fetcher,
     )
     app = create_app(settings, services)
     transport = ASGITransport(app=app, raise_app_exceptions=False)

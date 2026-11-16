@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 
 from app.domain.ports.packages import PlatformIdempotencyStore
@@ -17,9 +18,12 @@ from app.domain.types.bank import (
     BankItemState,
     BankItemVersion,
     BankPassage,
+    BankSource,
     ImportJob,
     Selection,
+    SourcePage,
 )
+from app.domain.types.usage import UsageCounter
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -71,6 +75,47 @@ class ImportJobStore(Protocol):
     def save(self, job: ImportJob) -> None: ...
 
 
+class SourceStore(Protocol):
+    async def get(self, org_id: str, source_id: str) -> BankSource | None: ...
+
+    def save(self, source: BankSource) -> None: ...
+
+    async def get_page(self, org_id: str, source_id: str, number: int) -> SourcePage | None: ...
+
+    async def page_numbers(self, org_id: str, source_id: str) -> Sequence[int]: ...
+
+    def save_page(self, org_id: str, page: SourcePage) -> None: ...
+
+
+class OrgUsageStore(Protocol):
+    """`orgs/{orgId}/usage/{key}`: model-token counters per import job and per UTC day."""
+
+    async def get(self, org_id: str, key: str) -> UsageCounter | None: ...
+
+    def save(self, org_id: str, counter: UsageCounter) -> None: ...
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class FetchedLink:
+    url: str  # after redirects
+    content_type: str
+    text: str  # readable text (HTML reduced to text)
+
+
+class LinkFetcher(Protocol):
+    async def fetch(self, url: str) -> FetchedLink:
+        """Fetch a public http(s) page under the link guard (QUESTION_BANK.md §7.2); raises
+        DomainError(IMPORT_SOURCE_REJECTED) with a plain-language reason otherwise."""
+        ...
+
+
+class ImportQueueReader(Protocol):
+    async def due_jobs(self, now: datetime, limit: int) -> Sequence[tuple[str, str]]:
+        """(orgId, jobId) of file jobs that are queued, or running with an expired lease.
+        Service-only, across organizations."""
+        ...
+
+
 class BankTx(Protocol):
     @property
     def items(self) -> BankItemStore: ...
@@ -83,6 +128,12 @@ class BankTx(Protocol):
 
     @property
     def imports(self) -> ImportJobStore: ...
+
+    @property
+    def sources(self) -> SourceStore: ...
+
+    @property
+    def org_usage(self) -> OrgUsageStore: ...
 
     @property
     def idempotency(self) -> PlatformIdempotencyStore: ...

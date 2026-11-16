@@ -139,6 +139,7 @@ function ItemDetail({ itemId, me, onChanged }) {
   const [passage, setPassage] = React.useState(null);
   const [error, setError] = React.useState(null);
   const [mode, setMode] = React.useState(null); // edit | key | reject | retire
+  const [showPage, setShowPage] = React.useState(false);
   const [text, setText] = React.useState({ answer: "", solution: "", notes: "" });
   const [busy, setBusy] = React.useState(false);
   const load = React.useCallback(async () => {
@@ -166,7 +167,9 @@ function ItemDetail({ itemId, me, onChanged }) {
     } catch (err) { setError(err); } finally { setBusy(false); }
   }
 
+  const hasPage = !!(v.provenance.sourceId && v.provenance.page);
   return (
+    <div className={showPage && hasPage ? "grid grid-cols-1 xl:grid-cols-2 gap-3 items-start" : ""}>
     <div className={CARD + " p-4"}>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-semibold font-mono text-sm">{detail.itemId}</h2>
@@ -177,6 +180,7 @@ function ItemDetail({ itemId, me, onChanged }) {
       <div className="text-xs text-slate-500 mt-1">
         Source: {v.provenance.kind}{v.provenance.reference ? " · " + v.provenance.reference : ""}{v.provenance.page ? " · page " + v.provenance.page : ""}{v.provenance.region ? " · " + v.provenance.region : ""}
         {v.submittedBy ? " · submitted by " + v.submittedBy : ""}
+        {hasPage && <button className="ml-2 text-indigo-700 underline" onClick={() => setShowPage(!showPage)}>{showPage ? "Hide source page" : "Show source page"}</button>}
       </div>
 
       {passage && (
@@ -244,11 +248,13 @@ function ItemDetail({ itemId, me, onChanged }) {
         ))}</ul>
       </details>
     </div>
+    {showPage && hasPage && <SourcePagePanel provenance={v.provenance} />}
+    </div>
   );
 }
 
-function ItemsTab({ me }) {
-  const [filters, setFilters] = React.useState({ state: "", courseId: "", flag: "" });
+function ItemsTab({ me, initialFlag }) {
+  const [filters, setFilters] = React.useState({ state: "", courseId: "", flag: initialFlag || "" });
   const [items, setItems] = React.useState([]);
   const [cursor, setCursor] = React.useState(null);
   const [loading, setLoading] = React.useState(true); // no "No items match" before the first answer
@@ -439,6 +445,148 @@ function SelectionsTab({ me }) {
   );
 }
 
+// ---- File and link import (Step 39B) -------------------------------------------------------------
+
+function JobWatcher({ jobId, onShow }) {
+  const [job, setJob] = React.useState(null);
+  const [error, setError] = React.useState(null);
+  React.useEffect(() => {
+    let stop = false;
+    async function poll() {
+      try {
+        const j = await BANK.getImport(jobId);
+        if (stop) return;
+        setJob(j);
+        if (!HSBankApi.jobProgress(j).finished) setTimeout(poll, 2000);
+      } catch (err) { if (!stop) setError(err); }
+    }
+    poll();
+    return () => { stop = true; };
+  }, [jobId]);
+  if (error) return <ErrorNote error={error} />;
+  if (!job) return <p className="text-sm">Starting…</p>;
+  const pr = HSBankApi.jobProgress(job);
+  return (
+    <div className="rounded-lg bg-slate-50 p-3 space-y-2">
+      <div className="flex items-center justify-between text-sm">
+        <span><b>{job.status === "QUEUED" ? "Waiting for a worker" : pr.finished ? (job.status === "SUCCEEDED" ? "Finished" : "Stopped") : "Reading pages"}</b> — {pr.done}/{pr.total} pages · {job.itemCount} question(s) found{job.tokensUsed ? " · " + job.tokensUsed + " model tokens" : ""}</span>
+        {pr.finished && job.itemCount > 0 && <button className={SMALL_BTN + " bg-indigo-600 text-white"} onClick={() => onShow("import:" + job.jobId)}>Review these questions</button>}
+      </div>
+      <div className="h-2 rounded bg-slate-200"><div className="h-2 rounded bg-indigo-500" style={{ width: pr.percent + "%" }} /></div>
+      <ul className="text-xs grid grid-cols-2 md:grid-cols-4 gap-1">
+        {job.pages.map((p) => (
+          <li key={p.sourceId + p.page} className={p.status === "failed" ? "text-rose-700" : p.status === "done" ? "text-emerald-700" : "text-slate-500"}>
+            page {p.page}: {HSBankApi.PAGE_TEXT[p.status]}{p.itemIds.length ? " (" + p.itemIds.length + ")" : ""}{p.method === "vision" ? " · model" : ""}
+          </li>
+        ))}
+      </ul>
+      {job.errors.length > 0 && <ul className="text-xs text-rose-800 list-disc pl-5">{job.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>}
+    </div>
+  );
+}
+
+function FileImport({ settings, onShow }) {
+  const [files, setFiles] = React.useState([]);
+  const [title, setTitle] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [progress, setProgress] = React.useState(null);
+  const [error, setError] = React.useState(null);
+  const [jobId, setJobId] = React.useState(null);
+  const run = React.useRef("file-" + Date.now());
+  const isPdf = files.length === 1 && files[0].type === "application/pdf";
+  function pick(e) {
+    const list = Array.from(e.target.files || []);
+    const pdfs = list.filter((f) => f.type === "application/pdf");
+    if (pdfs.length > 1 || (pdfs.length && list.length > 1)) { setError({ message: "Choose one PDF, or several photos." }); return; }
+    setError(null); setFiles(list); setJobId(null);
+    setTitle(list.length ? list[0].name.replace(/\.[^.]+$/, "") : "");
+  }
+  async function start() {
+    setBusy(true); setError(null);
+    try {
+      const pageCount = isPdf ? await HSPageRender.pdfPageCount(files[0]) : files.length;
+      const s = HSBankApi.settingsBody(settings);
+      const source = await BANK.createSource({ kind: isPdf ? "pdf" : "image", title: title.trim(), pageCount: pageCount,
+        license: s.sourceLicense || undefined }, run.current + ":source");
+      if (isPdf) {
+        await HSPageRender.renderPdf(files[0], async (n, total, page) => {
+          setProgress({ n: n, total: total });
+          await BANK.putPage(source.sourceId, n, page);
+        });
+      } else {
+        for (let i = 0; i < files.length; i++) {
+          setProgress({ n: i + 1, total: files.length });
+          await BANK.putPage(source.sourceId, i + 1, await HSPageRender.renderPhoto(files[i]));
+        }
+      }
+      const job = await BANK.startImport({ sourceIds: [source.sourceId], courseId: s.courseId, keyOrigin: s.keyOrigin }, run.current + ":job");
+      setJobId(job.jobId); setProgress(null); run.current = "file-" + Date.now();
+    } catch (err) { setError(err); } finally { setBusy(false); }
+  }
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-slate-500">Choose one PDF or several photos of pages. Pages are rendered in your browser and kept for side-by-side review. Pages with a clean text layer are split without a model; other pages are read by the extraction model. Every question arrives as “extracted” for you to check. Answer-key pages in the same file fill in keys by question number.</p>
+      <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={pick} />
+      {files.length > 0 && (
+        <div className="space-y-2">
+          <input className={INPUT + " w-full"} placeholder="Title (e.g. Unit 3 practice test)" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <p className="text-xs text-slate-500">{isPdf ? "1 PDF" : files.length + " photo(s)"} · {HSBankApi.estimateText(isPdf ? null : files.length * 5600)}</p>
+          <button disabled={busy || !title.trim() || !!jobId} className={SMALL_BTN + " bg-slate-900 text-white"} onClick={start}>{busy ? (progress ? "Uploading page " + progress.n + " of " + progress.total + "…" : "Preparing…") : "Upload and import"}</button>
+        </div>
+      )}
+      <ErrorNote error={error} />
+      {jobId && <JobWatcher jobId={jobId} onShow={onShow} />}
+    </div>
+  );
+}
+
+function LinkImport({ settings, onShow }) {
+  const [url, setUrl] = React.useState("");
+  const [title, setTitle] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const [jobId, setJobId] = React.useState(null);
+  async function start() {
+    setBusy(true); setError(null); setJobId(null);
+    try {
+      const s = HSBankApi.settingsBody(settings);
+      const key = "link-" + Date.now();
+      const source = await BANK.createSource({ kind: "link", title: title.trim() || url.trim(), url: url.trim(), license: s.sourceLicense || undefined }, key + ":source");
+      const job = await BANK.startImport({ sourceIds: [source.sourceId], courseId: s.courseId, keyOrigin: s.keyOrigin }, key + ":job");
+      setJobId(job.jobId);
+    } catch (err) { setError(err); } finally { setBusy(false); }
+  }
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-slate-500">The platform fetches the page (public http/https pages only) and reads the questions from its text.</p>
+      <input className={INPUT + " w-full"} placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
+      <input className={INPUT + " w-full"} placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <button disabled={busy || !/^https?:\/\//.test(url.trim())} className={SMALL_BTN + " bg-slate-900 text-white"} onClick={start}>{busy ? "Fetching…" : "Fetch and import"}</button>
+      <ErrorNote error={error} />
+      {jobId && <JobWatcher jobId={jobId} onShow={onShow} />}
+    </div>
+  );
+}
+
+function SourcePagePanel({ provenance }) {
+  const [page, setPage] = React.useState(null);
+  const [error, setError] = React.useState(null);
+  React.useEffect(() => {
+    setPage(null); setError(null);
+    BANK.getPage(provenance.sourceId, provenance.page).then(setPage).catch(setError);
+  }, [provenance.sourceId, provenance.page]);
+  if (error) return <ErrorNote error={error} />;
+  if (!page) return <p className="text-xs">Loading page…</p>;
+  return (
+    <div className="rounded-lg ring-1 ring-slate-200 p-2 max-h-[80vh] overflow-auto">
+      <div className="text-xs text-slate-500 mb-1">Source page {page.number}</div>
+      {page.dataBase64
+        ? <img alt={"Source page " + page.number} className="w-full" src={"data:" + page.mediaType + ";base64," + page.dataBase64} />
+        : <pre className="text-xs whitespace-pre-wrap">{page.text}</pre>}
+    </div>
+  );
+}
+
 // ---- Add questions (Step 39A: form, paste, spreadsheet) ----------------------------------------
 
 const EMPTY_SETTINGS = { courseId: "dsat", section: "", skillIds: "", difficulty: "", keyOrigin: "source-key",
@@ -615,11 +763,11 @@ function ImportHistory({ refresh }) {
   );
 }
 
-function AddTab() {
+function AddTab({ onShow }) {
   const [mode, setMode] = React.useState("one");
   const [settings, setSettings] = React.useState(EMPTY_SETTINGS);
   const [refresh, setRefresh] = React.useState(0);
-  const modes = [["one", "One question"], ["text", "Paste text"], ["csv", "Spreadsheet (CSV)"]];
+  const modes = [["one", "One question"], ["text", "Paste text"], ["csv", "Spreadsheet (CSV)"], ["file", "PDF or photos"], ["link", "Web link"]];
   return (
     <div className="mt-4 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px] gap-4">
       <div className={CARD + " p-4"}>
@@ -628,8 +776,9 @@ function AddTab() {
             <button key={m} onClick={() => setMode(m)} className={"px-3 py-1 rounded-full " + (mode === m ? "bg-indigo-600 text-white" : "ring-1 ring-slate-200")}>{t}</button>
           ))}
         </div>
-        {mode === "one"
-          ? <SingleForm settings={settings} onImported={() => setRefresh(refresh + 1)} />
+        {mode === "one" ? <SingleForm settings={settings} onImported={() => setRefresh(refresh + 1)} />
+          : mode === "file" ? <FileImport settings={settings} onShow={onShow} />
+          : mode === "link" ? <LinkImport settings={settings} onShow={onShow} />
           : <BulkImport key={mode} format={mode} settings={settings} onImported={() => setRefresh((r) => r + 1)} />}
       </div>
       <div className="space-y-4">
@@ -646,7 +795,9 @@ function Bank({ onSignOut }) {
   const [me, setMe] = React.useState(null);
   const [error, setError] = React.useState(null);
   const [tab, setTab] = React.useState("items");
+  const [itemsFlag, setItemsFlag] = React.useState("");
   React.useEffect(() => { BANK.me().then(setMe).catch(setError); }, []);
+  const showItems = (flag) => { setItemsFlag(flag); setTab("items"); };
   return (
     <div className="max-w-7xl mx-auto p-4">
       <header className="flex items-center justify-between">
@@ -667,7 +818,7 @@ function Bank({ onSignOut }) {
               <button key={t} onClick={() => setTab(t)} className={"px-3 py-1 rounded-full " + (tab === t ? "bg-slate-900 text-white" : "ring-1 ring-slate-200")}>{t}</button>
             ))}
           </div>
-          {tab === "items" ? <ItemsTab me={me} /> : tab === "add questions" ? <AddTab /> : <SelectionsTab me={me} />}
+          {tab === "items" ? <ItemsTab key={itemsFlag} me={me} initialFlag={itemsFlag} /> : tab === "add questions" ? <AddTab onShow={showItems} /> : <SelectionsTab me={me} />}
         </>
       )}
     </div>

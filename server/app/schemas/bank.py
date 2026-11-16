@@ -369,10 +369,23 @@ class BatchRequest(RequestModel):
     keep_duplicates: bool = False
 
 
+class ImportPageView(ApiModel):
+    source_id: str
+    page: int
+    status: str
+    item_ids: list[str]
+    method: str | None
+    error: str | None
+
+
 class ImportJobView(ApiModel):
     job_id: str
     kind: str
     status: str
+    pages: list[ImportPageView] = Field(default_factory=list)
+    estimate_tokens: int = 0
+    tokens_used: int = 0
+    key_origin: str | None = None
     item_count: int
     item_ids: list[str]
     passage_ids: list[str]
@@ -386,3 +399,49 @@ class ImportJobView(ApiModel):
 
 class ImportJobListView(ApiModel):
     imports: list[ImportJobView]
+
+
+# ---- File import (Step 39B) ---------------------------------------------------------------
+
+SourceKindValue = Literal["pdf", "image", "text", "link"]
+
+
+class CreateSourceRequest(RequestModel):
+    kind: SourceKindValue
+    title: ShortText
+    license: Annotated[str, StringConstraints(max_length=500)] | None = None
+    url: Annotated[str, StringConstraints(min_length=8, max_length=2_000)] | None = None
+    text: Annotated[str, StringConstraints(max_length=50_000)] | None = None
+    page_count: Annotated[int, Field(ge=1, le=200)] | None = None
+
+
+class SourceView(ApiModel):
+    source_id: str
+    kind: str
+    title: str
+    url: str | None
+    page_count: int | None
+    pages_uploaded: int
+    license: str | None
+    used_by_job: str | None
+    created_at: UtcDatetime
+
+
+class PageRequest(RequestModel):
+    media_type: Literal["image/jpeg", "image/png", "image/webp"] | None = None
+    data_base64: Annotated[str, StringConstraints(max_length=820_000)] | None = None
+    text: Annotated[str, StringConstraints(max_length=50_000)] | None = None
+
+
+class PageView(ApiModel):
+    source_id: str
+    number: int
+    media_type: str | None
+    data_base64: str | None
+    text: str | None
+
+
+class StartImportRequest(RequestModel):
+    source_ids: list[ItemIdStr] = Field(min_length=1, max_length=20)
+    course_id: CourseId | None = None
+    key_origin: Literal["source-key", "compiled-key"] = "source-key"

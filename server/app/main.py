@@ -87,7 +87,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
         app.add_middleware(
             CORSMiddleware,
             allow_origins=settings.cors_allowed_origins,
-            allow_methods=["GET", "POST", "PATCH"],
+            allow_methods=["GET", "POST", "PATCH", "PUT"],  # PUT: bank page uploads (39B)
             allow_headers=[
                 "Authorization",
                 "Content-Type",

@@ -13,8 +13,16 @@ Commands reuse the platform member idempotency records (`platformMembers/{uid}/i
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
+from datetime import datetime
 
-from app.adapters.firestore.documents import Doc, DocTxn, DocumentStore, Filter, QuerySpec
+from app.adapters.firestore.documents import (
+    Doc,
+    DocTxn,
+    DocumentStore,
+    Filter,
+    GroupReader,
+    QuerySpec,
+)
 from app.adapters.firestore.package_repository import FirestorePlatformIdempotencyStore
 from app.domain.ports.bank import BankTx, ItemQuery
 from app.domain.types.bank import (
@@ -23,21 +31,28 @@ from app.domain.types.bank import (
     BankItemState,
     BankItemVersion,
     BankPassage,
+    BankSource,
     FigureMode,
     ImportJob,
     ImportKind,
+    ImportLease,
+    ImportPage,
     ImportStatus,
     ItemChange,
     ItemContent,
     ItemRef,
     ItemReview,
     ItemType,
+    PageStatus,
     Provenance,
     ProvenanceKind,
     Selection,
     SelectionSet,
+    SourceKind,
+    SourcePage,
     SourceType,
 )
+from app.domain.types.usage import BudgetScope, Reservation, UsageCounter
 
 ORGS = "orgs"
 ITEMS = "bankItems"
@@ -45,6 +60,9 @@ PASSAGES = "bankPassages"
 SELECTIONS = "selections"
 VERSIONS = "versions"
 IMPORTS = "imports"
+SOURCES = "sources"
+PAGES = "pages"
+USAGE = "usage"
 
 
 def _id(value: str) -> str:
@@ -83,7 +101,20 @@ def import_to_doc(j: ImportJob) -> Doc:
         "errors": list(j.errors),
         "tokensUsed": j.tokens_used,
         "sourceTitle": j.source_title,
-    }
+        "pages": [
+            {"sourceId": p.source_id, "page": p.page, "status": p.status.value,
+             "itemIds": list(p.item_ids), "method": p.method, "error": p.error}
+            for p in j.pages
+        ],
+        "keyOrigin": j.key_origin.value if j.key_origin else None,
+        "answerKey": {str(k): v for k, v in j.answer_key.items()},
+        "estimateTokens": j.estimate_tokens,
+        "lease": (
+            {"workerId": j.lease.worker_id, "token": j.lease.token, "expiresAt": j.lease.expires_at}
+            if j.lease
+            else None
+        ),
+    }  # fmt: skip
 
 
 def import_from_doc(d: Doc) -> ImportJob:
@@ -104,6 +135,82 @@ def import_from_doc(d: Doc) -> ImportJob:
         errors=tuple(d.get("errors", [])),
         tokens_used=int(d.get("tokensUsed", 0)),
         source_title=d.get("sourceTitle"),
+        pages=tuple(
+            ImportPage(
+                source_id=p["sourceId"],
+                page=int(p["page"]),
+                status=PageStatus(p["status"]),
+                item_ids=tuple(p.get("itemIds", [])),
+                method=p.get("method"),
+                error=p.get("error"),
+            )
+            for p in d.get("pages", [])
+        ),
+        key_origin=AnswerSource(d["keyOrigin"]) if d.get("keyOrigin") else None,
+        answer_key={int(k): v for k, v in (d.get("answerKey") or {}).items()},
+        estimate_tokens=int(d.get("estimateTokens", 0)),
+        lease=(
+            ImportLease(
+                worker_id=d["lease"]["workerId"],
+                token=d["lease"]["token"],
+                expires_at=d["lease"]["expiresAt"],
+            )
+            if d.get("lease")
+            else None
+        ),
+    )
+
+
+def source_path(org_id: str, source_id: str) -> str:
+    return f"{ORGS}/{_id(org_id)}/{SOURCES}/{_id(source_id)}"
+
+
+def page_path(org_id: str, source_id: str, number: int) -> str:
+    return f"{source_path(org_id, source_id)}/{PAGES}/{number:04d}"
+
+
+def source_to_doc(x: BankSource) -> Doc:
+    return {
+        "sourceId": x.source_id, "orgId": x.org_id, "kind": x.kind.value, "title": x.title,
+        "uploadedBy": x.uploaded_by, "createdAt": x.created_at, "url": x.url,
+        "fetchedAt": x.fetched_at, "contentHash": x.content_hash, "pageCount": x.page_count,
+        "license": x.license, "attribution": x.attribution, "usedByJob": x.used_by_job,
+    }  # fmt: skip
+
+
+def source_from_doc(d: Doc) -> BankSource:
+    return BankSource(
+        source_id=d["sourceId"],
+        org_id=d["orgId"],
+        kind=SourceKind(d["kind"]),
+        title=d["title"],
+        uploaded_by=d["uploadedBy"],
+        created_at=d["createdAt"],
+        url=d.get("url"),
+        fetched_at=d.get("fetchedAt"),
+        content_hash=d.get("contentHash"),
+        page_count=d.get("pageCount"),
+        license=d.get("license"),
+        attribution=d.get("attribution"),
+        used_by_job=d.get("usedByJob"),
+    )
+
+
+def page_to_doc(p: SourcePage) -> Doc:
+    return {
+        "sourceId": p.source_id, "number": p.number, "mediaType": p.media_type,
+        "dataBase64": p.data_base64, "text": p.text, "sizeBytes": p.size_bytes,
+    }  # fmt: skip
+
+
+def page_from_doc(d: Doc) -> SourcePage:
+    return SourcePage(
+        source_id=d["sourceId"],
+        number=int(d["number"]),
+        media_type=d.get("mediaType"),
+        data_base64=d.get("dataBase64"),
+        text=d.get("text"),
+        size_bytes=int(d.get("sizeBytes", 0)),
     )
 
 
@@ -484,12 +591,103 @@ class FirestoreImportJobStore:
         self._txn.set(import_path(job.org_id, job.job_id), import_to_doc(job))
 
 
+class FirestoreSourceStore:
+    def __init__(self, txn: DocTxn) -> None:
+        self._txn = txn
+
+    async def get(self, org_id: str, source_id: str) -> BankSource | None:
+        doc = await self._txn.get(source_path(org_id, source_id))
+        return source_from_doc(doc) if doc else None
+
+    def save(self, source: BankSource) -> None:
+        self._txn.set(source_path(source.org_id, source.source_id), source_to_doc(source))
+
+    async def get_page(self, org_id: str, source_id: str, number: int) -> SourcePage | None:
+        doc = await self._txn.get(page_path(org_id, source_id, number))
+        return page_from_doc(doc) if doc else None
+
+    async def page_numbers(self, org_id: str, source_id: str) -> Sequence[int]:
+        docs = await self._txn.query(
+            f"{source_path(org_id, source_id)}/{PAGES}", QuerySpec(order_by=("number",))
+        )
+        return [int(d["number"]) for d in docs]
+
+    def save_page(self, org_id: str, page: SourcePage) -> None:
+        self._txn.set(page_path(org_id, page.source_id, page.number), page_to_doc(page))
+
+
+class FirestoreOrgUsageStore:
+    def __init__(self, txn: DocTxn) -> None:
+        self._txn = txn
+
+    async def get(self, org_id: str, key: str) -> UsageCounter | None:
+        d = await self._txn.get(f"{ORGS}/{_id(org_id)}/{USAGE}/{_id(key)}")
+        if d is None:
+            return None
+        return UsageCounter(
+            key=d["key"],
+            scope=BudgetScope(d["scope"]),
+            used_tokens=int(d.get("usedTokens", 0)),
+            reservations={
+                k: Reservation(tokens=int(v["tokens"]), reserved_at=v["reservedAt"])
+                for k, v in d.get("reservations", {}).items()
+            },
+            updated_at=d.get("updatedAt"),
+        )
+
+    def save(self, org_id: str, c: UsageCounter) -> None:
+        self._txn.set(
+            f"{ORGS}/{_id(org_id)}/{USAGE}/{_id(c.key)}",
+            {
+                "key": c.key,
+                "scope": c.scope.value,
+                "usedTokens": c.used_tokens,
+                "reservations": {
+                    k: {"tokens": r.tokens, "reservedAt": r.reserved_at}
+                    for k, r in c.reservations.items()
+                },
+                "updatedAt": c.updated_at,
+            },
+        )
+
+
+class FirestoreImportQueueReader:
+    """Due file-import jobs across organizations (collection group `imports`)."""
+
+    def __init__(self, reader: GroupReader) -> None:
+        self._reader = reader
+
+    async def due_jobs(self, now: datetime, limit: int) -> Sequence[tuple[str, str]]:
+        docs = await self._reader.query_group(
+            IMPORTS,
+            QuerySpec(
+                filters=[
+                    Filter("status", "in", [ImportStatus.QUEUED.value, ImportStatus.RUNNING.value])
+                ],
+                order_by=("createdAt",),
+                limit=limit * 4,
+            ),
+        )
+        due = []
+        for d in docs:
+            lease = d.get("lease")
+            if (
+                d["status"] == ImportStatus.QUEUED.value
+                or lease is None
+                or lease["expiresAt"] <= now
+            ):
+                due.append((d["orgId"], d["jobId"]))
+        return due[:limit]
+
+
 class FirestoreBankTx:
     def __init__(self, txn: DocTxn) -> None:
         self.items = FirestoreBankItemStore(txn)
         self.passages = FirestoreBankPassageStore(txn)
         self.selections = FirestoreSelectionStore(txn)
         self.imports = FirestoreImportJobStore(txn)
+        self.sources = FirestoreSourceStore(txn)
+        self.org_usage = FirestoreOrgUsageStore(txn)
         self.idempotency = FirestorePlatformIdempotencyStore(txn)
 
 

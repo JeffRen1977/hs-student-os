@@ -177,3 +177,35 @@ async def test_quick_entry_batch_and_duplicate_lookup_on_firestore(env: dict[str
         "/api/bank/imports/parse", json={"text": text}, headers=headers(env, "reviewer_hsos")
     )
     assert {q["duplicateOf"] for q in r.json()["questions"]} == set(job["itemIds"])
+
+
+async def test_file_import_job_runs_through_the_scan_on_firestore(env: dict[str, Any]) -> None:
+    """Step 39B: the collection-group due-job query, the lease and per-page fenced commits."""
+    tag = secrets.token_hex(4)
+    text = "".join(f"{n}. Item {tag} {n}?\nA) a\nB) b\nC) c\nD) d\n" for n in (1, 2)) + (
+        "\nAnswers\n1. C 2. D\n"
+    )
+    http = env["http"]
+    r = await http.post(
+        "/api/bank/sources",
+        json={"kind": "text", "title": f"Emulator {tag}", "text": text},
+        headers=headers(env, "author_hsos"),
+    )
+    assert r.status_code == 201, r.text
+    r = await http.post(
+        "/api/bank/imports",
+        json={"sourceIds": [r.json()["sourceId"]]},
+        headers=headers(env, "author_hsos"),
+    )
+    assert r.status_code == 202, r.text
+    job_id = r.json()["jobId"]
+    await env["services"].import_processor.process_due(limit=50)
+    r = await http.get(f"/api/bank/imports/{job_id}", headers=headers(env, "author_hsos"))
+    job = r.json()
+    assert job["status"] == "SUCCEEDED" and job["itemCount"] == 2, job
+    stored = (await env["db"].document(f"orgs/{ORG}/imports/{job_id}").get()).to_dict()
+    assert stored["lease"] is None and stored["answerKey"] == {"1": "C", "2": "D"}
+    first = (
+        await env["db"].document(f"orgs/{ORG}/bankItems/{job['itemIds'][0]}/versions/000001").get()
+    ).to_dict()
+    assert first["state"] == "extracted" and first["content"]["answer"] == "C"

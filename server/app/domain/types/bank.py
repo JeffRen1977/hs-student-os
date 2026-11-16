@@ -236,6 +236,46 @@ class BankSource:
     page_count: int | None = None
     license: str | None = None  # recorded, not enforced (owner decision 2026-11-15)
     attribution: str | None = None
+    used_by_job: str | None = None  # pages are frozen once a job reads them
+
+
+MAX_SOURCE_PAGES = 200
+MAX_PAGE_TEXT_CHARS = 50_000
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SourcePage:
+    """One page of a source: the rendered page image and/or its text layer."""
+
+    source_id: str
+    number: int  # from 1
+    media_type: str | None = None
+    data_base64: str | None = None
+    text: str | None = None
+    size_bytes: int = 0
+
+
+class PageStatus(StrEnum):
+    PENDING = "pending"
+    DONE = "done"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ImportPage:
+    source_id: str
+    page: int
+    status: PageStatus = PageStatus.PENDING
+    item_ids: Sequence[str] = ()
+    method: str | None = None  # "text-layer" | "vision"
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ImportLease:
+    worker_id: str
+    token: str
+    expires_at: datetime
 
 
 class ImportKind(StrEnum):
@@ -269,6 +309,11 @@ class ImportJob:
     passage_ids: Sequence[str] = ()
     skipped: Sequence[str] = ()  # e.g. "question 4: duplicate of bki_…"
     source_title: str | None = None
+    pages: Sequence[ImportPage] = ()  # files jobs: one task per page
+    key_origin: AnswerSource | None = None
+    answer_key: Mapping[int, str] = field(default_factory=dict)  # from answer-key pages
+    estimate_tokens: int = 0
+    lease: ImportLease | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

@@ -143,3 +143,22 @@ test("quick entry: the single-question form builds one batch question and lists 
   assert.deepEqual(again.passages, []);
   assert.equal(B.CSV_TEMPLATE.split("\n")[0], B.CSV_COLUMNS.join(","));
 });
+
+test("file import: pdf.js text items become reading-order lines", () => {
+  const items = [
+    { str: "B) two", transform: [1, 0, 0, 1, 50, 680] },
+    { str: "1.", transform: [1, 0, 0, 1, 10, 700] },
+    { str: "What is 1 + 1?", transform: [1, 0, 0, 1, 30, 701] },
+    { str: "A) one", transform: [1, 0, 0, 1, 10, 680] },
+    { str: "  ", transform: [1, 0, 0, 1, 10, 600] },
+  ];
+  assert.equal(B.textItemsToLines(items), "1. What is 1 + 1?\nA) one B) two");
+});
+
+test("file import: job progress and token estimate text", () => {
+  const job = { status: "RUNNING", pages: [{ status: "done" }, { status: "failed" }, { status: "pending" }, { status: "pending" }] };
+  assert.deepEqual(B.jobProgress(job), { done: 2, total: 4, failed: 1, finished: false, percent: 50 });
+  assert.equal(B.jobProgress({ status: "SUCCEEDED", pages: [] }).percent, 100);
+  assert.match(B.estimateText(11200), /11k model tokens/);
+  assert.match(B.estimateText(0), /No model use/);
+});

@@ -17,6 +17,7 @@ from app.api.dependencies.commands import IdempotencyKeyHeader, command_key
 from app.api.responses import respond
 from app.api.routes.packages import version_view
 from app.domain.bank_entry_service import BatchPassage, BatchQuestion, BatchSettings
+from app.domain.bank_import_service import NewSource
 from app.domain.bank_service import CreateItemInput, ItemDetail
 from app.domain.ports.bank import ItemQuery
 from app.domain.selection_service import SelectionInput, SetInput
@@ -26,6 +27,7 @@ from app.domain.types.bank import (
     BankItem,
     BankItemState,
     BankItemVersion,
+    BankSource,
     FigureMode,
     ImportJob,
     ItemContent,
@@ -33,6 +35,8 @@ from app.domain.types.bank import (
     Provenance,
     ProvenanceKind,
     Selection,
+    SourceKind,
+    SourcePage,
     SourceType,
 )
 from app.schemas import bank as bk
@@ -199,6 +203,20 @@ def _import_view(j: ImportJob) -> bk.ImportJobView:
         job_id=j.job_id,
         kind=j.kind.value,
         status=j.status.value,
+        pages=[
+            bk.ImportPageView(
+                source_id=p.source_id,
+                page=p.page,
+                status=p.status.value,
+                item_ids=list(p.item_ids),
+                method=p.method,
+                error=p.error,
+            )
+            for p in j.pages
+        ],
+        estimate_tokens=j.estimate_tokens,
+        tokens_used=j.tokens_used,
+        key_origin=j.key_origin.value if j.key_origin else None,
         item_count=j.item_count,
         item_ids=list(j.item_ids),
         passage_ids=list(j.passage_ids),
@@ -285,6 +303,112 @@ async def import_batch(
         keep_duplicates=body.keep_duplicates,
     )
     return respond(_import_view(outcome.value), status=201, replayed=outcome.replayed)
+
+
+def _source_view(x: BankSource, uploaded: int) -> bk.SourceView:
+    return bk.SourceView(
+        source_id=x.source_id,
+        kind=x.kind.value,
+        title=x.title,
+        url=x.url,
+        page_count=x.page_count,
+        pages_uploaded=uploaded,
+        license=x.license,
+        used_by_job=x.used_by_job,
+        created_at=x.created_at,
+    )
+
+
+def _page_view(p: SourcePage) -> bk.PageView:
+    return bk.PageView(
+        source_id=p.source_id,
+        number=p.number,
+        media_type=p.media_type,
+        data_base64=p.data_base64,
+        text=p.text,
+    )
+
+
+@router.post("/sources", response_model=bk.SourceView, status_code=201)
+async def create_source(
+    body: bk.CreateSourceRequest,
+    request: Request,
+    actor: Platform,
+    services: ServicesDep,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    cmd = command_key(request, idempotency_key, body)
+    outcome = await services.imports.create_source(
+        actor,
+        NewSource(
+            kind=SourceKind(body.kind),
+            title=body.title,
+            license=body.license,
+            url=body.url,
+            text=body.text,
+            page_count=body.page_count,
+        ),
+        cmd,
+    )
+    s = outcome.value
+    uploaded = 1 if s.kind in (SourceKind.TEXT, SourceKind.LINK) else 0
+    if outcome.replayed:
+        _, uploaded = await services.imports.get_source(actor, s.source_id)
+    return respond(_source_view(s, uploaded), status=201, replayed=outcome.replayed)
+
+
+@router.get("/sources/{source_id}", response_model=bk.SourceView)
+async def get_source(source_id: ItemPath, actor: Platform, services: ServicesDep) -> JSONResponse:
+    source, uploaded = await services.imports.get_source(actor, source_id)
+    return respond(_source_view(source, uploaded))
+
+
+@router.put("/sources/{source_id}/pages/{number}", response_model=bk.PageView)
+async def put_page(
+    source_id: ItemPath,
+    number: Annotated[int, Path(ge=1, le=200)],
+    body: bk.PageRequest,
+    actor: Platform,
+    services: ServicesDep,
+) -> JSONResponse:
+    page = await services.imports.put_page(
+        actor,
+        source_id,
+        number,
+        media_type=body.media_type,
+        data_base64=body.data_base64,
+        text=body.text,
+    )
+    return respond(_page_view(page))
+
+
+@router.get("/sources/{source_id}/pages/{number}", response_model=bk.PageView)
+async def get_page(
+    source_id: ItemPath,
+    number: Annotated[int, Path(ge=1, le=200)],
+    actor: Platform,
+    services: ServicesDep,
+) -> JSONResponse:
+    return respond(_page_view(await services.imports.get_page(actor, source_id, number)))
+
+
+@router.post("/imports", response_model=bk.ImportJobView, status_code=202)
+async def start_import(
+    body: bk.StartImportRequest,
+    request: Request,
+    actor: Platform,
+    services: ServicesDep,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    cmd = command_key(request, idempotency_key, body)
+    outcome = await services.imports.start_import(
+        actor,
+        body.source_ids,
+        cmd,
+        course_id=body.course_id,
+        key_origin=AnswerSource(body.key_origin),
+    )
+    return respond(_import_view(outcome.value), status=202, replayed=outcome.replayed)
 
 
 @router.get("/imports", response_model=bk.ImportJobListView)

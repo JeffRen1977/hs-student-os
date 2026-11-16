@@ -27,7 +27,7 @@ from app.adapters.llm.provider import (
     ProviderTruncatedError,
 )
 from app.adapters.llm.router import ModelRouter
-from app.domain.budget import BudgetLedger
+from app.domain.budget import TokenLedger
 from app.domain.ports.llm import (
     IMAGE_TOKENS,
     LlmConfigurationError,
@@ -56,7 +56,7 @@ class Gateway:
         self,
         provider: LlmProvider,
         router: ModelRouter,
-        ledger: BudgetLedger,
+        ledger: TokenLedger,
         *,
         max_attempts: int = 3,
         timeout_seconds: float = 60.0,
