@@ -278,6 +278,7 @@ def item_to_doc(i: BankItem) -> Doc:
         "state": i.state.value,
         "currentVersion": i.current_version,
         "approvedVersion": i.approved_version,
+        "selectable": i.approved_version is not None and i.state is not BankItemState.RETIRED,
         "revision": i.revision,
         "tags": list(i.tags),
         "flags": list(i.flags),
@@ -357,6 +358,8 @@ class FirestoreBankItemStore:
             filters.append(Filter("courseId", "==", q.course_id))
         if q.flag is not None:
             filters.append(Filter("flags", "array_contains", q.flag))
+        if q.approved_only:
+            filters.append(Filter("selectable", "==", True))
         docs = await self._txn.query(
             items_collection(org_id),
             QuerySpec(

@@ -133,7 +133,7 @@ class SelectionService:
                     replayed=True,
                     created=replay.response_status == 201,
                 )
-            sets = await _resolve(tx, org, inp.sets)
+            sets = await _resolve(tx, org, course_id, inp.sets)
             now = self._clock.now()
             selection = Selection(
                 selection_id=self._ids.new("sel"),
@@ -181,7 +181,7 @@ class SelectionService:
                     ErrorCode.VERSION_CONFLICT,
                     f"The selection changed (revision {current.revision}); reload and try again.",
                 )
-            sets = await _resolve(tx, org, inp.sets)
+            sets = await _resolve(tx, org, current.course_id, inp.sets)
             now = self._clock.now()
             selection = replace(
                 current,
@@ -192,6 +192,9 @@ class SelectionService:
                 source_type=inp.source_type,
                 source_author=inp.source_author,
                 source_license=inp.source_license,
+                built_package_version=None,
+                built_by=None,
+                built_at=None,
                 revision=current.revision + 1,
                 updated_at=now,
             )
@@ -241,10 +244,7 @@ class SelectionService:
 
         gathered = await self._uow.transaction(gather)
         if isinstance(gathered, Selection):  # replay of a finished build
-            assert gathered.built_package_version is not None
-            pkg = await self._packages.get_own(
-                actor, gathered.course_id, gathered.built_package_version
-            )
+            pkg = await self._packages.get_own(actor, gathered.course_id, version)
             return Outcome(
                 value=BuildResult(selection=gathered, package=pkg), replayed=True, created=True
             )
@@ -264,6 +264,11 @@ class SelectionService:
             if replay is not None:
                 return await _own(tx, org, replay.resource_id)
             current = await _own(tx, org, selection_id)
+            if current.revision != selection.revision:
+                raise DomainError(
+                    ErrorCode.VERSION_CONFLICT,
+                    "The selection changed during the build; reload and build a new version.",
+                )
             now = self._clock.now()
             done = replace(
                 current,
@@ -358,7 +363,9 @@ def _check_shape(inp: SelectionInput) -> None:
         raise _invalid(problems)
 
 
-async def _resolve(tx: BankTx, org: str, sets: Sequence[SetInput]) -> tuple[SelectionSet, ...]:
+async def _resolve(
+    tx: BankTx, org: str, course_id: str, sets: Sequence[SetInput]
+) -> tuple[SelectionSet, ...]:
     """Pin item versions and check every reference against the bank."""
     resolved: list[SelectionSet] = []
     not_approved: list[str] = []
@@ -368,6 +375,8 @@ async def _resolve(tx: BankTx, org: str, sets: Sequence[SetInput]) -> tuple[Sele
             item = await tx.items.get(org, item_id)
             if item is None:
                 raise DomainError(ErrorCode.NOT_FOUND, f"Item {item_id} not found.")
+            if item.course_id is not None and item.course_id != course_id:
+                raise _invalid([f"{item_id} belongs to course {item.course_id}, not {course_id}"])
             pinned = number if number is not None else item.approved_version
             if pinned is None or item.state is BankItemState.RETIRED:
                 not_approved.append(item_id)

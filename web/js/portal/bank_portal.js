@@ -284,7 +284,7 @@ function ApprovedPicker({ courseId, used, onAdd }) {
   const [error, setError] = React.useState(null);
   const load = React.useCallback(async (after) => {
     try {
-      const r = await BANK.listItems({ state: "approved", courseId: courseId || null, cursor: after || null, limit: 100 });
+      const r = await BANK.listItems({ approvedOnly: true, courseId: courseId || null, cursor: after || null, limit: 100 });
       setItems((old) => (after ? old.concat(r.items) : r.items)); setCursor(r.nextCursor);
     } catch (err) { setError(err); }
   }, [courseId]);

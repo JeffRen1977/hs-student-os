@@ -196,6 +196,7 @@ async def list_items(
     state: Annotated[bk.ItemStateValue | None, Query()] = None,
     course_id: Annotated[str | None, Query(alias="courseId", max_length=64)] = None,
     flag: Annotated[str | None, Query(max_length=120)] = None,
+    approved_only: Annotated[bool, Query(alias="approvedOnly")] = False,
     cursor: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9_-]{1,64}$")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> JSONResponse:
@@ -205,6 +206,7 @@ async def list_items(
             state=BankItemState(state) if state else None,
             course_id=course_id,
             flag=flag,
+            approved_only=approved_only,
             after_item_id=cursor,
             limit=limit,
         ),

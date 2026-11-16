@@ -177,7 +177,7 @@ All POSTs require Idempotency-Key; all routes are org-scoped by the caller's mem
 | `POST /api/bank/sources` | author+ | register an upload (signed URL), pasted text or link |
 | `POST /api/bank/imports` | author+ | start an extraction job over sources |
 | `GET /api/bank/imports/:jobId` | author+ | job status, errors, item count |
-| `GET /api/bank/items?state=&courseId=&flag=` | author+ | list items (paged) |
+| `GET /api/bank/items?state=&courseId=&flag=&approvedOnly=` | author+ | list items (paged); `approvedOnly=true` includes items with a prior approved version even while a new draft is open |
 | `GET /api/bank/items/:itemId` | author+ | item with versions and provenance |
 | `POST /api/bank/items` | author+ | create an item by hand (`provenance.by = author`) |
 | `PATCH /api/bank/items/:itemId` | author+ | edit (`expectedRevision` → 409 `VERSION_CONFLICT` when stale; see API.md §6.5.7) |

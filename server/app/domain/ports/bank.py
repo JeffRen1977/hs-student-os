@@ -26,6 +26,7 @@ class ItemQuery:
     state: BankItemState | None = None
     course_id: str | None = None
     flag: str | None = None
+    approved_only: bool = False
     after_item_id: str | None = None  # keyset cursor (items are listed by itemId)
     limit: int = 50
 

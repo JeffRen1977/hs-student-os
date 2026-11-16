@@ -145,6 +145,27 @@ async def test_only_approved_items_and_well_formed_sets_are_accepted(h: Harness)
     assert "used more than once" in message and "not in the selection: nope" in message
 
 
+async def test_selection_rejects_items_targeted_at_a_different_course(h: Harness) -> None:
+    iid = await approved(h, mc("Course-specific question"))
+    body = {**selection([a_set("s1", iid)]), "courseId": "geolab"}
+    err = await call(h, "POST", SELECTIONS, REVIEWER, 409, body)
+    assert err["error"]["code"] == "SELECTION_INVALID"
+    assert "belongs to course dsat" in err["error"]["message"]
+
+
+async def test_picker_query_includes_previous_approved_versions(h: Harness) -> None:
+    iid = await approved(h, mc("Originally approved"))
+    item = await call(h, "GET", f"{ITEMS}/{iid}", AUTHOR, 200)
+    await call(h, "PATCH", f"{ITEMS}/{iid}", AUTHOR, 200,
+               {"expectedRevision": item["revision"], "changes": {"stem": "New draft"}})
+    listed = await call(h, "GET", f"{ITEMS}?approvedOnly=true&courseId=dsat", REVIEWER, 200)
+    assert [i["itemId"] for i in listed["items"]] == [iid]
+    assert listed["items"][0]["state"] == "draft"
+    selected = await call(h, "POST", SELECTIONS, REVIEWER, 201,
+                          selection([a_set("s1", iid)]))
+    assert selected["sets"][0]["items"][0]["version"] == 1
+
+
 async def test_update_needs_the_current_revision(h: Harness) -> None:
     sel = await two_sets(h)
     body = {"expectedRevision": 1, "selection": {**selection(sel["sets"]), "name": "Renamed"}}
@@ -207,6 +228,53 @@ async def test_build_replays_and_pins_versions_despite_later_edits(h: Harness) -
     assert full["package"]["questions"][0]["items"][0]["prompt"] == "Algebra item 1"
 
 
+async def test_replay_of_older_build_returns_its_original_package(h: Harness) -> None:
+    sel = await two_sets(h)
+    path = f"{SELECTIONS}/{sel['selectionId']}/build"
+    first_headers = h.cmd(REVIEWER)
+    first = await h.client.post(path, json={"version": "9.1.0"}, headers=first_headers)
+    assert first.status_code == 201, first.text
+    await call(h, "POST", path, REVIEWER, 201, {"version": "9.2.0"})
+    replay = await h.client.post(path, json={"version": "9.1.0"}, headers=first_headers)
+    assert replay.status_code == 201, replay.text
+    assert replay.headers.get("Idempotency-Replayed") == "true"
+    assert replay.json()["package"]["version"] == "9.1.0"
+
+    current = await call(h, "GET", f"{SELECTIONS}/{sel['selectionId']}", REVIEWER, 200)
+    changed = selection(current["sets"], name="Edited after both builds",
+                        sequenceSetIds=current["sequenceSetIds"])
+    changed.pop("courseId")
+    await call(h, "PATCH", f"{SELECTIONS}/{sel['selectionId']}", REVIEWER, 200,
+               {"expectedRevision": current["revision"], "selection": changed})
+    replay = await h.client.post(path, json={"version": "9.1.0"}, headers=first_headers)
+    assert replay.status_code == 201, replay.text
+    assert replay.json()["package"]["version"] == "9.1.0"
+    assert replay.json()["selection"]["builtPackageVersion"] is None
+
+
+async def test_build_rejects_a_selection_changed_during_upload(
+    h: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sel = await two_sets(h)
+    path = f"{SELECTIONS}/{sel['selectionId']}"
+    upload = h.services.packages.upload
+
+    async def edit_during_upload(actor: Any, raw: Any, cmd: Any) -> Any:
+        changed = selection(sel["sets"], name="Changed during build",
+                            sequenceSetIds=sel["sequenceSetIds"])
+        changed.pop("courseId")
+        await call(h, "PATCH", path, REVIEWER, 200,
+                   {"expectedRevision": sel["revision"], "selection": changed})
+        return await upload(actor, raw, cmd)
+
+    monkeypatch.setattr(h.services.packages, "upload", edit_during_upload)
+    err = await call(h, "POST", path + "/build", REVIEWER, 409, {"version": "9.3.0"})
+    assert err["error"]["code"] == "VERSION_CONFLICT"
+    current = await call(h, "GET", path, REVIEWER, 200)
+    assert current["name"] == "Changed during build"
+    assert current["builtPackageVersion"] is None
+
+
 async def test_build_refuses_retired_items_and_courses_without_a_base_package(h: Harness) -> None:
     sel = await two_sets(h)
     retired = sel["sets"][1]["items"][0]["itemId"]
@@ -216,7 +284,9 @@ async def test_build_refuses_retired_items_and_courses_without_a_base_package(h:
     )
     assert err["error"]["code"] == "SELECTION_INVALID"
 
-    iid = await approved(h, mc("new course item"))
+    iid = (await call(h, "POST", ITEMS, AUTHOR, 201, {"content": mc("new course item")}))["itemId"]
+    await call(h, "POST", f"{ITEMS}/{iid}/submit", AUTHOR, 200)
+    await call(h, "POST", f"{ITEMS}/{iid}/approve", REVIEWER, 200)
     other = await call(
         h,
         "POST",

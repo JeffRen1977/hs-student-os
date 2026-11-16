@@ -621,7 +621,7 @@ Author and content reviewer (`bank:author`):
   as a worker Run. `GET /api/bank/imports/{jobId}` → status, `itemCount`, `errors[]`, `usage`.
 - `GET /api/bank/me` → `{uid, role, orgId, canReview}` for an author or content reviewer (403 otherwise); the
   bank screen uses it to decide what it offers. The server still checks every command.
-- `GET /api/bank/items?state=&courseId=&flag=&cursor=&limit=` → `{items: BankItemSummary[], nextCursor}`
+- `GET /api/bank/items?state=&courseId=&flag=&approvedOnly=&cursor=&limit=` → `{items: BankItemSummary[], nextCursor}`. `approvedOnly=true` includes items whose current state is a new draft or review but whose prior approved version remains selectable; retired items are excluded.
   (listed by itemId, `limit` ≤ 200, `nextCursor` null on the last page);
   `GET /api/bank/items/{itemId}` → `BankItem` with every version, provenance and history.
 - `GET /api/bank/passages/{passageId}` → `BankPassage` (`title`, `text`, `provenance`, `flags`): shared passages
