@@ -619,6 +619,8 @@ Author and content reviewer (`bank:author`):
   → 422 `IMPORT_SOURCE_REJECTED`. License fields are recorded, not enforced (owner decision 2026-11-15).
 - `POST /api/bank/imports` body `{sourceIds[], courseHint?}` → 202 `ImportJob` (`QUEUED`); the extraction runs
   as a worker Run. `GET /api/bank/imports/{jobId}` → status, `itemCount`, `errors[]`, `usage`.
+- `GET /api/bank/me` → `{uid, role, orgId, canReview}` for an author or content reviewer (403 otherwise); the
+  bank screen uses it to decide what it offers. The server still checks every command.
 - `GET /api/bank/items?state=&courseId=&flag=&cursor=&limit=` → `{items: BankItemSummary[], nextCursor}`
   (listed by itemId, `limit` ≤ 200, `nextCursor` null on the last page);
   `GET /api/bank/items/{itemId}` → `BankItem` with every version, provenance and history.

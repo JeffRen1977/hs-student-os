@@ -2,7 +2,7 @@
 
 Status: **approved by the owner 2026-11-15.** Implemented 2026-11-15: roles, items and their review (45.1–45.3).
 Also implemented: passages (version 1, read endpoint), development seeding (45.6), selections and the
-builder (45.4). Not yet: sources and imports (Step 39), portal screens (45.5). This document is the contract for the
+builder (45.4), and the portal screen `web/bank.html` (45.5). Not yet: sources and imports (Step 39). This document is the contract for the
 question bank. API.md §6.5.7, BACKEND.md §2–3, COURSE_PACKAGE.md §7 and CLAUDE.md summarize it and point here;
 where they differ, this document wins until the code exists.
 
@@ -164,7 +164,8 @@ Deterministic, no model calls:
   `extracted` (or `draft` for page-image-verified records with `--verified-as-draft`), with provenance
   (`imported`, source file, page, local id as `region`), its flags plus `seed-status:*`, and key origin
   (`official-key` → `source-key`, compiled → `compiled-key`, worked out → `agent-suggested`). Shared passages
-  become `bankPassages`. Re-running replays; a locally changed record is reported and skipped. The ImportJob
+  become `bankPassages`. Items get `courseId: dsat` (`--course`, `''` for none) so the selection editor
+  offers them for the Digital SAT package. Re-running replays; a locally changed record is reported and skipped. The ImportJob
   record (`kind: bank-jsonl`) is not created yet; it arrives with Step 39.
 
 ## 9. API (summarized in API.md §6.5.7)

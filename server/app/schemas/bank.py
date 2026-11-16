@@ -190,6 +190,16 @@ class BankPassageView(ApiModel):
     created_at: UtcDatetime
 
 
+class BankMemberView(ApiModel):
+    """Who is using the bank (Step 45.5): the portal shows reviewer actions only when
+    `canReview` is true. The server still enforces every permission."""
+
+    uid: str
+    role: Literal["author", "content_reviewer"]
+    org_id: str
+    can_review: bool
+
+
 class BankItemListView(ApiModel):
     items: list[BankItemSummaryView]
     next_cursor: str | None

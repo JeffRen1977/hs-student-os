@@ -19,6 +19,7 @@ from app.api.routes.packages import version_view
 from app.domain.bank_service import CreateItemInput, ItemDetail
 from app.domain.ports.bank import ItemQuery
 from app.domain.selection_service import SelectionInput, SetInput
+from app.domain.types.actor import Permission
 from app.domain.types.bank import (
     AnswerSource,
     BankItem,
@@ -172,6 +173,20 @@ def item_view(d: ItemDetail) -> bk.BankItemView:
 
 
 # ---- Reads ------------------------------------------------------------------------------------
+
+
+@router.get("/me", response_model=bk.BankMemberView)
+async def bank_member(actor: Platform) -> JSONResponse:
+    actor.require(Permission.BANK_AUTHOR)
+    assert actor.org_id is not None  # bank:author implies an organization
+    return respond(
+        bk.BankMemberView(
+            uid=actor.actor_id,
+            role=actor.role.value,  # type: ignore[arg-type]
+            org_id=actor.org_id,
+            can_review=actor.can(Permission.BANK_REVIEW),
+        )
+    )
 
 
 @router.get("/items", response_model=bk.BankItemListView)

@@ -48,7 +48,8 @@
       if (!token) throw new PortalError("UNAUTHENTICATED", "Sign in required.", 401);
       const headers = { Authorization: "Bearer " + token };
       if (body !== undefined) headers["Content-Type"] = "application/json";
-      if (method === "POST") headers["Idempotency-Key"] = keys.keyFor(actionId || method + path);
+      const command = method === "POST" || method === "PATCH";
+      if (command) headers["Idempotency-Key"] = keys.keyFor(actionId || method + path);
       let res;
       try {
         res = await fetchImpl(base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -60,10 +61,10 @@
       if (!res.ok) {
         const err = data && data.error ? data.error : {};
         // A definitive answer (not a 5xx) ends the action: the next attempt is a new command.
-        if (method === "POST" && res.status < 500) keys.done(actionId || method + path);
+        if (command && res.status < 500) keys.done(actionId || method + path);
         throw new PortalError(err.code || "HTTP_" + res.status, err.message || "Request failed.", res.status, err);
       }
-      if (method === "POST") keys.done(actionId || method + path);
+      if (command) keys.done(actionId || method + path);
       return data;
     };
   }

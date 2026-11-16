@@ -320,3 +320,15 @@ async def test_extracted_items_must_be_confirmed_before_review(h: Harness) -> No
     assert code(await act(h, iid, "submit", AUTHOR, 409)) == "INVALID_STATE_TRANSITION"
     assert (await act(h, iid, "confirm", AUTHOR))["state"] == "draft"
     assert (await act(h, iid, "submit", AUTHOR))["state"] == "in_review"
+
+
+async def test_me_tells_the_portal_whether_the_member_can_review(h: Harness) -> None:
+    assert await call(h, "GET", "/api/bank/me", AUTHOR, 200) == {
+        "uid": AUTHOR,
+        "role": "author",
+        "orgId": "org_hsos_content",
+        "canReview": False,
+    }
+    assert (await call(h, "GET", "/api/bank/me", REVIEWER, 200))["canReview"] is True
+    await call(h, "GET", "/api/bank/me", PLATFORM_REVIEWER, 403)
+    await call(h, "GET", "/api/bank/me", STUDENT, 403)

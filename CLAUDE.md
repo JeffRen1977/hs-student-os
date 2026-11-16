@@ -4,7 +4,7 @@
 > the old student-grant API are removed. The rest of this file follows this policy.
 > See [API contract](doc/API.md) and the Digital SAT walkthrough.
 >
-> Question bank (approved 2026-11-15, Step 45, not implemented): authors (and the authoring agent)
+> Question bank (approved 2026-11-15, Step 45; implemented locally except imports, which wait for Step 39): authors (and the authoring agent)
 > put questions into an organization question bank; a **content reviewer of the same organization**
 > (who may also be the author) approves items, supplies missing keys/solutions and builds the package
 > from a selection; then the publication policy above applies unchanged. License enforcement in the
@@ -152,7 +152,7 @@ INFRASTRUCTURE (Google Cloud)
 | **LLM Gateway** | Provider abstraction, static routing, usage budgets, retry logic | `app/adapters/llm/` |
 | **Course Package Registry** | Loads validated, approved course packages (skills, questions, rubrics, requirements, criteria); pins versions per Run | `app/registries/` |
 | **Package Validator & Publishing** | Validates submitted packages; author → platform reviewer → active workflow; retire/version | `app/domain/`, `app/registries/` |
-| **Question Bank Service** (Step 45, planned) | Org-scoped question bank: import jobs, versioned items, content-reviewer approval and keys, selections, deterministic package build | `app/domain/` |
+| **Question Bank Service** (Step 45) | Org-scoped question bank: import jobs, versioned items, content-reviewer approval and keys, selections, deterministic package build | `app/domain/` |
 | **Skill Executor** | Platform ability catalog: Socratic guidance, rubric assessment, choice (answer-key) scoring, source analysis (writing from provided documents), diagnostic (planned) — selected and configured by each package | `app/domain/skills/` |
 | **Tool Registry** | Math verification, content retrieval, OCR (whitelisted per skill) | `app/registries/` |
 | **Assessment Service** | Validates evidence, atomic commit of assessment + mastery + events | `app/domain/` |

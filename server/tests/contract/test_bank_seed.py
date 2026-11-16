@@ -116,9 +116,12 @@ async def test_reseeding_replays_and_changed_records_are_reported(h: Harness) ->
 
 
 async def test_verified_records_can_arrive_as_drafts_and_go_through_review(h: Harness) -> None:
-    await seed_bank(h.services.bank, author(), QUESTIONS, PASSAGES, verified_as_draft=True)
+    await seed_bank(
+        h.services.bank, author(), QUESTIONS, PASSAGES, verified_as_draft=True, course_id="dsat"
+    )
     rows = by_region(await items(h))
     assert rows["t1.reading.1"]["state"] == "draft"
+    assert {r["courseId"] for r in rows.values()} == {"dsat"}  # selectable for the dsat package
     assert rows["t1.math-calc.31"]["state"] == "extracted"  # OCR only
     iid = rows["t1.reading.1"]["itemId"]
     for uid, action in ((AUTHOR, "submit"), (REVIEWER, "approve")):

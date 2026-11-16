@@ -139,6 +139,7 @@ function Portal({ onSignOut }) {
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Author portal</h1>
         <div className="flex items-center gap-4">
+          <a className="text-sm text-slate-500" href="bank.html">Question bank</a>
           <a className="text-sm text-slate-500" href="review.html">Reviewer screen</a>
           <button className="text-sm text-slate-500" onClick={onSignOut}>Sign out</button>
         </div>

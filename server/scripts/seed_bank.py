@@ -111,7 +111,11 @@ def passage_input(record: Mapping[str, Any]) -> tuple[str, str, Provenance, list
 
 
 def item_input(
-    record: Mapping[str, Any], passage_ids: Mapping[str, str], *, verified_as_draft: bool
+    record: Mapping[str, Any],
+    passage_ids: Mapping[str, str],
+    *,
+    verified_as_draft: bool,
+    course_id: str | None = None,
 ) -> tuple[CreateItemInput, BankItemState]:
     """Map one local bank record onto a bank item. Problems that the bank would reject are
     repaired conservatively and recorded as flags rather than dropped silently."""
@@ -183,7 +187,10 @@ def item_input(
     )
     return (
         CreateItemInput(
-            content=content, tags=tuple(str(t)[:60] for t in tags), provenance=provenance
+            content=content,
+            course_id=course_id,
+            tags=tuple(str(t)[:60] for t in tags),
+            provenance=provenance,
         ),
         state,
     )
@@ -196,6 +203,7 @@ async def seed_bank(
     passages: Iterable[Mapping[str, Any]],
     *,
     verified_as_draft: bool = False,
+    course_id: str | None = None,
 ) -> SeedReport:
     report = SeedReport()
     questions = list(questions)
@@ -222,8 +230,11 @@ async def seed_bank(
 
     for record in questions:
         bid = str(record["id"])
-        inp, state = item_input(record, passage_ids, verified_as_draft=verified_as_draft)
-        cmd = CommandKey(scope=ITEM_SCOPE, key=bid, request_digest=_digest([record, state.value]))
+        inp, state = item_input(
+            record, passage_ids, verified_as_draft=verified_as_draft, course_id=course_id
+        )
+        digest = _digest([record, state.value, course_id])
+        cmd = CommandKey(scope=ITEM_SCOPE, key=bid, request_digest=digest)
         try:
             out = await bank.create(actor, inp, cmd, initial_state=state)
         except DomainError as exc:
@@ -274,7 +285,12 @@ async def _run(args: argparse.Namespace) -> int:
     passages = read_jsonl(bank_dir / "passages.jsonl")
     print(f"seeding {len(questions)} questions into {member.org_id} as {member.uid} …")
     report = await seed_bank(
-        services.bank, actor, questions, passages, verified_as_draft=args.verified_as_draft
+        services.bank,
+        actor,
+        questions,
+        passages,
+        verified_as_draft=args.verified_as_draft,
+        course_id=args.course or None,
     )
     print(report.summary())
     return 0
@@ -285,6 +301,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--bank", default=str(DEFAULT_BANK), help="folder with questions.jsonl")
     parser.add_argument("--org-member", default="author_hsos", help="uid of an org author")
     parser.add_argument("--verified-as-draft", action="store_true")
+    parser.add_argument(
+        "--course", default="dsat", help="courseId for the seeded items ('' for none)"
+    )
     parser.add_argument("--limit", type=int, default=0, help="seed only the first N questions")
     return asyncio.run(_run(parser.parse_args(argv)))
 

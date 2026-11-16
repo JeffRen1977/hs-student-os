@@ -23,6 +23,7 @@
   // Synthetic platform members for the author portal (server/fixtures/platform/members.json).
   const SYNTHETIC_PLATFORM_MEMBERS = Object.freeze([
     { uid: "author_hsos", label: "HS Student OS content author (synthetic)" },
+    { uid: "reviewer_hsos", label: "HS Student OS content reviewer (synthetic)" },
     { uid: "author_sample", label: "Sample Press author (synthetic)" },
     { uid: "reviewer_platform", label: "Platform reviewer (synthetic)" },
     { uid: "admin_platform", label: "Platform admin (synthetic)" },
