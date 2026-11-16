@@ -76,6 +76,7 @@ from app.domain.recovery import RecoveryService
 from app.domain.reminder_service import ReminderPolicy, ReminderService
 from app.domain.retention import EventRetention
 from app.domain.run_execution import RunExecutionService
+from app.domain.selection_service import SelectionService
 from app.domain.session_service import SessionService
 from app.domain.skill_executor import SkillExecutor
 from app.domain.task_service import TaskService
@@ -116,6 +117,7 @@ class Services:
     content_sync: PackageContentSync
     packages: PackageService
     bank: BankService  # Step 45: organization question bank
+    selections: SelectionService  # Step 45.4: package selections and builds
     catalog: CourseCatalog
     packs: SubjectPackRegistry
     budget: BudgetLedger
@@ -391,6 +393,14 @@ def build_services(
         if isinstance(queue, LocalQueue)
         else None
     )
+    packages = PackageService(
+        package_uow,
+        PlatformPackageValidator(),
+        content_sync,
+        clock,
+        reserved_course_ids=content.bundled_course_ids,
+    )
+    bank_uow = DocumentBankUnitOfWork(store)
     return Services(
         settings=settings,
         store=store,
@@ -403,14 +413,9 @@ def build_services(
         admissions=AdmissionsService(uow, prompt_set, clock, ids),
         content=content,
         content_sync=content_sync,
-        packages=PackageService(
-            package_uow,
-            PlatformPackageValidator(),
-            content_sync,
-            clock,
-            reserved_course_ids=content.bundled_course_ids,
-        ),
-        bank=BankService(DocumentBankUnitOfWork(store), clock, ids),
+        packages=packages,
+        bank=BankService(bank_uow, clock, ids),
+        selections=SelectionService(bank_uow, packages, clock, ids),
         catalog=catalog,
         packs=packs,
         budget=ledger,

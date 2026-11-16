@@ -5,6 +5,7 @@ Layout (outside every student's subtree):
     orgs/{orgId}/bankItems/{itemId}                    item header: state, versions, history
     orgs/{orgId}/bankItems/{itemId}/versions/{n:06d}   one item version (content, review)
     orgs/{orgId}/bankPassages/{passageId}              shared passage / stimulus
+    orgs/{orgId}/selections/{selectionId}              a content reviewer's package selection
 
 Commands reuse the platform member idempotency records (`platformMembers/{uid}/idempotency`).
 """
@@ -25,15 +26,20 @@ from app.domain.types.bank import (
     FigureMode,
     ItemChange,
     ItemContent,
+    ItemRef,
     ItemReview,
     ItemType,
     Provenance,
     ProvenanceKind,
+    Selection,
+    SelectionSet,
+    SourceType,
 )
 
 ORGS = "orgs"
 ITEMS = "bankItems"
 PASSAGES = "bankPassages"
+SELECTIONS = "selections"
 VERSIONS = "versions"
 
 
@@ -49,6 +55,78 @@ def items_collection(org_id: str) -> str:
 
 def item_path(org_id: str, item_id: str) -> str:
     return f"{items_collection(org_id)}/{_id(item_id)}"
+
+
+def selection_path(org_id: str, selection_id: str) -> str:
+    return f"{ORGS}/{_id(org_id)}/{SELECTIONS}/{_id(selection_id)}"
+
+
+def selection_to_doc(x: Selection) -> Doc:
+    return {
+        "selectionId": x.selection_id,
+        "orgId": x.org_id,
+        "courseId": x.course_id,
+        "name": x.name,
+        "sets": [
+            {
+                "setId": st.set_id,
+                "title": st.title,
+                "taskTitle": st.task_title,
+                "durationMin": st.duration_min,
+                "skillIds": list(st.skill_ids),
+                "difficulty": st.difficulty,
+                "items": [{"itemId": r.item_id, "version": r.version} for r in st.items],
+            }
+            for st in x.sets
+        ],
+        "starterSetIds": list(x.starter_set_ids),
+        "sequenceSetIds": list(x.sequence_set_ids),
+        "createdBy": x.created_by,
+        "createdAt": x.created_at,
+        "updatedAt": x.updated_at,
+        "revision": x.revision,
+        "sourceType": x.source_type.value,
+        "sourceAuthor": x.source_author,
+        "sourceLicense": x.source_license,
+        "builtPackageVersion": x.built_package_version,
+        "builtBy": x.built_by,
+        "builtAt": x.built_at,
+    }
+
+
+def selection_from_doc(d: Doc) -> Selection:
+    return Selection(
+        selection_id=d["selectionId"],
+        org_id=d["orgId"],
+        course_id=d["courseId"],
+        name=d["name"],
+        sets=tuple(
+            SelectionSet(
+                set_id=st["setId"],
+                title=st["title"],
+                task_title=st["taskTitle"],
+                duration_min=int(st["durationMin"]),
+                skill_ids=tuple(st.get("skillIds", [])),
+                difficulty=st.get("difficulty", "medium"),
+                items=tuple(
+                    ItemRef(item_id=r["itemId"], version=int(r["version"])) for r in st["items"]
+                ),
+            )
+            for st in d.get("sets", [])
+        ),
+        starter_set_ids=tuple(d.get("starterSetIds", [])),
+        sequence_set_ids=tuple(d.get("sequenceSetIds", [])),
+        created_by=d["createdBy"],
+        created_at=d["createdAt"],
+        updated_at=d["updatedAt"],
+        revision=int(d.get("revision", 1)),
+        source_type=SourceType(d.get("sourceType", "original")),
+        source_author=d.get("sourceAuthor"),
+        source_license=d.get("sourceLicense"),
+        built_package_version=d.get("builtPackageVersion"),
+        built_by=d.get("builtBy"),
+        built_at=d.get("builtAt"),
+    )
 
 
 def passage_path(org_id: str, passage_id: str) -> str:
@@ -311,10 +389,31 @@ class FirestoreBankPassageStore:
         self._txn.set(passage_path(passage.org_id, passage.passage_id), passage_to_doc(passage))
 
 
+class FirestoreSelectionStore:
+    def __init__(self, txn: DocTxn) -> None:
+        self._txn = txn
+
+    async def get(self, org_id: str, selection_id: str) -> Selection | None:
+        doc = await self._txn.get(selection_path(org_id, selection_id))
+        return selection_from_doc(doc) if doc else None
+
+    async def list_for_org(self, org_id: str) -> Sequence[Selection]:
+        docs = await self._txn.query(
+            f"{ORGS}/{_id(org_id)}/{SELECTIONS}", QuerySpec(order_by=("selectionId",), limit=200)
+        )
+        return [selection_from_doc(d) for d in docs]
+
+    def save(self, selection: Selection) -> None:
+        self._txn.set(
+            selection_path(selection.org_id, selection.selection_id), selection_to_doc(selection)
+        )
+
+
 class FirestoreBankTx:
     def __init__(self, txn: DocTxn) -> None:
         self.items = FirestoreBankItemStore(txn)
         self.passages = FirestoreBankPassageStore(txn)
+        self.selections = FirestoreSelectionStore(txn)
         self.idempotency = FirestorePlatformIdempotencyStore(txn)
 
 

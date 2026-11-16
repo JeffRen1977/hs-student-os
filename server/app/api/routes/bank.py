@@ -15,8 +15,10 @@ from fastapi.responses import JSONResponse
 from app.api.dependencies.auth import Platform, ServicesDep
 from app.api.dependencies.commands import IdempotencyKeyHeader, command_key
 from app.api.responses import respond
+from app.api.routes.packages import version_view
 from app.domain.bank_service import CreateItemInput, ItemDetail
 from app.domain.ports.bank import ItemQuery
+from app.domain.selection_service import SelectionInput, SetInput
 from app.domain.types.bank import (
     AnswerSource,
     BankItem,
@@ -27,6 +29,8 @@ from app.domain.types.bank import (
     ItemType,
     Provenance,
     ProvenanceKind,
+    Selection,
+    SourceType,
 )
 from app.schemas import bank as bk
 from app.schemas.package import EmptyCommand
@@ -374,3 +378,127 @@ async def retire_item(
     cmd = command_key(request, idempotency_key, body)
     outcome = await services.bank.retire(actor, item_id, body.notes, cmd)
     return respond(item_view(outcome.value), replayed=outcome.replayed)
+
+
+# ---- Selections and builds (Step 45.4) ----------------------------------------------------------
+
+SelectionPath = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+
+
+def _selection_input(s: bk.SelectionIn) -> SelectionInput:
+    return SelectionInput(
+        name=s.name,
+        sets=[
+            SetInput(
+                set_id=st.set_id,
+                title=st.title,
+                task_title=st.task_title,
+                duration_min=st.duration_min,
+                items=[(r.item_id, r.version) for r in st.items],
+                skill_ids=tuple(st.skill_ids),
+                difficulty=st.difficulty,
+            )
+            for st in s.sets
+        ],
+        starter_set_ids=tuple(s.starter_set_ids),
+        sequence_set_ids=tuple(s.sequence_set_ids),
+        source_type=SourceType(s.source_type),
+        source_author=s.source_author,
+        source_license=s.source_license,
+    )
+
+
+def selection_view(x: Selection) -> bk.SelectionView:
+    return bk.SelectionView(
+        selection_id=x.selection_id,
+        course_id=x.course_id,
+        name=x.name,
+        sets=[
+            bk.SelectionSetView(
+                set_id=st.set_id,
+                title=st.title,
+                task_title=st.task_title,
+                duration_min=st.duration_min,
+                items=[bk.ItemRefView(item_id=r.item_id, version=r.version) for r in st.items],
+                skill_ids=list(st.skill_ids),
+                difficulty=st.difficulty,
+            )
+            for st in x.sets
+        ],
+        starter_set_ids=list(x.starter_set_ids),
+        sequence_set_ids=list(x.sequence_set_ids),
+        source_type=x.source_type.value,
+        source_author=x.source_author,
+        source_license=x.source_license,
+        revision=x.revision,
+        created_by=x.created_by,
+        created_at=x.created_at,
+        updated_at=x.updated_at,
+        built_package_version=x.built_package_version,
+        built_by=x.built_by,
+        built_at=x.built_at,
+    )
+
+
+@router.get("/selections", response_model=bk.SelectionListView)
+async def list_selections(actor: Platform, services: ServicesDep) -> JSONResponse:
+    items = await services.selections.list(actor)
+    return respond(bk.SelectionListView(selections=[selection_view(x) for x in items]))
+
+
+@router.get("/selections/{selection_id}", response_model=bk.SelectionView)
+async def get_selection(
+    selection_id: SelectionPath, actor: Platform, services: ServicesDep
+) -> JSONResponse:
+    return respond(selection_view(await services.selections.get(actor, selection_id)))
+
+
+@router.post("/selections", response_model=bk.SelectionView, status_code=201)
+async def create_selection(
+    body: bk.CreateSelectionRequest,
+    request: Request,
+    actor: Platform,
+    services: ServicesDep,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    cmd = command_key(request, idempotency_key, body)
+    outcome = await services.selections.create(actor, body.course_id, _selection_input(body), cmd)
+    return respond(
+        selection_view(outcome.value),
+        status=201 if outcome.created else 200,
+        replayed=outcome.replayed,
+    )
+
+
+@router.patch("/selections/{selection_id}", response_model=bk.SelectionView)
+async def update_selection(
+    selection_id: SelectionPath,
+    body: bk.UpdateSelectionRequest,
+    request: Request,
+    actor: Platform,
+    services: ServicesDep,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    cmd = command_key(request, idempotency_key, body)
+    outcome = await services.selections.update(
+        actor, selection_id, body.expected_revision, _selection_input(body.selection), cmd
+    )
+    return respond(selection_view(outcome.value), replayed=outcome.replayed)
+
+
+@router.post("/selections/{selection_id}/build", response_model=bk.BuildView, status_code=201)
+async def build_selection(
+    selection_id: SelectionPath,
+    body: bk.BuildRequest,
+    request: Request,
+    actor: Platform,
+    services: ServicesDep,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    cmd = command_key(request, idempotency_key, body)
+    outcome = await services.selections.build(actor, selection_id, body.version, cmd)
+    view = bk.BuildView(
+        selection=selection_view(outcome.value.selection),
+        package=version_view(outcome.value.package),
+    )
+    return respond(view, status=201, replayed=outcome.replayed)

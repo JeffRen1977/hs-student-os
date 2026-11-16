@@ -34,10 +34,19 @@ class Review(ApiModel):
         return self
 
 
+class BankItemRef(ApiModel):
+    """A question-bank item version a built package question came from (Step 45.4)."""
+
+    item_id: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+    version: int = Field(ge=1)
+
+
 class ContentSource(ApiModel):
     type: Literal["original", "licensed"]
     author: NonEmpty
     license: NonEmpty
+    # Set by the selection builder: the bank item versions this content came from.
+    bank_items: list[BankItemRef] | None = Field(default=None, max_length=10)
 
     @model_validator(mode="after")
     def _no_unlicensed_official_material(self) -> Self:

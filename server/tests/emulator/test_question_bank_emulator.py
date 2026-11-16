@@ -95,3 +95,52 @@ async def test_flag_filter_and_organization_isolation(env: dict[str, Any]) -> No
         f"{ITEMS}/{mine[0]['itemId']}", headers=headers(env, "author_sample")
     )
     assert other.status_code == 404
+
+
+async def test_selection_and_build_on_real_firestore(env: dict[str, Any]) -> None:
+    """Selection documents round-trip and a build uploads a valid draft package version."""
+    http, flag = env["http"], "run-" + secrets.token_hex(4)
+    ids = []
+    for n in (1, 2):
+        item = await create(
+            env,
+            flag,
+            answer="B",
+            answerSource="source-key",
+            skillIds=["dsat.algebra.linear-equations"],
+            stem=f"Item {n} {flag}",
+        )
+        for uid, action in (("author_hsos", "submit"), ("reviewer_hsos", "approve")):
+            r = await http.post(
+                f"{ITEMS}/{item['itemId']}/{action}", json={}, headers=headers(env, uid)
+            )
+            assert r.status_code == 200, r.text
+        ids.append(item["itemId"])
+    body = {
+        "courseId": "dsat",
+        "name": flag,
+        "sets": [
+            {
+                "setId": "s1",
+                "title": "Set 1",
+                "taskTitle": "Practice",
+                "items": [{"itemId": i} for i in ids],
+            }
+        ],
+        "starterSetIds": ["s1"],
+    }
+    r = await http.post("/api/bank/selections", json=body, headers=headers(env, "reviewer_hsos"))
+    assert r.status_code == 201, r.text
+    sid = r.json()["selectionId"]
+    stored = (await env["db"].document(f"orgs/{ORG}/selections/{sid}").get()).to_dict()
+    assert [x["itemId"] for x in stored["sets"][0]["items"]] == ids
+    version = f"{50 + secrets.randbelow(900)}.{secrets.randbelow(1000)}.0"
+    r = await http.post(
+        f"/api/bank/selections/{sid}/build",
+        json={"version": version},
+        headers=headers(env, "reviewer_hsos"),
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["package"]["report"]["valid"] and r.json()["package"]["status"] == "draft"
+    after = (await env["db"].document(f"orgs/{ORG}/selections/{sid}").get()).to_dict()
+    assert after["builtPackageVersion"] == version and after["builtBy"] == "reviewer_hsos"

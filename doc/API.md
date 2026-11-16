@@ -599,7 +599,7 @@ Admins publish reviewer-approved course versions for the whole platform. See the
 policy at the beginning of this document for endpoints, permissions and enrollment rules.
 The old individual and cohort course-grant API is removed.
 
-### 6.5.7 Organization question bank and content review (Step 45; items implemented 2026-11-15)
+### 6.5.7 Organization question bank and content review (Step 45; implemented 2026-11-15 except sources/imports)
 
 Full contract: [QUESTION_BANK.md](QUESTION_BANK.md). Every route is scoped to the caller's author
 organization (`platformMembers/{uid}.orgId`); another organization's sources, jobs, items and
@@ -646,12 +646,19 @@ Content reviewer only (`bank:review`; authors get 403):
   reviewer key on an `spr` item without a `solution` → 409 `ITEM_KEY_REQUIRED`; an empty stem or an `mc` item
   without non-empty choices A–D → 400 `VALIDATION_FAILED`.
 - `POST /api/bank/items/{itemId}/reject` body `{notes}` (required) → `rejected`; `/retire` body `{notes}` → `retired`.
-- `GET /api/bank/selections`, `GET /api/bank/selections/{id}` (readable by authors too);
-  `POST /api/bank/selections`, `PATCH /api/bank/selections/{id}` (content reviewer). Referencing an item
-  version that is not approved → 409 `ITEM_NOT_APPROVED`; structural problems (set over 10 items,
-  passage split across sets, unknown skill) → 409 `SELECTION_INVALID`.
-- `POST /api/bank/selections/{id}/build` body `{version}` → 201 `PackageVersion` (draft, with validator
-  report) built deterministically from the selection; then the normal §6.3 submit path.
+- `GET /api/bank/selections`, `GET /api/bank/selections/{id}` → `Selection` (readable by authors too).
+- `POST /api/bank/selections` body `{courseId, name, sets[{setId, title, taskTitle, durationMin=20, items[{itemId,
+  version?}], skillIds[], difficulty=medium}], starterSetIds[], sequenceSetIds[], sourceType=original|licensed,
+  sourceAuthor?, sourceLicense?}` → 201 (content reviewer). An item reference without `version` pins the item's
+  current approved version. Not approved or retired → 409 `ITEM_NOT_APPROVED`. Every structural problem is listed
+  in one 409 `SELECTION_INVALID`: a set needs 1–10 items; an item may be used once; items sharing a passage must be
+  in one set; `starterSetIds` (≤20) and `sequenceSetIds` (≤200) must name sets of the selection and not overlap;
+  student-produced-response items cannot be built yet. `PATCH /api/bank/selections/{id}` body `{expectedRevision,
+  selection: {…same fields without courseId}}` replaces them (stale revision → 409 `VERSION_CONFLICT`).
+- `POST /api/bank/selections/{id}/build` body `{version}` → 201 `{selection, package: PackageVersion}`: a draft
+  package version with its validator report, built deterministically and uploaded through §6.3 (then submit
+  as usual). The base — manifest, tutor prompt, skills — is the latest package version of the course in the
+  organization (none → 409 `SELECTION_INVALID`). The version rules of §6.3 apply (`PACKAGE_VERSION_EXISTS`).
 
 Resources (fields in QUESTION_BANK.md §4): `BankSource`, `ImportJob`, `BankItem` (header + immutable
 versions: `stem`, `choices`, `type` mc|spr, `answer`, `answerSource` source-key|compiled-key|reviewer|agent-suggested,

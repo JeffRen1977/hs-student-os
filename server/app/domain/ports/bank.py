@@ -12,7 +12,13 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.domain.ports.packages import PlatformIdempotencyStore
-from app.domain.types.bank import BankItem, BankItemState, BankItemVersion, BankPassage
+from app.domain.types.bank import (
+    BankItem,
+    BankItemState,
+    BankItemVersion,
+    BankPassage,
+    Selection,
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -46,12 +52,23 @@ class BankPassageStore(Protocol):
     def save(self, passage: BankPassage) -> None: ...
 
 
+class SelectionStore(Protocol):
+    async def get(self, org_id: str, selection_id: str) -> Selection | None: ...
+
+    async def list_for_org(self, org_id: str) -> Sequence[Selection]: ...
+
+    def save(self, selection: Selection) -> None: ...
+
+
 class BankTx(Protocol):
     @property
     def items(self) -> BankItemStore: ...
 
     @property
     def passages(self) -> BankPassageStore: ...
+
+    @property
+    def selections(self) -> SelectionStore: ...
 
     @property
     def idempotency(self) -> PlatformIdempotencyStore: ...

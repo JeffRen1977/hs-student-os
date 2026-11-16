@@ -1,8 +1,8 @@
 # Organization question bank, authoring agents and content review — contract v1
 
 Status: **approved by the owner 2026-11-15.** Implemented 2026-11-15: roles, items and their review (45.1–45.3).
-Also implemented: passages (version 1, read endpoint) and development seeding (45.6). Not yet: sources,
-imports, selections and the builder (45.4, Step 39), portal screens (45.5). This document is the contract for the
+Also implemented: passages (version 1, read endpoint), development seeding (45.6), selections and the
+builder (45.4). Not yet: sources and imports (Step 39), portal screens (45.5). This document is the contract for the
 question bank. API.md §6.5.7, BACKEND.md §2–3, COURSE_PACKAGE.md §7 and CLAUDE.md summarize it and point here;
 where they differ, this document wins until the code exists.
 
@@ -100,10 +100,12 @@ any → `discarded` (author, before approval) or `retired` (reviewer, after appr
 creates a new version in `draft`; the approved version stays usable until the new one is approved.
 
 ### 4.4 `selections/{selectionId}` — what goes into a package
-`courseId`, `name`, `sets[]`: `{ setId, title, taskTitle, durationMin, itemRefs: [{itemId, version}] }` (≤10 items
-per set; items sharing a passage stay in one set), `starterSetIds[]`, `sequenceSetIds[]`, `status`
-(`open` | `built`), `builtPackageVersion`. Only `approved` item versions may be referenced (409
-`ITEM_NOT_APPROVED`). Only `content_reviewer` writes selections.
+`courseId`, `name`, `sets[]`: `{ setId, title, taskTitle, durationMin, items: [{itemId, version}], skillIds[],
+difficulty }` (≤10 items per set, ≤150 sets; items sharing a passage stay in one set; `skillIds` apply to items
+without skills of their own), `starterSetIds[]`, `sequenceSetIds[]`, `sourceType` (original | licensed),
+`sourceAuthor`, `sourceLicense` (become each built question's `source`; default: the course's publisher and
+license), `revision`, `builtPackageVersion`, `builtBy`, `builtAt`. Only `approved`, unretired item versions may be
+referenced (409 `ITEM_NOT_APPROVED`); references pin a version. Only `content_reviewer` writes and builds.
 
 ## 5. Answer keys and solutions
 
@@ -121,12 +123,16 @@ per set; items sharing a passage stay in one set), `starterSetIds[]`, `sequenceS
 
 Deterministic, no model calls:
 
-- Each set → one package `Question` with `items` (choice set) for `mc` items; `spr` items become free-response
-  questions with an `answerCheck` (`math-verify`) when the accepted value is numeric, otherwise they are reported as
-  not buildable yet.
-- Passages → shared stem text of the set (or `materials` when the source-analysis ability is used).
-- Rubric criterion per item, evaluation cases per set (all correct / one wrong / unreadable), starter tasks and
-  practice sequence from the selection, manifest from the course's existing manifest.
+- Each set → one package `Question` with `items` (choice set) for `mc` items. **`spr` items are not buildable
+  yet** (409 `SELECTION_INVALID` when selected): the package's `answerCheck` takes a SymPy expression with
+  variables, which does not fit plain numeric answers; numeric free response needs its own platform ability.
+- Passages → the set question's prompt ("Read the passage, then answer each question." + title + text).
+- One rubric per set (criterion per item); evaluation cases: every set all correct, then one-wrong cases while
+  the 200-case package limit allows, plus one unreadable case. Starter tasks and practice sequence from the
+  selection. Manifest, tutor prompt and skills come from the latest package version of the course in the
+  organization; materials are dropped and `rubric-assessment`/`source-analysis` are removed from the abilities
+  (a selection cannot supply their data), `choice-scoring` is added. Question ids are `q_{courseId}_{setId}`;
+  question and rubric versions are a hash of the set's item versions, title, skills and difficulty.
 - Every built package question records `source.bankItems[] = [{itemId, version}]`, so the platform reviewer and
   later audits can trace each question back to its bank item, source page and reviewer.
 - The result goes through the existing upload path: validator report, preview, submit, platform review.

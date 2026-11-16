@@ -79,12 +79,12 @@ Session 创建时固定 `contextVersion.pack`。运行时按固定版本加载�
 - **回归（Step 34.5）**：`tests/unit/test_platform_abilities.py` 在每次新增能力后检查所有作者包仍通过校验并通过自动评测用例，内置课程不受影响。
 
 
-## 7. 由题库选题构建课程包（Step 45，2026-11-15 批准，未实现）
+## 7. 由题库选题构建课程包（Step 45.4，2026-11-15 已实现）
 
 契约见 [QUESTION_BANK.md](QUESTION_BANK.md)。组织的内容审核员（`content_reviewer`，同时也是作者）在题库中批准题目、补充答案与解答，并建立选题（selection）；`POST /api/bank/selections/{id}/build` 按选题**确定性地**（无模型调用，同一选题生成同一 JSON）构建一个 draft 包版本，之后与手工上传的包走完全相同的校验、预览、提交与平台审核路径。
 
-- 每个题组（≤10 题，同一文章的题目在同一组）→ 一个带 `items` 的选择题组（`choice-scoring`）；`spr`（学生作答数值）题目在答案为数值时构建为带 `answerCheck`（`math-verify`）的自由作答题，否则报告为暂不可构建。
-- 每题一个 rubric criterion；每组生成评测用例（全对 / 一错 / 无法读取）；起始任务与练习顺序来自选题；manifest 沿用该课程现有 manifest。
+- 每个题组（≤10 题，同一文章的题目在同一组）→ 一个带 `items` 的选择题组（`choice-scoring`）；文章作为该题组的 prompt。`spr`（学生作答数值）题目**暂不可构建**（选中时 409 `SELECTION_INVALID`）：`answerCheck` 需要带变量的 SymPy 表达式，不适合纯数值答案，需要新的平台能力。
+- 每题一个 rubric criterion；评测用例：每组全对，在 200 条上限内补一错用例，另加一条无法读取用例；起始任务与练习顺序来自选题；manifest、tutor prompt 与技能取自本组织该课程最新的包版本；materials 清空，`rubric-assessment` 与 `source-analysis` 从 abilities 中移除并加入 `choice-scoring`。
 - 契约变更：`ContentSource` 增加可选字段 `bankItems: [{itemId, version}]`，记录每道包内题目来自哪个题库题目版本，供平台审核员与之后的审计追溯到来源页面和内容审核员。
 - 只有 `approved` 的题目版本可以进入选题；`answerSource: agent-suggested` 的答案在内容审核员确认前不能批准。
 - 许可证：题库里的来源与许可证字段只记录、暂不强制（所有者决定 2026-11-15）。**现有包校验规则不变**：署名为 College Board 的题目需要 `source.type: "licensed"`，平台审核员批准时仍须声明 `licenseAttested`。

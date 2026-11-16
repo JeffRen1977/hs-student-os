@@ -250,17 +250,35 @@ class ItemRef:
     version: int
 
 
+MAX_SET_ITEMS = 10  # one package choice set
+MAX_SELECTION_SETS = 150
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SelectionSet:
-    set_id: str
+    """One practice set of the package: up to 10 approved items, scored together.
+    `skill_ids` (course skills) are used for items that carry no skill of their own."""
+
+    set_id: str  # lowercase slug, unique within the selection
     title: str
     task_title: str
     duration_min: int
     items: Sequence[ItemRef]
+    skill_ids: Sequence[str] = ()
+    difficulty: str = "medium"
+
+
+class SourceType(StrEnum):
+    ORIGINAL = "original"
+    LICENSED = "licensed"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Selection:
+    """What goes into a package version, decided by the organization's content reviewer.
+    `source_*` become each built question's `source` (recorded, not enforced in the bank;
+    the package validator still applies its own rules)."""
+
     selection_id: str
     org_id: str
     course_id: str
@@ -272,4 +290,9 @@ class Selection:
     created_at: datetime
     updated_at: datetime
     revision: int = 1
+    source_type: SourceType = SourceType.ORIGINAL
+    source_author: str | None = None  # default: the course's publisher
+    source_license: str | None = None  # default: the course's license
     built_package_version: str | None = None
+    built_by: str | None = None
+    built_at: datetime | None = None
