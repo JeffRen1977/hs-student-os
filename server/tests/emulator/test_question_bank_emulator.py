@@ -144,3 +144,36 @@ async def test_selection_and_build_on_real_firestore(env: dict[str, Any]) -> Non
     assert r.json()["package"]["report"]["valid"] and r.json()["package"]["status"] == "draft"
     after = (await env["db"].document(f"orgs/{ORG}/selections/{sid}").get()).to_dict()
     assert after["builtPackageVersion"] == version and after["builtBy"] == "reviewer_hsos"
+
+
+async def test_quick_entry_batch_and_duplicate_lookup_on_firestore(env: dict[str, Any]) -> None:
+    """Step 39A: a batch commits items, passage and job together; the content-hash `in`
+    query finds the duplicates on the next preview."""
+    tag = secrets.token_hex(4)
+    text = f"Questions 1-2 refer to the following passage.\nPassage {tag}.\n" + "".join(
+        f"{n}. Question {tag} {n}?\nA) a\nB) b\nC) c\nD) d\nAnswer: A\n" for n in (1, 2, 3)
+    )
+    http = env["http"]
+    r = await http.post(
+        "/api/bank/imports/parse", json={"text": text}, headers=headers(env, "author_hsos")
+    )
+    preview = r.json()
+    assert r.status_code == 200 and all(q["duplicateOf"] is None for q in preview["questions"])
+    body = {
+        "questions": [
+            {"number": q["number"], "passageRef": q["passageRef"],
+             "content": {k: v for k, v in q["content"].items() if v is not None}}
+            for q in preview["questions"]
+        ],
+        "passages": [{"ref": p["ref"], "title": p["title"], "text": p["text"]}
+                     for p in preview["passages"]],
+    }  # fmt: skip
+    r = await http.post("/api/bank/imports/batch", json=body, headers=headers(env, "author_hsos"))
+    job = r.json()
+    assert r.status_code == 201 and job["itemCount"] == 3, r.text
+    stored = (await env["db"].document(f"orgs/{ORG}/imports/{job['jobId']}").get()).to_dict()
+    assert stored["itemIds"] == job["itemIds"] and len(stored["passageIds"]) == 1
+    r = await http.post(
+        "/api/bank/imports/parse", json={"text": text}, headers=headers(env, "reviewer_hsos")
+    )
+    assert {q["duplicateOf"] for q in r.json()["questions"]} == set(job["itemIds"])

@@ -439,6 +439,207 @@ function SelectionsTab({ me }) {
   );
 }
 
+// ---- Add questions (Step 39A: form, paste, spreadsheet) ----------------------------------------
+
+const EMPTY_SETTINGS = { courseId: "dsat", section: "", skillIds: "", difficulty: "", keyOrigin: "source-key",
+  sourceTitle: "", sourceLicense: "", tags: "" };
+const EMPTY_FORM = { stem: "", type: "mc", choices: { A: "", B: "", C: "", D: "" }, answer: "", solution: "",
+  passageMode: "none", passageTitle: "", passageText: "", previousPassageId: null };
+
+function SettingsPanel({ settings, setSettings }) {
+  const set = (k) => (e) => setSettings({ ...settings, [k]: e.target.value });
+  return (
+    <div className={CARD + " p-4 space-y-2"}>
+      <div className="text-sm font-semibold">Apply to every question</div>
+      <p className="text-xs text-slate-500">Fields left empty here keep what each question says.</p>
+      <input className={INPUT + " w-full"} placeholder="Course id (e.g. dsat)" value={settings.courseId} onChange={set("courseId")} />
+      <input className={INPUT + " w-full"} placeholder="Section (e.g. math, reading)" value={settings.section} onChange={set("section")} />
+      <input className={INPUT + " w-full"} placeholder="Skill ids, comma-separated" value={settings.skillIds} onChange={set("skillIds")} />
+      <div className="flex gap-2">
+        <select className={INPUT} value={settings.difficulty} onChange={set("difficulty")}><option value="">difficulty</option><option>easy</option><option>medium</option><option>hard</option></select>
+        <select className={INPUT} value={settings.keyOrigin} onChange={set("keyOrigin")}>
+          <option value="source-key">keys printed in the source</option><option value="compiled-key">keys from a third-party list</option>
+        </select>
+      </div>
+      <input className={INPUT + " w-full"} placeholder="Source title (e.g. Worksheet 3, Unit 2 quiz)" value={settings.sourceTitle} onChange={set("sourceTitle")} />
+      <input className={INPUT + " w-full"} placeholder="Source and license note (recorded)" value={settings.sourceLicense} onChange={set("sourceLicense")} />
+      <input className={INPUT + " w-full"} placeholder="Tags, comma-separated" value={settings.tags} onChange={set("tags")} />
+    </div>
+  );
+}
+
+function SingleForm({ settings, onImported }) {
+  const [form, setForm] = React.useState(EMPTY_FORM);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const [saved, setSaved] = React.useState(null);
+  const action = React.useRef("one-" + Date.now());
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const problems = HSBankApi.formProblems(form);
+  async function save() {
+    setBusy(true); setError(null);
+    try {
+      const body = { ...HSBankApi.formBatch(form), settings: HSBankApi.settingsBody(settings) };
+      const job = await BANK.importBatch(body, action.current);
+      action.current = "one-" + Date.now();
+      setSaved(job); onImported(job);
+      if (job.itemCount) {
+        const passageId = form.passageMode === "new" ? job.passageIds[0] : form.previousPassageId;
+        setForm({ ...EMPTY_FORM, type: form.type, previousPassageId: passageId || null,
+          passageMode: passageId && form.passageMode !== "none" ? "previous" : "none" });
+      }
+    } catch (err) { setError(err); } finally { setBusy(false); }
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2 text-sm">
+        {[["none", "No passage"], ["new", "New passage"], ["previous", "Same passage as before"]].map(([v, t]) => (
+          <label key={v} className="flex items-center gap-1"><input type="radio" checked={form.passageMode === v} onChange={() => setForm({ ...form, passageMode: v })} disabled={v === "previous" && !form.previousPassageId} />{t}</label>
+        ))}
+      </div>
+      {form.passageMode === "new" && (
+        <div className="space-y-1">
+          <input className={INPUT + " w-full"} placeholder="Passage title (e.g. Questions 1-5 are based on …)" value={form.passageTitle} onChange={set("passageTitle")} />
+          <textarea className={INPUT + " w-full h-28"} placeholder="Passage text" value={form.passageText} onChange={set("passageText")} />
+        </div>
+      )}
+      <textarea className={INPUT + " w-full h-24"} placeholder="Question (mark underlined text as [[text]])" value={form.stem} onChange={set("stem")} />
+      <select className={INPUT} value={form.type} onChange={set("type")}><option value="mc">multiple choice</option><option value="spr">student-produced response (grid-in)</option></select>
+      {form.type === "mc" && ["A", "B", "C", "D"].map((k) => (
+        <div key={k} className="flex items-center gap-2"><span className="w-5 text-sm font-semibold">{k}</span>
+          <input className={INPUT + " flex-1"} value={form.choices[k]} onChange={(e) => setForm({ ...form, choices: { ...form.choices, [k]: e.target.value } })} /></div>
+      ))}
+      <div className="flex gap-2">
+        <input className={INPUT + " w-48"} placeholder={form.type === "mc" ? "Key: A, B, C or D" : "Accepted answers, e.g. 7/2|3.5"} value={form.answer} onChange={set("answer")} />
+        <span className="text-xs text-slate-500 self-center">Leave empty if you have no key; the content reviewer can add it.</span>
+      </div>
+      <textarea className={INPUT + " w-full h-16"} placeholder="Solution or explanation (optional)" value={form.solution} onChange={set("solution")} />
+      {problems.length > 0 && <ul className="text-xs text-amber-900 bg-amber-50 rounded p-2 list-disc pl-5">{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
+      <button disabled={busy || problems.length > 0} className={SMALL_BTN + " bg-slate-900 text-white"} onClick={save}>{busy ? "Saving…" : "Save and add next"}</button>
+      {saved && (saved.itemCount
+        ? <p className="text-sm text-emerald-700">Saved as a draft ({saved.itemIds[0]}). The form is ready for the next question.</p>
+        : <p className="text-sm text-amber-800">Not saved: {saved.skipped.join("; ")}</p>)}
+      <ErrorNote error={error} />
+    </div>
+  );
+}
+
+function BulkImport({ format, settings, onImported }) {
+  const [text, setText] = React.useState("");
+  const [preview, setPreview] = React.useState(null);
+  const [keep, setKeep] = React.useState(new Set());
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const [result, setResult] = React.useState(null);
+  const run = React.useRef(0);
+  async function doPreview() {
+    setBusy(true); setError(null); setResult(null);
+    try {
+      const p = await BANK.parse(format, text);
+      setPreview(p); run.current += 1;
+      setKeep(new Set(p.questions.filter((q) => !q.duplicateOf).map((q) => q.number)));
+    } catch (err) { setError(err); } finally { setBusy(false); }
+  }
+  async function doImport() {
+    setBusy(true); setError(null);
+    const keepDup = preview.questions.some((q) => q.duplicateOf && keep.has(q.number));
+    const chunks = HSBankApi.chunkBatch(HSBankApi.batchFromPreview(preview, keep), 100);
+    const jobs = [];
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        const body = { ...chunks[i], settings: HSBankApi.settingsBody(settings), keepDuplicates: keepDup };
+        jobs.push(await BANK.importBatch(body, "bulk:" + run.current + ":" + i));
+      }
+      setResult({ created: jobs.reduce((n, j) => n + j.itemCount, 0), skipped: jobs.flatMap((j) => j.skipped) });
+      jobs.forEach(onImported); setPreview(null); setText("");
+    } catch (err) { setError(err); } finally { setBusy(false); }
+  }
+  function readFile(e) {
+    const f = e.target.files && e.target.files[0];
+    if (f) f.text().then(setText);
+  }
+  const passages = preview ? Object.fromEntries(preview.passages.map((p) => [p.ref, p])) : {};
+  return (
+    <div className="space-y-2">
+      {format === "csv" ? (
+        <div className="flex items-center gap-3 text-sm">
+          <input type="file" accept=".csv,text/csv" onChange={readFile} />
+          <a className="text-indigo-700 underline" download="question-template.csv" href={"data:text/csv;charset=utf-8," + encodeURIComponent(HSBankApi.CSV_TEMPLATE)}>Download the template</a>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-500">Paste questions numbered 1., 2., … with choices A) – D). Keys can follow each question (“Answer: B”) or come as a block at the end (“Answers 1. B 2. D”). A line like “Questions 1-3 refer to the following passage.” starts a passage for those questions.</p>
+      )}
+      <textarea className={INPUT + " w-full h-56 font-mono text-xs"} placeholder={format === "csv" ? "…or paste CSV here (first row: the header)" : "Paste questions here"} value={text} onChange={(e) => { setText(e.target.value); setPreview(null); }} />
+      <button disabled={busy || !text.trim()} className={SMALL_BTN + " bg-slate-900 text-white"} onClick={doPreview}>{busy && !preview ? "Reading…" : "Preview"}</button>
+      <ErrorNote error={error} />
+      {result && <p className="text-sm text-emerald-700">Imported {result.created} question(s) as drafts.{result.skipped.length ? " Skipped: " + result.skipped.join("; ") : ""}</p>}
+      {preview && (
+        <div className={CARD + " p-3"}>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold">{preview.questions.length} question(s), {preview.passages.length} passage(s) found — {keep.size} selected</div>
+            <button disabled={busy || !keep.size} className={SMALL_BTN + " bg-indigo-600 text-white"} onClick={doImport}>{busy ? "Importing…" : "Import " + keep.size + " as drafts"}</button>
+          </div>
+          {preview.problems.length > 0 && <ul className="mt-2 text-xs text-amber-900 bg-amber-50 rounded p-2 list-disc pl-5">{preview.problems.map((p) => <li key={p}>{p}</li>)}</ul>}
+          <ul className="mt-2 divide-y divide-slate-100 max-h-[60vh] overflow-auto">
+            {preview.questions.map((q) => (
+              <li key={q.number} className="py-2 text-sm flex gap-3">
+                <input type="checkbox" className="mt-1" checked={keep.has(q.number)} onChange={(e) => { const k = new Set(keep); e.target.checked ? k.add(q.number) : k.delete(q.number); setKeep(k); }} />
+                <div className="flex-1 min-w-0">
+                  <div><b>{q.number}.</b> <Underlined text={q.content.stem || "(no question text)"} /></div>
+                  {q.passageRef && <div className="text-xs text-slate-500">Passage: {passages[q.passageRef] ? passages[q.passageRef].title : q.passageRef}</div>}
+                  {q.content.choices && <div className="text-xs text-slate-600">{Object.entries(q.content.choices).map(([k, v]) => k + ") " + v).join("   ")}</div>}
+                  <div className="text-xs">Key: {q.content.answer ? <b>{q.content.answer}</b> : <span className="text-slate-500">none</span>}{q.content.type === "spr" ? " · grid-in" : ""}{q.content.solution ? " · has solution" : ""}</div>
+                  {q.duplicateOf && <div className="text-xs text-amber-800">Duplicate of {q.duplicateOf} — not imported unless ticked</div>}
+                  {q.problems.length > 0 && <div className="text-xs text-amber-800">{q.problems.join(" · ")}</div>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ImportHistory({ refresh }) {
+  const [jobs, setJobs] = React.useState(null);
+  React.useEffect(() => { BANK.listImports().then((r) => setJobs(r.imports)).catch(() => setJobs([])); }, [refresh]);
+  if (!jobs || !jobs.length) return null;
+  return (
+    <div className={CARD + " p-4"}>
+      <div className="text-sm font-semibold">Recent imports</div>
+      <ul className="mt-2 text-xs space-y-1">{jobs.slice(0, 10).map((j) => (
+        <li key={j.jobId}>{new Date(j.createdAt).toLocaleString()} · {j.kind} · <b>{j.itemCount}</b> created{j.skipped.length ? ", " + j.skipped.length + " skipped" : ""}{j.sourceTitle ? " · " + j.sourceTitle : ""} · {j.createdBy}</li>
+      ))}</ul>
+    </div>
+  );
+}
+
+function AddTab() {
+  const [mode, setMode] = React.useState("one");
+  const [settings, setSettings] = React.useState(EMPTY_SETTINGS);
+  const [refresh, setRefresh] = React.useState(0);
+  const modes = [["one", "One question"], ["text", "Paste text"], ["csv", "Spreadsheet (CSV)"]];
+  return (
+    <div className="mt-4 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px] gap-4">
+      <div className={CARD + " p-4"}>
+        <div className="flex gap-2 text-sm mb-3">
+          {modes.map(([m, t]) => (
+            <button key={m} onClick={() => setMode(m)} className={"px-3 py-1 rounded-full " + (mode === m ? "bg-indigo-600 text-white" : "ring-1 ring-slate-200")}>{t}</button>
+          ))}
+        </div>
+        {mode === "one"
+          ? <SingleForm settings={settings} onImported={() => setRefresh(refresh + 1)} />
+          : <BulkImport key={mode} format={mode} settings={settings} onImported={() => setRefresh((r) => r + 1)} />}
+      </div>
+      <div className="space-y-4">
+        <SettingsPanel settings={settings} setSettings={setSettings} />
+        <ImportHistory refresh={refresh} />
+      </div>
+    </div>
+  );
+}
+
 // ---- Page ---------------------------------------------------------------------------------------
 
 function Bank({ onSignOut }) {
@@ -462,11 +663,11 @@ function Bank({ onSignOut }) {
       {me && (
         <>
           <div className="mt-4 flex gap-2 text-sm">
-            {["items", "selections"].map((t) => (
+            {["items", "add questions", "selections"].map((t) => (
               <button key={t} onClick={() => setTab(t)} className={"px-3 py-1 rounded-full " + (tab === t ? "bg-slate-900 text-white" : "ring-1 ring-slate-200")}>{t}</button>
             ))}
           </div>
-          {tab === "items" ? <ItemsTab me={me} /> : <SelectionsTab me={me} />}
+          {tab === "items" ? <ItemsTab me={me} /> : tab === "add questions" ? <AddTab /> : <SelectionsTab me={me} />}
         </>
       )}
     </div>

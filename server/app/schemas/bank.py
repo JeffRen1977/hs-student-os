@@ -292,3 +292,97 @@ class SelectionListView(ApiModel):
 class BuildView(ApiModel):
     selection: SelectionView
     package: PackageVersionView
+
+
+# ---- Quick entry and imports (Step 39, QUESTION_BANK.md §7.1) --------------------------------
+
+ImportText = Annotated[str, StringConstraints(min_length=1, max_length=200_000)]
+PassageText = Annotated[str, StringConstraints(min_length=1, max_length=60_000)]
+PassageRef = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,32}$")]
+
+
+class ParseRequest(RequestModel):
+    format: Literal["text", "csv"] = "text"
+    text: ImportText
+
+
+class ProposedPassageView(ApiModel):
+    ref: str
+    title: str
+    text: str
+    range_from: int
+    range_to: int
+
+
+class ItemContentView(ApiModel):
+    section: str | None
+    skill_ids: list[str]
+    difficulty: str | None
+    stem: str
+    type: str
+    choices: dict[str, str] | None
+    answer: str | None
+    solution: str | None
+
+
+class ProposedQuestionView(ApiModel):
+    number: int
+    passage_ref: str | None
+    content: ItemContentView
+    problems: list[str]
+    duplicate_of: str | None
+
+
+class ParseView(ApiModel):
+    questions: list[ProposedQuestionView]
+    passages: list[ProposedPassageView]
+    problems: list[str]
+
+
+class BatchPassageIn(RequestModel):
+    ref: PassageRef
+    title: Annotated[str, StringConstraints(max_length=200)] = ""
+    text: PassageText
+
+
+class BatchQuestionIn(RequestModel):
+    number: Annotated[int, Field(ge=1, le=10_000)]
+    passage_ref: PassageRef | None = None
+    content: ItemContentIn
+
+
+class BatchSettingsIn(RequestModel):
+    course_id: CourseId | None = None
+    section: ShortText | None = None
+    skill_ids: list[SkillRef] = Field(default_factory=list, max_length=20)
+    difficulty: DifficultyValue | None = None
+    key_origin: Literal["source-key", "compiled-key"] = "source-key"
+    source_title: ShortText | None = None
+    source_license: Annotated[str, StringConstraints(max_length=500)] | None = None
+    tags: list[Tag] = Field(default_factory=list, max_length=20)
+
+
+class BatchRequest(RequestModel):
+    questions: list[BatchQuestionIn] = Field(min_length=1, max_length=100)
+    passages: list[BatchPassageIn] = Field(default_factory=list, max_length=20)
+    settings: BatchSettingsIn = Field(default_factory=BatchSettingsIn)
+    keep_duplicates: bool = False
+
+
+class ImportJobView(ApiModel):
+    job_id: str
+    kind: str
+    status: str
+    item_count: int
+    item_ids: list[str]
+    passage_ids: list[str]
+    skipped: list[str]
+    errors: list[str]
+    source_title: str | None
+    course_id: str | None
+    created_by: str
+    created_at: UtcDatetime
+
+
+class ImportJobListView(ApiModel):
+    imports: list[ImportJobView]

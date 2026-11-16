@@ -45,6 +45,7 @@ from app.config import (
 from app.domain.admissions_runs import AdmissionsRunner
 from app.domain.admissions_service import AdmissionsService
 from app.domain.assessment_service import AssessmentService
+from app.domain.bank_entry_service import BankEntryService
 from app.domain.bank_service import BankService
 from app.domain.budget import BudgetLedger, BudgetLimits
 from app.domain.command_service import CommandService
@@ -117,6 +118,7 @@ class Services:
     content_sync: PackageContentSync
     packages: PackageService
     bank: BankService  # Step 45: organization question bank
+    bank_entry: BankEntryService  # Step 39A: quick entry (paste, CSV, batches)
     selections: SelectionService  # Step 45.4: package selections and builds
     catalog: CourseCatalog
     packs: SubjectPackRegistry
@@ -415,6 +417,7 @@ def build_services(
         content_sync=content_sync,
         packages=packages,
         bank=BankService(bank_uow, clock, ids),
+        bank_entry=BankEntryService(bank_uow, clock, ids),
         selections=SelectionService(bank_uow, packages, clock, ids),
         catalog=catalog,
         packs=packs,

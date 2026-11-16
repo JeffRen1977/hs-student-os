@@ -16,6 +16,7 @@ from app.api.dependencies.auth import Platform, ServicesDep
 from app.api.dependencies.commands import IdempotencyKeyHeader, command_key
 from app.api.responses import respond
 from app.api.routes.packages import version_view
+from app.domain.bank_entry_service import BatchPassage, BatchQuestion, BatchSettings
 from app.domain.bank_service import CreateItemInput, ItemDetail
 from app.domain.ports.bank import ItemQuery
 from app.domain.selection_service import SelectionInput, SetInput
@@ -26,6 +27,7 @@ from app.domain.types.bank import (
     BankItemState,
     BankItemVersion,
     FigureMode,
+    ImportJob,
     ItemContent,
     ItemType,
     Provenance,
@@ -187,6 +189,113 @@ async def bank_member(actor: Platform) -> JSONResponse:
             can_review=actor.can(Permission.BANK_REVIEW),
         )
     )
+
+
+# ---- Quick entry and imports (Step 39A) ------------------------------------------------------
+
+
+def _import_view(j: ImportJob) -> bk.ImportJobView:
+    return bk.ImportJobView(
+        job_id=j.job_id,
+        kind=j.kind.value,
+        status=j.status.value,
+        item_count=j.item_count,
+        item_ids=list(j.item_ids),
+        passage_ids=list(j.passage_ids),
+        skipped=list(j.skipped),
+        errors=list(j.errors),
+        source_title=j.source_title,
+        course_id=j.course_hint,
+        created_by=j.created_by,
+        created_at=j.created_at,
+    )
+
+
+@router.post("/imports/parse", response_model=bk.ParseView)
+async def parse_import(
+    body: bk.ParseRequest, actor: Platform, services: ServicesDep
+) -> JSONResponse:
+    """Split pasted text or CSV into proposed questions. Writes nothing, so it needs no
+    Idempotency-Key."""
+    preview = await services.bank_entry.preview(actor, body.format, body.text)
+    return respond(
+        bk.ParseView(
+            questions=[
+                bk.ProposedQuestionView(
+                    number=q.number,
+                    passage_ref=q.passage_ref,
+                    content=bk.ItemContentView(
+                        section=q.section,
+                        skill_ids=list(q.skill_ids),
+                        difficulty=q.difficulty,
+                        stem=q.stem,
+                        type=q.item_type,
+                        choices=dict(q.choices) if q.choices else None,
+                        answer=q.answer,
+                        solution=q.solution,
+                    ),
+                    problems=list(q.problems),
+                    duplicate_of=preview.duplicates.get(q.number),
+                )
+                for q in preview.result.questions
+            ],
+            passages=[
+                bk.ProposedPassageView(
+                    ref=p.ref,
+                    title=p.title,
+                    text=p.text,
+                    range_from=p.range_from,
+                    range_to=p.range_to,
+                )
+                for p in preview.result.passages
+            ],
+            problems=list(preview.result.problems),
+        )
+    )
+
+
+@router.post("/imports/batch", response_model=bk.ImportJobView, status_code=201)
+async def import_batch(
+    body: bk.BatchRequest,
+    request: Request,
+    actor: Platform,
+    services: ServicesDep,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    cmd = command_key(request, idempotency_key, body)
+    st = body.settings
+    outcome = await services.bank_entry.import_batch(
+        actor,
+        [
+            BatchQuestion(number=q.number, content=_content(q.content), passage_ref=q.passage_ref)
+            for q in body.questions
+        ],
+        [BatchPassage(ref=p.ref, title=p.title, text=p.text) for p in body.passages],
+        BatchSettings(
+            course_id=st.course_id,
+            section=st.section,
+            skill_ids=tuple(st.skill_ids),
+            difficulty=st.difficulty,
+            key_origin=AnswerSource(st.key_origin),
+            source_title=st.source_title,
+            source_license=st.source_license,
+            tags=tuple(st.tags),
+        ),
+        cmd,
+        keep_duplicates=body.keep_duplicates,
+    )
+    return respond(_import_view(outcome.value), status=201, replayed=outcome.replayed)
+
+
+@router.get("/imports", response_model=bk.ImportJobListView)
+async def list_imports(actor: Platform, services: ServicesDep) -> JSONResponse:
+    jobs = await services.bank_entry.list_imports(actor)
+    return respond(bk.ImportJobListView(imports=[_import_view(j) for j in jobs]))
+
+
+@router.get("/imports/{job_id}", response_model=bk.ImportJobView)
+async def get_import(job_id: ItemPath, actor: Platform, services: ServicesDep) -> JSONResponse:
+    return respond(_import_view(await services.bank_entry.get_import(actor, job_id)))
 
 
 @router.get("/items", response_model=bk.BankItemListView)

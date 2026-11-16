@@ -47,6 +47,7 @@ from app.domain.types.bank import (
     ItemType,
     Provenance,
     ProvenanceKind,
+    content_hash,
 )
 from app.domain.types.common import IdempotencyRecord
 
@@ -270,6 +271,7 @@ class BankService:
                 revision=1,
                 tags=tuple(inp.tags),
                 flags=tuple(inp.content.flags),
+                content_hash=content_hash(inp.content.stem, inp.content.choices),
                 created_by=actor.actor_id,
                 created_at=now,
                 updated_at=now,
@@ -368,6 +370,7 @@ class BankService:
                 course_id=changes.get("course_id", item.course_id),
                 tags=tuple(changes.get("tags", item.tags)),
                 flags=tuple(content.flags),
+                content_hash=content_hash(content.stem, content.choices),
                 state=state,
                 current_version=version.number,
                 revision=item.revision + 1,

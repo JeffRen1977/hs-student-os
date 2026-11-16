@@ -24,6 +24,9 @@ from app.domain.types.bank import (
     BankItemVersion,
     BankPassage,
     FigureMode,
+    ImportJob,
+    ImportKind,
+    ImportStatus,
     ItemChange,
     ItemContent,
     ItemRef,
@@ -41,6 +44,7 @@ ITEMS = "bankItems"
 PASSAGES = "bankPassages"
 SELECTIONS = "selections"
 VERSIONS = "versions"
+IMPORTS = "imports"
 
 
 def _id(value: str) -> str:
@@ -55,6 +59,52 @@ def items_collection(org_id: str) -> str:
 
 def item_path(org_id: str, item_id: str) -> str:
     return f"{items_collection(org_id)}/{_id(item_id)}"
+
+
+def import_path(org_id: str, job_id: str) -> str:
+    return f"{ORGS}/{_id(org_id)}/{IMPORTS}/{_id(job_id)}"
+
+
+def import_to_doc(j: ImportJob) -> Doc:
+    return {
+        "jobId": j.job_id,
+        "orgId": j.org_id,
+        "kind": j.kind.value,
+        "sourceIds": list(j.source_ids),
+        "status": j.status.value,
+        "createdBy": j.created_by,
+        "createdAt": j.created_at,
+        "updatedAt": j.updated_at,
+        "courseHint": j.course_hint,
+        "itemCount": j.item_count,
+        "itemIds": list(j.item_ids),
+        "passageIds": list(j.passage_ids),
+        "skipped": list(j.skipped),
+        "errors": list(j.errors),
+        "tokensUsed": j.tokens_used,
+        "sourceTitle": j.source_title,
+    }
+
+
+def import_from_doc(d: Doc) -> ImportJob:
+    return ImportJob(
+        job_id=d["jobId"],
+        org_id=d["orgId"],
+        kind=ImportKind(d.get("kind", ImportKind.FILES.value)),
+        source_ids=tuple(d.get("sourceIds", [])),
+        status=ImportStatus(d["status"]),
+        created_by=d["createdBy"],
+        created_at=d["createdAt"],
+        updated_at=d["updatedAt"],
+        course_hint=d.get("courseHint"),
+        item_count=int(d.get("itemCount", 0)),
+        item_ids=tuple(d.get("itemIds", [])),
+        passage_ids=tuple(d.get("passageIds", [])),
+        skipped=tuple(d.get("skipped", [])),
+        errors=tuple(d.get("errors", [])),
+        tokens_used=int(d.get("tokensUsed", 0)),
+        source_title=d.get("sourceTitle"),
+    )
 
 
 def selection_path(org_id: str, selection_id: str) -> str:
@@ -282,6 +332,7 @@ def item_to_doc(i: BankItem) -> Doc:
         "revision": i.revision,
         "tags": list(i.tags),
         "flags": list(i.flags),
+        "contentHash": i.content_hash,
         "createdBy": i.created_by,
         "createdAt": i.created_at,
         "updatedAt": i.updated_at,
@@ -311,6 +362,7 @@ def item_from_doc(d: Doc) -> BankItem:
         revision=int(d["revision"]),
         tags=tuple(d.get("tags", [])),
         flags=tuple(d.get("flags", [])),
+        content_hash=d.get("contentHash"),
         created_by=d["createdBy"],
         created_at=d["createdAt"],
         updated_at=d["updatedAt"],
@@ -360,6 +412,8 @@ class FirestoreBankItemStore:
             filters.append(Filter("flags", "array_contains", q.flag))
         if q.approved_only:
             filters.append(Filter("selectable", "==", True))
+        if q.content_hashes:
+            filters.append(Filter("contentHash", "in", list(q.content_hashes)[:30]))
         docs = await self._txn.query(
             items_collection(org_id),
             QuerySpec(
@@ -412,11 +466,30 @@ class FirestoreSelectionStore:
         )
 
 
+class FirestoreImportJobStore:
+    def __init__(self, txn: DocTxn) -> None:
+        self._txn = txn
+
+    async def get(self, org_id: str, job_id: str) -> ImportJob | None:
+        doc = await self._txn.get(import_path(org_id, job_id))
+        return import_from_doc(doc) if doc else None
+
+    async def list_for_org(self, org_id: str, limit: int) -> Sequence[ImportJob]:
+        docs = await self._txn.query(
+            f"{ORGS}/{_id(org_id)}/{IMPORTS}", QuerySpec(order_by=("createdAt",))
+        )
+        return [import_from_doc(d) for d in docs][-limit:][::-1]  # newest first
+
+    def save(self, job: ImportJob) -> None:
+        self._txn.set(import_path(job.org_id, job.job_id), import_to_doc(job))
+
+
 class FirestoreBankTx:
     def __init__(self, txn: DocTxn) -> None:
         self.items = FirestoreBankItemStore(txn)
         self.passages = FirestoreBankPassageStore(txn)
         self.selections = FirestoreSelectionStore(txn)
+        self.imports = FirestoreImportJobStore(txn)
         self.idempotency = FirestorePlatformIdempotencyStore(txn)
 
 

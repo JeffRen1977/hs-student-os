@@ -467,6 +467,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "bankItems",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contentHash",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "itemId",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

@@ -33,6 +33,11 @@
       updateSelection: (id, revision, selection, actionId) =>
         request("PATCH", sel(id), { expectedRevision: revision, selection: selection }, actionId),
       build: (id, version, actionId) => request("POST", sel(id) + "/build", { version: version }, actionId),
+      // Quick entry (Step 39A). parse writes nothing; it is a POST only because of its body.
+      parse: (format, text) => request("POST", "/api/bank/imports/parse", { format: format, text: text }, "parse:" + Date.now()),
+      importBatch: (body, actionId) => request("POST", "/api/bank/imports/batch", body, actionId),
+      listImports: () => request("GET", "/api/bank/imports"),
+      getImport: (id) => request("GET", "/api/bank/imports/" + enc(id)),
     };
   }
 
@@ -212,7 +217,108 @@
     return p;
   }
 
+  // ---- Quick entry (Step 39A) ------------------------------------------------------------
+
+  // Same columns as the server's CSV parser (app/domain/question_splitter.py CSV_COLUMNS).
+  const CSV_COLUMNS = ["number", "passage", "stem", "A", "B", "C", "D", "answer", "solution",
+    "skills", "difficulty", "section", "type"];
+  const CSV_TEMPLATE = CSV_COLUMNS.join(",") + "\n" +
+    '1,,"If 3x = 12, what is x?",2,3,4,6,C,"Divide both sides by 3.",dsat.algebra.linear-equations,easy,math,mc\n' +
+    '2,,"What is 7/2 as a decimal?",,,,,3.5,,,,math,spr\n';
+
+  function _compact(obj) {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v === null || v === undefined || v === "") continue;
+      if (Array.isArray(v) && !v.length) continue;
+      out[k] = v;
+    }
+    return out;
+  }
+
+  // Settings form → request settings (empty fields left out so server defaults apply).
+  function settingsBody(f) {
+    return _compact({
+      courseId: (f.courseId || "").trim(), section: (f.section || "").trim(),
+      skillIds: splitList(f.skillIds || ""), difficulty: f.difficulty || "",
+      keyOrigin: f.keyOrigin || "source-key", sourceTitle: (f.sourceTitle || "").trim(),
+      sourceLicense: (f.sourceLicense || "").trim(), tags: splitList(f.tags || ""),
+    });
+  }
+
+  // Preview questions the author kept → batch questions (+ only the passages they use).
+  function batchFromPreview(preview, keep) {
+    const questions = preview.questions.filter((q) => keep.has(q.number)).map((q) => ({
+      number: q.number,
+      passageRef: q.passageRef || undefined,
+      content: _compact({
+        stem: q.content.stem, type: q.content.type, choices: q.content.choices,
+        answer: q.content.answer, solution: q.content.solution, section: q.content.section,
+        skillIds: q.content.skillIds, difficulty: q.content.difficulty,
+      }),
+    }));
+    const used = new Set(questions.map((q) => q.passageRef).filter(Boolean));
+    const passages = preview.passages.filter((p) => used.has(p.ref))
+      .map((p) => ({ ref: p.ref, title: p.title, text: p.text }));
+    return { questions: questions, passages: passages };
+  }
+
+  // Split into server-sized batches (≤ max questions) without splitting a passage's group.
+  function chunkBatch(batch, max) {
+    const limit = max || 100;
+    const groups = [];
+    for (const q of batch.questions) {
+      const last = groups[groups.length - 1];
+      if (q.passageRef && last && last.ref === q.passageRef) last.items.push(q);
+      else groups.push({ ref: q.passageRef || null, items: [q] });
+    }
+    const chunks = [];
+    let cur = [];
+    for (const g of groups) {
+      if (cur.length && cur.length + g.items.length > limit) { chunks.push(cur); cur = []; }
+      cur = cur.concat(g.items);
+    }
+    if (cur.length) chunks.push(cur);
+    return chunks.map((qs) => {
+      const refs = new Set(qs.map((q) => q.passageRef).filter(Boolean));
+      return { questions: qs, passages: batch.passages.filter((p) => refs.has(p.ref)) };
+    });
+  }
+
+  // The single-question form → one batch question (and its new passage, if any).
+  function formBatch(f) {
+    const type = f.type || "mc";
+    const choices = {};
+    if (type === "mc") for (const k of ["A", "B", "C", "D"]) if ((f.choices[k] || "").trim()) choices[k] = f.choices[k];
+    const content = _compact({
+      stem: f.stem, type: type, choices: type === "mc" ? choices : null,
+      answer: (f.answer || "").trim(), solution: (f.solution || "").trim(),
+      passageId: f.passageMode === "previous" ? f.previousPassageId : "",
+    });
+    const q = { number: 1, content: content };
+    const passages = [];
+    if (f.passageMode === "new" && (f.passageText || "").trim()) {
+      q.passageRef = "p1";
+      passages.push({ ref: "p1", title: (f.passageTitle || "").trim(), text: f.passageText });
+    }
+    return { questions: [q], passages: passages };
+  }
+
+  function formProblems(f) {
+    const p = [];
+    if (!(f.stem || "").trim()) p.push("Write the question.");
+    if ((f.type || "mc") === "mc") {
+      const missing = ["A", "B", "C", "D"].filter((k) => !(f.choices[k] || "").trim());
+      if (missing.length) p.push("Fill in choice " + missing.join(", ") + ".");
+      if (f.answer && !["A", "B", "C", "D"].includes(f.answer.trim())) p.push("The key is one of A, B, C or D.");
+    }
+    if (f.passageMode === "new" && !(f.passageText || "").trim()) p.push("Paste the passage text, or choose no passage.");
+    if (f.passageMode === "previous" && !f.previousPassageId) p.push("There is no previous passage yet.");
+    return p;
+  }
+
   return {
+    CSV_COLUMNS, CSV_TEMPLATE, settingsBody, batchFromPreview, chunkBatch, formBatch, formProblems,
     createBankApi, queryString, STATE_TEXT, KEY_TEXT, itemActions, approvalProblems,
     underlineSegments, formFromVersion, changesFromForm, emptySet, draftFromSelection,
     selectionBody, selectionProblems,

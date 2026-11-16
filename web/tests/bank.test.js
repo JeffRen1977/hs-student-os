@@ -100,3 +100,46 @@ test("bank: a saved selection round-trips through the editor draft", () => {
   assert.deepEqual(body.sets[0].items, [{ itemId: "a", version: 1 }]);
   assert.deepEqual(body.starterSetIds, ["s1"]);
 });
+
+test("quick entry: settings drop empty fields and split lists", () => {
+  assert.deepEqual(B.settingsBody({ courseId: " dsat ", section: "", skillIds: "a, b", difficulty: "", keyOrigin: "compiled-key", sourceTitle: "", sourceLicense: "", tags: "" }),
+    { courseId: "dsat", skillIds: ["a", "b"], keyOrigin: "compiled-key" });
+});
+
+test("quick entry: a preview becomes a batch of the kept questions and only their passages", () => {
+  const preview = {
+    questions: [
+      { number: 1, passageRef: "p1", content: { stem: "Q1", type: "mc", choices: { A: "a", B: "b", C: "c", D: "d" }, answer: "B", solution: null, section: null, skillIds: [], difficulty: null } },
+      { number: 2, passageRef: null, content: { stem: "Q2", type: "spr", choices: null, answer: "7/2", solution: "x", section: null, skillIds: [], difficulty: null } },
+      { number: 3, passageRef: "p2", content: { stem: "Q3", type: "mc", choices: null, answer: null, solution: null, section: null, skillIds: [], difficulty: null } },
+    ],
+    passages: [{ ref: "p1", title: "T1", text: "one", rangeFrom: 1, rangeTo: 1 }, { ref: "p2", title: "T2", text: "two", rangeFrom: 3, rangeTo: 3 }],
+  };
+  const batch = B.batchFromPreview(preview, new Set([1, 2]));
+  assert.deepEqual(batch.questions.map((q) => q.number), [1, 2]);
+  assert.deepEqual(batch.passages, [{ ref: "p1", title: "T1", text: "one" }]);
+  assert.deepEqual(batch.questions[1].content, { stem: "Q2", type: "spr", answer: "7/2", solution: "x" });
+  assert.equal(batch.questions[1].passageRef, undefined);
+});
+
+test("quick entry: chunks stay within the limit and never split a passage group", () => {
+  const qs = [];
+  for (let n = 1; n <= 5; n++) qs.push({ number: n, passageRef: n >= 2 && n <= 4 ? "p1" : undefined, content: {} });
+  const chunks = B.chunkBatch({ questions: qs, passages: [{ ref: "p1", title: "", text: "t" }] }, 3);
+  assert.deepEqual(chunks.map((c) => c.questions.map((q) => q.number)), [[1], [2, 3, 4], [5]]);
+  assert.deepEqual(chunks.map((c) => c.passages.length), [0, 1, 0]);
+});
+
+test("quick entry: the single-question form builds one batch question and lists problems", () => {
+  const f = { stem: "Q?", type: "mc", choices: { A: "1", B: "2", C: "3", D: "" }, answer: "E", solution: "", passageMode: "new", passageTitle: "", passageText: "", previousPassageId: null };
+  assert.deepEqual(B.formProblems(f), ["Fill in choice D.", "The key is one of A, B, C or D.", "Paste the passage text, or choose no passage."]);
+  const ok = { ...f, choices: { A: "1", B: "2", C: "3", D: "4" }, answer: "B", passageText: "Passage", passageTitle: "Q1-2" };
+  assert.deepEqual(B.formBatch(ok), {
+    questions: [{ number: 1, passageRef: "p1", content: { stem: "Q?", type: "mc", choices: { A: "1", B: "2", C: "3", D: "4" }, answer: "B" } }],
+    passages: [{ ref: "p1", title: "Q1-2", text: "Passage" }],
+  });
+  const again = B.formBatch({ ...ok, passageMode: "previous", previousPassageId: "bkp_1" });
+  assert.equal(again.questions[0].content.passageId, "bkp_1");
+  assert.deepEqual(again.passages, []);
+  assert.equal(B.CSV_TEMPLATE.split("\n")[0], B.CSV_COLUMNS.join(","));
+});

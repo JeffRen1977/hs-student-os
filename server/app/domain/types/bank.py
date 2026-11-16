@@ -19,6 +19,8 @@ item was ever approved.
 
 from __future__ import annotations
 
+import hashlib
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -171,6 +173,21 @@ class BankItem:
     created_at: datetime
     updated_at: datetime
     history: Sequence[ItemChange] = field(default_factory=tuple)
+    content_hash: str | None = None  # of the current version's stem + choices (duplicates)
+
+
+_SPACES = re.compile(r"\s+")
+
+
+def content_hash(stem: str, choices: Mapping[str, str] | None) -> str:
+    """Duplicate-detection hash: lowercase, whitespace collapsed, underline markers removed,
+    choices in key order. Two items with the same hash show the same question."""
+
+    def norm(t: str) -> str:
+        return _SPACES.sub(" ", t.replace("[[", "").replace("]]", "")).strip().lower()
+
+    parts = [norm(stem)] + [f"{k}:{norm(v)}" for k, v in sorted((choices or {}).items())]
+    return hashlib.sha256("\n".join(parts).encode()).hexdigest()
 
 
 MAX_PASSAGE_CHARS = 60_000
@@ -221,6 +238,11 @@ class BankSource:
     attribution: str | None = None
 
 
+class ImportKind(StrEnum):
+    BATCH = "batch"  # quick entry (Step 39A): a reviewed batch written in one transaction
+    FILES = "files"  # file import (Step 39B): pages processed by the import scan
+
+
 class ImportStatus(StrEnum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
@@ -242,6 +264,11 @@ class ImportJob:
     item_count: int = 0
     errors: Sequence[str] = ()
     tokens_used: int = 0
+    kind: ImportKind = ImportKind.FILES
+    item_ids: Sequence[str] = ()
+    passage_ids: Sequence[str] = ()
+    skipped: Sequence[str] = ()  # e.g. "question 4: duplicate of bki_…"
+    source_title: str | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

@@ -17,6 +17,7 @@ from app.domain.types.bank import (
     BankItemState,
     BankItemVersion,
     BankPassage,
+    ImportJob,
     Selection,
 )
 
@@ -29,6 +30,7 @@ class ItemQuery:
     approved_only: bool = False
     after_item_id: str | None = None  # keyset cursor (items are listed by itemId)
     limit: int = 50
+    content_hashes: Sequence[str] = ()  # duplicate lookup: items whose hash is one of these (≤30)
 
 
 class BankItemStore(Protocol):
@@ -61,6 +63,14 @@ class SelectionStore(Protocol):
     def save(self, selection: Selection) -> None: ...
 
 
+class ImportJobStore(Protocol):
+    async def get(self, org_id: str, job_id: str) -> ImportJob | None: ...
+
+    async def list_for_org(self, org_id: str, limit: int) -> Sequence[ImportJob]: ...
+
+    def save(self, job: ImportJob) -> None: ...
+
+
 class BankTx(Protocol):
     @property
     def items(self) -> BankItemStore: ...
@@ -70,6 +80,9 @@ class BankTx(Protocol):
 
     @property
     def selections(self) -> SelectionStore: ...
+
+    @property
+    def imports(self) -> ImportJobStore: ...
 
     @property
     def idempotency(self) -> PlatformIdempotencyStore: ...
