@@ -118,7 +118,8 @@ creates a new version in `draft`; the approved version stays usable until the ne
 difficulty }` (≤10 items per set, ≤150 sets; items sharing a passage stay in one set; `skillIds` apply to items
 without skills of their own), `starterSetIds[]`, `sequenceSetIds[]`, `sourceType` (original | licensed),
 `sourceAuthor`, `sourceLicense` (become each built question's `source`; default: the course's publisher and
-license), `revision`, `builtPackageVersion`, `builtBy`, `builtAt`. Only `approved`, unretired item versions may be
+license), `addedSkills[]` (`{skillId, name, description}`: skills the base package lacks, merged into the built
+package; Step 40B), `revision`, `builtPackageVersion`, `builtBy`, `builtAt`. Only `approved`, unretired item versions may be
 referenced (409 `ITEM_NOT_APPROVED`); references pin a version. Only `content_reviewer` writes and builds.
 
 ### 4.5 `assistantTurns/{turnId}` — one authoring-assistant turn (Step 40)
@@ -219,7 +220,7 @@ All POSTs require Idempotency-Key; all routes are org-scoped by the caller's mem
 | `GET /api/bank/imports[/:jobId]` | author+ | job status, per-page progress and errors, item count |
 | `POST /api/bank/assistant/turns` | author+ | ask the authoring assistant (message + selected items/sources) |
 | `GET /api/bank/assistant/turns[/:turnId]` | author+ | turn status, reply and proposals |
-| `POST /api/bank/assistant/turns/:turnId/proposals/:n/accept` / `reject` | author+ (keys: content_reviewer) | apply or dismiss one proposal |
+| `POST /api/bank/assistant/turns/:turnId/proposals/:n/accept` / `reject` | author+ (sets and skills: content_reviewer) | apply or dismiss one proposal (an author's accepted key stays `agent-suggested`) |
 | `GET /api/bank/items?state=&courseId=&flag=&approvedOnly=` | author+ | list items (paged); `approvedOnly=true` includes items with a prior approved version even while a new draft is open |
 | `GET /api/bank/items/:itemId` | author+ | item with versions and provenance |
 | `POST /api/bank/items` | author+ | create an item by hand (`provenance.by = author`) |

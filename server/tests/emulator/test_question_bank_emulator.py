@@ -209,3 +209,11 @@ async def test_file_import_job_runs_through_the_scan_on_firestore(env: dict[str,
         await env["db"].document(f"orgs/{ORG}/bankItems/{job['itemIds'][0]}/versions/000001").get()
     ).to_dict()
     assert first["state"] == "extracted" and first["content"]["answer"] == "C"
+
+
+async def test_assistant_queries_run_on_firestore(env: dict[str, Any]) -> None:
+    """Step 40: the per-user turn list and the collection-group due-turn query are valid
+    Firestore queries (the turns themselves need a model and are covered by contract tests)."""
+    r = await env["http"].get("/api/bank/assistant/turns", headers=headers(env, "author_hsos"))
+    assert r.status_code == 200 and isinstance(r.json()["turns"], list)
+    assert await env["services"].assistant_processor.process_due(limit=5) >= 0

@@ -111,6 +111,12 @@ async def process_imports(request: Request) -> ScanResponse:
     return ScanResponse(count=await get_services(request).import_processor.process_due())
 
 
+@router.post("/assistant/process", response_model=ScanResponse)
+async def process_assistant(request: Request) -> ScanResponse:
+    """Cloud Scheduler, every minute: answer queued authoring-assistant turns (Step 40)."""
+    return ScanResponse(count=await get_services(request).assistant_processor.process_due())
+
+
 @router.post("/reminders/deliver", response_model=ScanResponse)
 async def deliver_reminders(request: Request) -> ScanResponse:
     """Cloud Scheduler, every 5 minutes: deliver due opt-in reminders (Step 29)."""

@@ -18,6 +18,7 @@ SKILL_MINIMUM_TIERS: Mapping[str, ModelTier] = {
     "admissions-facts": ModelTier.BALANCED,
     "admissions-feedback": ModelTier.BALANCED,
     "question-extraction": ModelTier.BALANCED,  # Step 39B: transcription, never grading
+    "authoring-assistant": ModelTier.BALANCED,  # Step 40: proposals people accept or reject
 }
 
 

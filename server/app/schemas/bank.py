@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field, StringConstraints
 
@@ -228,6 +228,18 @@ class SelectionSetIn(RequestModel):
     difficulty: DifficultyValue = "medium"
 
 
+class AddedSkillIn(RequestModel):
+    skill_id: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_.-]{1,79}$")]
+    name: Annotated[str, StringConstraints(min_length=1, max_length=120)]
+    description: Annotated[str, StringConstraints(max_length=500)] = ""
+
+
+class AddedSkillView(ApiModel):
+    skill_id: str
+    name: str
+    description: str
+
+
 class SelectionIn(RequestModel):
     name: Title
     sets: list[SelectionSetIn] = Field(min_length=1, max_length=150)
@@ -236,6 +248,7 @@ class SelectionIn(RequestModel):
     source_type: SourceTypeValue = "original"
     source_author: SourceText | None = None
     source_license: SourceText | None = None
+    added_skills: list[AddedSkillIn] = Field(default_factory=list, max_length=30)
 
 
 class CreateSelectionRequest(SelectionIn):
@@ -276,6 +289,7 @@ class SelectionView(ApiModel):
     source_type: SourceTypeValue
     source_author: str | None
     source_license: str | None
+    added_skills: list[AddedSkillView] = Field(default_factory=list)
     revision: int
     created_by: str
     created_at: UtcDatetime
@@ -445,3 +459,45 @@ class StartImportRequest(RequestModel):
     source_ids: list[ItemIdStr] = Field(min_length=1, max_length=20)
     course_id: CourseId | None = None
     key_origin: Literal["source-key", "compiled-key"] = "source-key"
+
+
+# ---- Authoring assistant (Step 40) ---------------------------------------------------------
+
+
+class AskRequest(RequestModel):
+    message: Annotated[str, StringConstraints(min_length=1, max_length=20_000)]
+    mode: Literal["bank", "design"] = "bank"
+    item_ids: list[ItemIdStr] = Field(default_factory=list, max_length=20)
+    source_ids: list[ItemIdStr] = Field(default_factory=list, max_length=3)
+    course_id: CourseId | None = None
+    selection_id: ItemIdStr | None = None
+
+
+class ProposalView(ApiModel):
+    index: int
+    kind: str
+    summary: str
+    payload: dict[str, Any]
+    status: str
+    decided_by: str | None
+    result: str | None
+
+
+class TurnView(ApiModel):
+    turn_id: str
+    mode: str
+    message: str
+    status: str
+    item_ids: list[str]
+    source_ids: list[str]
+    selection_id: str | None
+    course_id: str | None
+    reply: str | None
+    error: str | None
+    proposals: list[ProposalView]
+    tokens_used: int
+    created_at: UtcDatetime
+
+
+class TurnListView(ApiModel):
+    turns: list[TurnView]

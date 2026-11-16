@@ -134,7 +134,7 @@ function EditForm({ detail, canReview, onSaved, onCancel }) {
   );
 }
 
-function ItemDetail({ itemId, me, onChanged }) {
+function ItemDetail({ itemId, me, onChanged, onAsk }) {
   const [detail, setDetail] = React.useState(null);
   const [passage, setPassage] = React.useState(null);
   const [error, setError] = React.useState(null);
@@ -181,6 +181,7 @@ function ItemDetail({ itemId, me, onChanged }) {
         Source: {v.provenance.kind}{v.provenance.reference ? " · " + v.provenance.reference : ""}{v.provenance.page ? " · page " + v.provenance.page : ""}{v.provenance.region ? " · " + v.provenance.region : ""}
         {v.submittedBy ? " · submitted by " + v.submittedBy : ""}
         {hasPage && <button className="ml-2 text-indigo-700 underline" onClick={() => setShowPage(!showPage)}>{showPage ? "Hide source page" : "Show source page"}</button>}
+        {onAsk && <button className="ml-2 text-indigo-700 underline" onClick={() => onAsk([detail.itemId])}>Ask the assistant</button>}
       </div>
 
       {passage && (
@@ -253,7 +254,7 @@ function ItemDetail({ itemId, me, onChanged }) {
   );
 }
 
-function ItemsTab({ me, initialFlag }) {
+function ItemsTab({ me, initialFlag, onAsk }) {
   const [filters, setFilters] = React.useState({ state: "", courseId: "", flag: initialFlag || "" });
   const [items, setItems] = React.useState([]);
   const [cursor, setCursor] = React.useState(null);
@@ -276,7 +277,7 @@ function ItemsTab({ me, initialFlag }) {
           selectedId={selected} onSelect={setSelected} loading={loading} />
         <ErrorNote error={error} />
       </div>
-      <div>{selected ? <ItemDetail itemId={selected} me={me} onChanged={() => load(null)} /> : <p className="text-sm text-slate-500">Select an item.</p>}</div>
+      <div>{selected ? <ItemDetail itemId={selected} me={me} onChanged={() => load(null)} onAsk={onAsk} /> : <p className="text-sm text-slate-500">Select an item.</p>}</div>
     </div>
   );
 }
@@ -789,6 +790,121 @@ function AddTab({ onShow }) {
   );
 }
 
+// ---- Authoring assistant (Step 40) ----------------------------------------------------------------
+
+function TurnCard({ turn, me, onChanged }) {
+  const [t, setT] = React.useState(turn);
+  const [busy, setBusy] = React.useState(null);
+  const [error, setError] = React.useState(null);
+  React.useEffect(() => {
+    let stop = false;
+    async function poll() {
+      try {
+        const x = await BANK.getTurn(t.turnId);
+        if (stop) return;
+        setT(x);
+        if (x.status === "QUEUED" || x.status === "RUNNING") setTimeout(poll, 2000);
+      } catch (err) { if (!stop) setError(err); }
+    }
+    if (t.status === "QUEUED" || t.status === "RUNNING") setTimeout(poll, 1500);
+    return () => { stop = true; };
+  }, [t.turnId]);
+  async function decide(p, decision) {
+    setBusy(p.index); setError(null);
+    try { setT(await BANK.decide(t.turnId, p.index, decision)); onChanged(); }
+    catch (err) { setError(err.code === "VERSION_CONFLICT" ? { ...err, message: "The question changed since you asked; ask again to get a fresh proposal." } : err); }
+    finally { setBusy(null); }
+  }
+  const waiting = t.status === "QUEUED" || t.status === "RUNNING";
+  return (
+    <div className={CARD + " p-4 space-y-2"}>
+      <div className="text-sm"><b>You:</b> {t.message}</div>
+      <div className="text-xs text-slate-500">{t.mode === "design" ? "design" : "bank"} · {new Date(t.createdAt).toLocaleString()}{t.itemIds.length ? " · " + t.itemIds.length + " item(s)" : ""}{t.tokensUsed ? " · " + t.tokensUsed + " tokens" : ""}</div>
+      {waiting && <p className="text-sm text-slate-500">The assistant is working…</p>}
+      {t.error && <p className="text-sm text-rose-700">{t.error}</p>}
+      {t.reply && <div className="text-sm bg-slate-50 rounded p-2"><b>Assistant:</b> {t.reply}</div>}
+      <ul className="space-y-2">
+        {t.proposals.map((p) => {
+          const note = HSBankApi.acceptNote(p, me.canReview);
+          const blocked = (p.kind === "selection-sets" || p.kind === "add-skill") && !me.canReview;
+          return (
+            <li key={p.index} className={"rounded-lg ring-1 p-2 " + (p.status === "accepted" ? "ring-emerald-200 bg-emerald-50" : p.status === "rejected" ? "ring-slate-200 opacity-60" : "ring-slate-200")}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm"><b>{HSBankApi.KIND_TEXT[p.kind] || p.kind}</b> — {p.summary}</div>
+                {p.status === "open" ? (
+                  <div className="flex gap-1 shrink-0">
+                    <button disabled={busy !== null || blocked} className={SMALL_BTN + " bg-emerald-600 text-white"} onClick={() => decide(p, "accept")}>Accept</button>
+                    <button disabled={busy !== null} className={SMALL_BTN + " ring-1 ring-slate-200"} onClick={() => decide(p, "reject")}>Reject</button>
+                  </div>
+                ) : <span className="text-xs text-slate-500">{p.status}{p.result ? " · " + p.result : ""}</span>}
+              </div>
+              <ul className="text-xs text-slate-600 mt-1">{HSBankApi.proposalLines(p).map((l, i) => <li key={i} className="whitespace-pre-wrap"><Underlined text={l} /></li>)}</ul>
+              {note && p.status === "open" && <div className="text-xs text-amber-800 mt-1">{note}</div>}
+            </li>
+          );
+        })}
+      </ul>
+      <ErrorNote error={error} />
+    </div>
+  );
+}
+
+function AssistantTab({ me, initialItems }) {
+  const [message, setMessage] = React.useState("");
+  const [itemIds, setItemIds] = React.useState((initialItems || []).join(", "));
+  const [mode, setMode] = React.useState("bank");
+  const [courseId, setCourseId] = React.useState("dsat");
+  const [selectionId, setSelectionId] = React.useState("");
+  const [selections, setSelections] = React.useState([]);
+  const [turns, setTurns] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const load = React.useCallback(() => BANK.listTurns().then((r) => setTurns(r.turns)).catch((e) => { setError(e); setTurns([]); }), []);
+  React.useEffect(() => { load(); if (me.canReview) BANK.listSelections().then((r) => setSelections(r.selections)).catch(() => {}); }, [load, me.canReview]);
+  async function ask() {
+    setBusy(true); setError(null);
+    try {
+      const body = { message: message.trim(), mode: mode, itemIds: mode === "bank" ? HSBankApi.splitItems(itemIds) : [] };
+      if (mode === "design") { if (selectionId) body.selectionId = selectionId; else body.courseId = courseId.trim(); }
+      const t = await BANK.ask(body, "ask-" + Date.now());
+      setTurns([t].concat(turns || [])); setMessage("");
+    } catch (err) { setError(err); } finally { setBusy(false); }
+  }
+  return (
+    <div className="mt-4 grid grid-cols-1 md:grid-cols-[360px_minmax(0,1fr)] gap-4 items-start">
+      <div className={CARD + " p-4 space-y-2"}>
+        <div className="text-sm font-semibold">Ask the assistant</div>
+        <p className="text-xs text-slate-500">It proposes; you accept or reject each change. Nothing in the bank changes until you accept.</p>
+        {me.canReview && (
+          <div className="flex gap-2 text-sm">
+            {[["bank", "Questions"], ["design", "Package design"]].map(([m, t]) => (
+              <button key={m} onClick={() => setMode(m)} className={"px-3 py-1 rounded-full " + (mode === m ? "bg-indigo-600 text-white" : "ring-1 ring-slate-200")}>{t}</button>
+            ))}
+          </div>
+        )}
+        {mode === "bank" ? (
+          <input className={INPUT + " w-full"} placeholder="Item ids (optional, comma-separated)" value={itemIds} onChange={(e) => setItemIds(e.target.value)} />
+        ) : (
+          <div className="space-y-2">
+            <select className={INPUT + " w-full"} value={selectionId} onChange={(e) => setSelectionId(e.target.value)}>
+              <option value="">New selection for a course…</option>
+              {selections.map((s) => <option key={s.selectionId} value={s.selectionId}>{s.name} ({s.courseId})</option>)}
+            </select>
+            {!selectionId && <input className={INPUT + " w-full"} placeholder="Course id" value={courseId} onChange={(e) => setCourseId(e.target.value)} />}
+          </div>
+        )}
+        <textarea className={INPUT + " w-full h-40"} placeholder={mode === "bank" ? "e.g. Fix the OCR in these questions and suggest keys with solutions. Or paste questions to add." : "e.g. Group the approved questions into practice sets of about 5 by skill, and tag their skills."} value={message} onChange={(e) => setMessage(e.target.value)} />
+        <button disabled={busy || !message.trim()} className={SMALL_BTN + " bg-slate-900 text-white"} onClick={ask}>{busy ? "Sending…" : "Ask"}</button>
+        <ErrorNote error={error} />
+      </div>
+      <div className="space-y-3">
+        {turns === null ? <p className="text-sm">Loading…</p> : turns.length === 0 ? <p className="text-sm text-slate-500">No requests yet.</p>
+          : turns.map((t) => <TurnCard key={t.turnId} turn={t} me={me} onChanged={() => {}} />)}
+      </div>
+    </div>
+  );
+}
+
 // ---- Page ---------------------------------------------------------------------------------------
 
 function Bank({ onSignOut }) {
@@ -798,6 +914,8 @@ function Bank({ onSignOut }) {
   const [itemsFlag, setItemsFlag] = React.useState("");
   React.useEffect(() => { BANK.me().then(setMe).catch(setError); }, []);
   const showItems = (flag) => { setItemsFlag(flag); setTab("items"); };
+  const [askItems, setAskItems] = React.useState([]);
+  const askAbout = (ids) => { setAskItems(ids); setTab("assistant"); };
   return (
     <div className="max-w-7xl mx-auto p-4">
       <header className="flex items-center justify-between">
@@ -814,11 +932,14 @@ function Bank({ onSignOut }) {
       {me && (
         <>
           <div className="mt-4 flex gap-2 text-sm">
-            {["items", "add questions", "selections"].map((t) => (
+            {["items", "add questions", "assistant", "selections"].map((t) => (
               <button key={t} onClick={() => setTab(t)} className={"px-3 py-1 rounded-full " + (tab === t ? "bg-slate-900 text-white" : "ring-1 ring-slate-200")}>{t}</button>
             ))}
           </div>
-          {tab === "items" ? <ItemsTab key={itemsFlag} me={me} initialFlag={itemsFlag} /> : tab === "add questions" ? <AddTab onShow={showItems} /> : <SelectionsTab me={me} />}
+          {tab === "items" ? <ItemsTab key={itemsFlag} me={me} initialFlag={itemsFlag} onAsk={askAbout} />
+            : tab === "add questions" ? <AddTab onShow={showItems} />
+            : tab === "assistant" ? <AssistantTab key={askItems.join()} me={me} initialItems={askItems} />
+            : <SelectionsTab me={me} />}
         </>
       )}
     </div>

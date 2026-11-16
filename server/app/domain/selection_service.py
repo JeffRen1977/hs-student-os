@@ -71,6 +71,7 @@ class SelectionInput:
     source_type: SourceType = SourceType.ORIGINAL
     source_author: str | None = None
     source_license: str | None = None
+    added_skills: Sequence[Mapping[str, str]] = ()  # skills the base package lacks (40B)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -149,6 +150,7 @@ class SelectionService:
                 source_type=inp.source_type,
                 source_author=inp.source_author,
                 source_license=inp.source_license,
+                added_skills=tuple(dict(k) for k in inp.added_skills),
             )
             tx.selections.save(selection)
             _remember(tx, actor, cmd, selection.selection_id, 201, now)
@@ -192,6 +194,7 @@ class SelectionService:
                 source_type=inp.source_type,
                 source_author=inp.source_author,
                 source_license=inp.source_license,
+                added_skills=tuple(dict(k) for k in inp.added_skills),
                 built_package_version=None,
                 built_by=None,
                 built_at=None,
@@ -284,6 +287,20 @@ class SelectionService:
 
         built = await self._uow.transaction(mark)
         return Outcome(value=BuildResult(selection=built, package=uploaded.value), created=True)
+
+    async def base_skills(
+        self, actor: PlatformActor, course_id: str
+    ) -> Sequence[Mapping[str, str]]:
+        """The skills of the course's latest package in the organization ([] if none);
+        the authoring assistant snapshots them for skill tags (Step 40)."""
+        try:
+            base = await self._base_package(actor, course_id)
+        except DomainError:
+            return []
+        return [
+            {"skillId": str(k["skillId"]), "name": str(k.get("name", ""))}
+            for k in base.get("skills", [])
+        ]
 
     async def _base_package(self, actor: PlatformActor, course_id: str) -> Mapping[str, Any]:
         own = [v for v in await self._packages.list_own(actor) if v.course_id == course_id]

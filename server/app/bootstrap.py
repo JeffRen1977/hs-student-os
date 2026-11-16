@@ -49,6 +49,7 @@ from app.config import (
 from app.domain.admissions_runs import AdmissionsRunner
 from app.domain.admissions_service import AdmissionsService
 from app.domain.assessment_service import AssessmentService
+from app.domain.assistant_service import AssistantProcessor, AssistantService
 from app.domain.bank_entry_service import BankEntryService
 from app.domain.bank_import_service import ImportProcessor, ImportService
 from app.domain.bank_service import BankService
@@ -133,6 +134,8 @@ class Services:
     bank_entry: BankEntryService  # Step 39A: quick entry (paste, CSV, batches)
     imports: ImportService  # Step 39B: sources, pages and file-import jobs
     import_processor: ImportProcessor  # Step 39B: the import scan (worker)
+    assistant: AssistantService  # Step 40: authoring assistant turns and proposals
+    assistant_processor: AssistantProcessor  # Step 40: the assistant scan (worker)
     selections: SelectionService  # Step 45.4: package selections and builds
     catalog: CourseCatalog
     packs: SubjectPackRegistry
@@ -396,6 +399,14 @@ def build_services(
         ids,
         worker_id=worker,
     )
+    assistant_processor = AssistantProcessor(
+        bank_uow,
+        FirestoreImportQueueReader(store),
+        authoring_gateway,
+        clock,
+        ids,
+        worker_id=worker,
+    )
     prompt_set = load_prompt_set()
     run_execution = RunExecutionService(
         uow,
@@ -425,7 +436,12 @@ def build_services(
             recovery=recovery,
             execution=deliveries,
             poll_seconds=settings.local_worker_poll_seconds,
-            scans=(planning_scheduler.run_due, reminders.deliver_due, import_processor.process_due),
+            scans=(
+                planning_scheduler.run_due,
+                reminders.deliver_due,
+                import_processor.process_due,
+                assistant_processor.process_due,
+            ),
         )
         if isinstance(queue, LocalQueue)
         else None
@@ -438,6 +454,8 @@ def build_services(
         reserved_course_ids=content.bundled_course_ids,
     )
     links = link_fetcher or (HttpLinkFetcher() if settings.link_import_enabled else None)
+    bank = BankService(bank_uow, clock, ids)
+    selections = SelectionService(bank_uow, packages, clock, ids)
     return Services(
         settings=settings,
         store=store,
@@ -451,13 +469,22 @@ def build_services(
         content=content,
         content_sync=content_sync,
         packages=packages,
-        bank=BankService(bank_uow, clock, ids),
+        bank=bank,
         bank_entry=BankEntryService(bank_uow, clock, ids),
         imports=ImportService(
             bank_uow, clock, ids, links, model_available=authoring_gateway is not None
         ),
         import_processor=import_processor,
-        selections=SelectionService(bank_uow, packages, clock, ids),
+        assistant=AssistantService(
+            bank_uow,
+            bank,
+            selections,
+            clock,
+            ids,
+            model_available=authoring_gateway is not None,
+        ),
+        assistant_processor=assistant_processor,
+        selections=selections,
         catalog=catalog,
         packs=packs,
         budget=ledger,

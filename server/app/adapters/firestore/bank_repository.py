@@ -25,6 +25,14 @@ from app.adapters.firestore.documents import (
 )
 from app.adapters.firestore.package_repository import FirestorePlatformIdempotencyStore
 from app.domain.ports.bank import BankTx, ItemQuery
+from app.domain.types.assistant import (
+    AssistantTurn,
+    Proposal,
+    ProposalKind,
+    ProposalStatus,
+    TurnContext,
+    TurnMode,
+)
 from app.domain.types.bank import (
     AnswerSource,
     BankItem,
@@ -63,6 +71,80 @@ IMPORTS = "imports"
 SOURCES = "sources"
 PAGES = "pages"
 USAGE = "usage"
+TURNS = "assistantTurns"
+
+
+def _lease_doc(lease: ImportLease | None) -> Doc | None:
+    if lease is None:
+        return None
+    return {"workerId": lease.worker_id, "token": lease.token, "expiresAt": lease.expires_at}
+
+
+def _lease(d: Doc | None) -> ImportLease | None:
+    if not d:
+        return None
+    return ImportLease(worker_id=d["workerId"], token=d["token"], expires_at=d["expiresAt"])
+
+
+def turn_to_doc(t: AssistantTurn) -> Doc:
+    c = t.context
+    return {
+        "turnId": t.turn_id, "orgId": t.org_id, "createdBy": t.created_by, "mode": t.mode.value,
+        "message": t.message, "status": t.status.value, "createdAt": t.created_at,
+        "updatedAt": t.updated_at, "itemIds": list(t.item_ids), "sourceIds": list(t.source_ids),
+        "selectionId": t.selection_id, "reply": t.reply, "error": t.error,
+        "tokensUsed": t.tokens_used, "lease": _lease_doc(t.lease),
+        "context": {"items": [dict(i) for i in c.items], "pages": [dict(p) for p in c.pages],
+                    "skills": [dict(k) for k in c.skills], "courseId": c.course_id,
+                    "selection": dict(c.selection) if c.selection is not None else None},
+        "proposals": [
+            {"index": p.index, "kind": p.kind.value, "summary": p.summary,
+             "payload": dict(p.payload), "status": p.status.value, "decidedBy": p.decided_by,
+             "decidedAt": p.decided_at, "result": p.result}
+            for p in t.proposals
+        ],
+    }  # fmt: skip
+
+
+def turn_from_doc(d: Doc) -> AssistantTurn:
+    c = d.get("context") or {}
+    return AssistantTurn(
+        turn_id=d["turnId"],
+        org_id=d["orgId"],
+        created_by=d["createdBy"],
+        mode=TurnMode(d["mode"]),
+        message=d["message"],
+        status=ImportStatus(d["status"]),
+        created_at=d["createdAt"],
+        updated_at=d["updatedAt"],
+        item_ids=tuple(d.get("itemIds", [])),
+        source_ids=tuple(d.get("sourceIds", [])),
+        selection_id=d.get("selectionId"),
+        reply=d.get("reply"),
+        error=d.get("error"),
+        tokens_used=int(d.get("tokensUsed", 0)),
+        lease=_lease(d.get("lease")),
+        context=TurnContext(
+            items=tuple(c.get("items", [])),
+            pages=tuple(c.get("pages", [])),
+            skills=tuple(c.get("skills", [])),
+            course_id=c.get("courseId"),
+            selection=c.get("selection"),
+        ),
+        proposals=tuple(
+            Proposal(
+                index=int(p["index"]),
+                kind=ProposalKind(p["kind"]),
+                summary=p.get("summary", ""),
+                payload=p.get("payload", {}),
+                status=ProposalStatus(p["status"]),
+                decided_by=p.get("decidedBy"),
+                decided_at=p.get("decidedAt"),
+                result=p.get("result"),
+            )
+            for p in d.get("proposals", [])
+        ),
+    )
 
 
 def _id(value: str) -> str:
@@ -245,6 +327,7 @@ def selection_to_doc(x: Selection) -> Doc:
         "sourceType": x.source_type.value,
         "sourceAuthor": x.source_author,
         "sourceLicense": x.source_license,
+        "addedSkills": [dict(k) for k in x.added_skills],
         "builtPackageVersion": x.built_package_version,
         "builtBy": x.built_by,
         "builtAt": x.built_at,
@@ -280,6 +363,7 @@ def selection_from_doc(d: Doc) -> Selection:
         source_type=SourceType(d.get("sourceType", "original")),
         source_author=d.get("sourceAuthor"),
         source_license=d.get("sourceLicense"),
+        added_skills=tuple(d.get("addedSkills", [])),
         built_package_version=d.get("builtPackageVersion"),
         built_by=d.get("builtBy"),
         built_at=d.get("builtAt"),
@@ -651,6 +735,28 @@ class FirestoreOrgUsageStore:
         )
 
 
+class FirestoreAssistantTurnStore:
+    def __init__(self, txn: DocTxn) -> None:
+        self._txn = txn
+
+    def _path(self, org_id: str, turn_id: str) -> str:
+        return f"{ORGS}/{_id(org_id)}/{TURNS}/{_id(turn_id)}"
+
+    async def get(self, org_id: str, turn_id: str) -> AssistantTurn | None:
+        doc = await self._txn.get(self._path(org_id, turn_id))
+        return turn_from_doc(doc) if doc else None
+
+    async def list_for_user(self, org_id: str, uid: str, limit: int) -> Sequence[AssistantTurn]:
+        docs = await self._txn.query(
+            f"{ORGS}/{_id(org_id)}/{TURNS}",
+            QuerySpec(filters=(Filter("createdBy", "==", uid),), order_by=("createdAt",)),
+        )
+        return [turn_from_doc(d) for d in docs][-limit:][::-1]
+
+    def save(self, turn: AssistantTurn) -> None:
+        self._txn.set(self._path(turn.org_id, turn.turn_id), turn_to_doc(turn))
+
+
 class FirestoreImportQueueReader:
     """Due file-import jobs across organizations (collection group `imports`)."""
 
@@ -679,6 +785,28 @@ class FirestoreImportQueueReader:
                 due.append((d["orgId"], d["jobId"]))
         return due[:limit]
 
+    async def due_turns(self, now: datetime, limit: int) -> Sequence[tuple[str, str]]:
+        docs = await self._reader.query_group(
+            TURNS,
+            QuerySpec(
+                filters=[
+                    Filter("status", "in", [ImportStatus.QUEUED.value, ImportStatus.RUNNING.value])
+                ],
+                order_by=("createdAt",),
+                limit=limit * 4,
+            ),
+        )
+        due = []
+        for d in docs:
+            lease = d.get("lease")
+            if (
+                d["status"] == ImportStatus.QUEUED.value
+                or lease is None
+                or lease["expiresAt"] <= now
+            ):
+                due.append((d["orgId"], d["turnId"]))
+        return due[:limit]
+
 
 class FirestoreBankTx:
     def __init__(self, txn: DocTxn) -> None:
@@ -688,6 +816,7 @@ class FirestoreBankTx:
         self.imports = FirestoreImportJobStore(txn)
         self.sources = FirestoreSourceStore(txn)
         self.org_usage = FirestoreOrgUsageStore(txn)
+        self.turns = FirestoreAssistantTurnStore(txn)
         self.idempotency = FirestorePlatformIdempotencyStore(txn)
 
 

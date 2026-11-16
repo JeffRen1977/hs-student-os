@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Protocol
 
 from app.domain.ports.packages import PlatformIdempotencyStore
+from app.domain.types.assistant import AssistantTurn
 from app.domain.types.bank import (
     BankItem,
     BankItemState,
@@ -109,10 +110,22 @@ class LinkFetcher(Protocol):
         ...
 
 
+class AssistantTurnStore(Protocol):
+    async def get(self, org_id: str, turn_id: str) -> AssistantTurn | None: ...
+
+    async def list_for_user(self, org_id: str, uid: str, limit: int) -> Sequence[AssistantTurn]: ...
+
+    def save(self, turn: AssistantTurn) -> None: ...
+
+
 class ImportQueueReader(Protocol):
     async def due_jobs(self, now: datetime, limit: int) -> Sequence[tuple[str, str]]:
         """(orgId, jobId) of file jobs that are queued, or running with an expired lease.
         Service-only, across organizations."""
+        ...
+
+    async def due_turns(self, now: datetime, limit: int) -> Sequence[tuple[str, str]]:
+        """(orgId, turnId) of assistant turns that are due, same rule as jobs."""
         ...
 
 
@@ -134,6 +147,9 @@ class BankTx(Protocol):
 
     @property
     def org_usage(self) -> OrgUsageStore: ...
+
+    @property
+    def turns(self) -> AssistantTurnStore: ...
 
     @property
     def idempotency(self) -> PlatformIdempotencyStore: ...

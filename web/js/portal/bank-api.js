@@ -44,6 +44,11 @@
       putPage: (id, n, body) => request("PUT", "/api/bank/sources/" + enc(id) + "/pages/" + n, body),
       getPage: (id, n) => request("GET", "/api/bank/sources/" + enc(id) + "/pages/" + n),
       startImport: (body, actionId) => request("POST", "/api/bank/imports", body, actionId),
+      // Authoring assistant (Step 40)
+      ask: (body, actionId) => request("POST", "/api/bank/assistant/turns", body, actionId),
+      listTurns: () => request("GET", "/api/bank/assistant/turns"),
+      getTurn: (id) => request("GET", "/api/bank/assistant/turns/" + enc(id)),
+      decide: (id, index, decision) => request("POST", "/api/bank/assistant/turns/" + enc(id) + "/proposals/" + index + "/" + decision, {}, decision + ":" + id + ":" + index),
     };
   }
 
@@ -355,7 +360,47 @@
     return "Up to about " + Math.round(tokens / 1000) + "k model tokens if every page needs the model.";
   }
 
+  // ---- Authoring assistant (Step 40) ------------------------------------------------------
+
+  const KIND_TEXT = {
+    "create-item": "New question", "edit-item": "Edit question", "propose-key": "Suggested key",
+    "link-passage": "Link a passage", flag: "Flag", "selection-sets": "Sets for a selection",
+    "add-skill": "Add a skill",
+  };
+
+  // What a proposal would do, as short plain lines for the person deciding.
+  function proposalLines(p) {
+    const d = p.payload || {};
+    const cut = (t, n) => (t && t.length > n ? t.slice(0, n) + "…" : t || "");
+    switch (p.kind) {
+      case "create-item": return [cut(d.stem, 160),
+        d.choices ? Object.entries(d.choices).map(([k, v]) => k + ") " + v).join("   ") : "student-produced response",
+        "Key: " + (d.answer || "none") + (d.answer ? " (suggestion)" : ""),
+        d.drafted ? "Written by the assistant" : "Transcribed from your material"].concat(d.passageText ? ["Passage: " + cut(d.passageText, 80)] : []);
+      case "edit-item": return [d.itemId].concat(Object.entries(d.changes || {}).map(([k, v]) =>
+        k + " → " + cut(typeof v === "string" ? v : JSON.stringify(v), 120)));
+      case "propose-key": return [d.itemId, "Key: " + d.answer, "Solution: " + cut(d.solution, 160)];
+      case "link-passage": return [cut(d.text, 120), "Questions: " + (d.itemIds || []).join(", ")];
+      case "flag": return [d.itemId, d.flag + (d.note ? ": " + d.note : "")];
+      case "selection-sets": return [d.name].concat((d.sets || []).map((s) =>
+        s.setId + " (" + s.role + "): " + s.itemIds.length + " question(s), " + s.skillIds.join(", ")));
+      case "add-skill": return [d.skillId + " — " + d.name];
+      default: return [];
+    }
+  }
+
+  // Who may accept: keys, sets and skills need the content reviewer; an author's accepted key
+  // stays a suggestion.
+  function acceptNote(p, canReview) {
+    if ((p.kind === "selection-sets" || p.kind === "add-skill") && !canReview) return "Only the content reviewer can accept this.";
+    if (p.kind === "propose-key") return canReview ? "Accepting sets the reviewer key." : "Accepting records it as a suggested key; the content reviewer confirms it.";
+    return null;
+  }
+
+  const splitItems = (s) => splitList(s || "").filter((x) => /^[A-Za-z0-9_-]{1,64}$/.test(x)).slice(0, 20);
+
   return {
+    KIND_TEXT, proposalLines, acceptNote, splitItems,
     textItemsToLines, jobProgress, estimateText, PAGE_TEXT,
     CSV_COLUMNS, CSV_TEMPLATE, settingsBody, batchFromPreview, chunkBatch, formBatch, formProblems,
     createBankApi, queryString, STATE_TEXT, KEY_TEXT, itemActions, approvalProblems,

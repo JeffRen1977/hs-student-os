@@ -93,7 +93,10 @@ def build_package(
     course = selection.course_id
     if manifest.get("courseId") != course:
         problems.append(f"the base package is for {manifest.get('courseId')}, not {course}")
-    skill_ids = {s["skillId"] for s in base.get("skills", [])}
+    base_skills = list(base.get("skills", []))
+    skill_ids = {s["skillId"] for s in base_skills}
+    added = [dict(k) for k in selection.added_skills if k["skillId"] not in skill_ids]
+    skill_ids |= {k["skillId"] for k in added}
     task_types = list(manifest.get("supportedTaskTypes") or ["PRACTICE"])
     modes = list(manifest.get("supportedModes") or ["ADAPTIVE"])
     task_type = "PRACTICE" if "PRACTICE" in task_types else task_types[0]
@@ -264,7 +267,15 @@ def build_package(
         "schemaVersion": SCHEMA_VERSION,
         "manifest": manifest,
         "systemPrompt": base["systemPrompt"],
-        "skills": base["skills"],
+        "skills": base_skills
+        + [
+            {
+                "skillId": k["skillId"],
+                "name": k["name"],
+                "description": k.get("description") or k["name"],  # required by the contract
+            }
+            for k in added
+        ],
         "rubrics": rubrics,
         "questions": questions,
         "materials": [],

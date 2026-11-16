@@ -630,10 +630,15 @@ Author and content reviewer (`bank:author`):
   `pages[]` progress, `itemCount`, `errors[]`, `usage`. Jobs run in the background (lease + fencing, per-page
   commits, per-organization daily token budget → job `FAILED` with `BUDGET_EXCEEDED`). License fields are
   recorded, not enforced (owner decision 2026-11-15).
-- Authoring assistant (Step 40): `POST /api/bank/assistant/turns` body `{message, itemIds[], sourceIds[]}` → 202
-  `AssistantTurn`; `GET /api/bank/assistant/turns[/{id}]`; `POST /api/bank/assistant/turns/{id}/proposals/{n}/accept`
-  or `/reject` → the proposal applied through the bank commands as the caller (stale → 409 `VERSION_CONFLICT`;
-  a key proposal is applied only by a content reviewer, otherwise 403).
+- Authoring assistant (Step 40): `POST /api/bank/assistant/turns` body `{message, mode: bank|design, itemIds[≤20],
+  sourceIds[≤3], courseId?, selectionId?}` → 202 `AssistantTurn` (design mode: content reviewer only, else 403; no
+  model configured → 400); `GET /api/bank/assistant/turns[/{id}]` (only the person who asked; others 404);
+  `POST /api/bank/assistant/turns/{id}/proposals/{n}/accept` or `/reject` (Idempotency-Key) → the turn. Accepting
+  applies the proposal through the bank or selection commands as the caller: an item that changed since the
+  snapshot → 409 `VERSION_CONFLICT`; a key accepted by an author is recorded as `agent-suggested`, by the content
+  reviewer as the reviewer key; `selection-sets` and `add-skill` need the content reviewer (403). Accepting twice
+  is a no-op; a rejected proposal cannot be accepted (409). Selections gain `addedSkills[{skillId, name,
+  description}]`, merged into the built package's skills.
 - `GET /api/bank/me` → `{uid, role, orgId, canReview}` for an author or content reviewer (403 otherwise); the
   bank screen uses it to decide what it offers. The server still checks every command.
 - `GET /api/bank/items?state=&courseId=&flag=&approvedOnly=&cursor=&limit=` → `{items: BankItemSummary[], nextCursor}`. `approvedOnly=true` includes items whose current state is a new draft or review but whose prior approved version remains selectable; retired items are excluded.

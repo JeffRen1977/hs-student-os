@@ -162,3 +162,16 @@ test("file import: job progress and token estimate text", () => {
   assert.match(B.estimateText(11200), /11k model tokens/);
   assert.match(B.estimateText(0), /No model use/);
 });
+
+test("assistant: proposals read as plain lines and say who can accept them", () => {
+  const key = { kind: "propose-key", payload: { itemId: "bki_1", answer: "B", solution: "Because." } };
+  assert.deepEqual(B.proposalLines(key), ["bki_1", "Key: B", "Solution: Because."]);
+  assert.match(B.acceptNote(key, false), /suggested key/);
+  assert.match(B.acceptNote(key, true), /reviewer key/);
+  const sets = { kind: "selection-sets", payload: { name: "Plan", sets: [{ setId: "a-1", role: "starter", itemIds: ["x", "y"], skillIds: ["s"] }] } };
+  assert.deepEqual(B.proposalLines(sets), ["Plan", "a-1 (starter): 2 question(s), s"]);
+  assert.match(B.acceptNote(sets, false), /Only the content reviewer/);
+  assert.equal(B.acceptNote({ kind: "edit-item", payload: {} }, false), null);
+  assert.deepEqual(B.proposalLines({ kind: "edit-item", payload: { itemId: "i", changes: { stem: "New", skillIds: ["a"] } } }), ["i", "stem → New", 'skillIds → ["a"]']);
+  assert.deepEqual(B.splitItems("bki_1, bad id!, bki_2"), ["bki_1", "bki_2"]);
+});

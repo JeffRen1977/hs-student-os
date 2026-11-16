@@ -22,6 +22,7 @@ from app.domain.bank_service import CreateItemInput, ItemDetail
 from app.domain.ports.bank import ItemQuery
 from app.domain.selection_service import SelectionInput, SetInput
 from app.domain.types.actor import Permission
+from app.domain.types.assistant import AssistantTurn, TurnMode
 from app.domain.types.bank import (
     AnswerSource,
     BankItem,
@@ -411,6 +412,89 @@ async def start_import(
     return respond(_import_view(outcome.value), status=202, replayed=outcome.replayed)
 
 
+def _turn_view(t: AssistantTurn) -> bk.TurnView:
+    return bk.TurnView(
+        turn_id=t.turn_id,
+        mode=t.mode.value,
+        message=t.message,
+        status=t.status.value,
+        item_ids=list(t.item_ids),
+        source_ids=list(t.source_ids),
+        selection_id=t.selection_id,
+        course_id=t.context.course_id,
+        reply=t.reply,
+        error=t.error,
+        proposals=[
+            bk.ProposalView(
+                index=p.index,
+                kind=p.kind.value,
+                summary=p.summary,
+                payload=dict(p.payload),
+                status=p.status.value,
+                decided_by=p.decided_by,
+                result=p.result,
+            )
+            for p in t.proposals
+        ],
+        tokens_used=t.tokens_used,
+        created_at=t.created_at,
+    )
+
+
+@router.post("/assistant/turns", response_model=bk.TurnView, status_code=202)
+async def ask_assistant(
+    body: bk.AskRequest,
+    request: Request,
+    actor: Platform,
+    services: ServicesDep,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    cmd = command_key(request, idempotency_key, body)
+    outcome = await services.assistant.ask(
+        actor,
+        body.message,
+        cmd,
+        mode=TurnMode(body.mode),
+        item_ids=body.item_ids,
+        source_ids=body.source_ids,
+        course_id=body.course_id,
+        selection_id=body.selection_id,
+    )
+    return respond(_turn_view(outcome.value), status=202, replayed=outcome.replayed)
+
+
+@router.get("/assistant/turns", response_model=bk.TurnListView)
+async def list_turns(actor: Platform, services: ServicesDep) -> JSONResponse:
+    turns = await services.assistant.list(actor)
+    return respond(bk.TurnListView(turns=[_turn_view(t) for t in turns]))
+
+
+@router.get("/assistant/turns/{turn_id}", response_model=bk.TurnView)
+async def get_turn(turn_id: ItemPath, actor: Platform, services: ServicesDep) -> JSONResponse:
+    return respond(_turn_view(await services.assistant.get(actor, turn_id)))
+
+
+@router.post("/assistant/turns/{turn_id}/proposals/{index}/{decision}", response_model=bk.TurnView)
+async def decide_proposal(
+    turn_id: ItemPath,
+    index: Annotated[int, Path(ge=0, le=50)],
+    decision: Annotated[str, Path(pattern="^(accept|reject)$")],
+    body: EmptyCommand,
+    request: Request,
+    actor: Platform,
+    services: ServicesDep,
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    """Accept or reject one proposal. The Idempotency-Key is checked for shape; the
+    decision itself is idempotent (accepting twice is a no-op)."""
+    command_key(request, idempotency_key, body)
+    if decision == "accept":
+        turn = await services.assistant.accept(actor, turn_id, index)
+    else:
+        turn = await services.assistant.reject(actor, turn_id, index)
+    return respond(_turn_view(turn))
+
+
 @router.get("/imports", response_model=bk.ImportJobListView)
 async def list_imports(actor: Platform, services: ServicesDep) -> JSONResponse:
     jobs = await services.bank_entry.list_imports(actor)
@@ -655,6 +739,10 @@ def _selection_input(s: bk.SelectionIn) -> SelectionInput:
         source_type=SourceType(s.source_type),
         source_author=s.source_author,
         source_license=s.source_license,
+        added_skills=tuple(
+            {"skillId": k.skill_id, "name": k.name, "description": k.description}
+            for k in s.added_skills
+        ),
     )
 
 
@@ -680,6 +768,12 @@ def selection_view(x: Selection) -> bk.SelectionView:
         source_type=x.source_type.value,
         source_author=x.source_author,
         source_license=x.source_license,
+        added_skills=[
+            bk.AddedSkillView(
+                skill_id=k["skillId"], name=k["name"], description=k.get("description", "")
+            )
+            for k in x.added_skills
+        ],
         revision=x.revision,
         created_by=x.created_by,
         created_at=x.created_at,

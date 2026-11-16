@@ -365,6 +365,7 @@ class Selection:
     source_type: SourceType = SourceType.ORIGINAL
     source_author: str | None = None  # default: the course's publisher
     source_license: str | None = None  # default: the course's license
+    added_skills: Sequence[Mapping[str, str]] = ()  # {skillId, name, description} (Step 40B)
     built_package_version: str | None = None
     built_by: str | None = None
     built_at: datetime | None = None
