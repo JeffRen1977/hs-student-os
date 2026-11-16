@@ -599,7 +599,7 @@ Admins publish reviewer-approved course versions for the whole platform. See the
 policy at the beginning of this document for endpoints, permissions and enrollment rules.
 The old individual and cohort course-grant API is removed.
 
-### 6.5.7 Organization question bank and content review (Step 45; implemented 2026-11-15 except sources/imports)
+### 6.5.7 Organization question bank and content review (Step 45 implemented 2026-11-15; Steps 39/40 entry, import and assistant added 2026-11-16)
 
 Full contract: [QUESTION_BANK.md](QUESTION_BANK.md). Every route is scoped to the caller's author
 organization (`platformMembers/{uid}.orgId`); another organization's sources, jobs, items and
@@ -613,12 +613,27 @@ The platform reviewer still only approves or rejects package versions (§6.3) an
 
 Author and content reviewer (`bank:author`):
 
-- `POST /api/bank/sources` body `{kind: image|pdf|text|link, title, license?, attribution?, text?|url?|fileName?, contentType?}`
-  → 201 `BankSource`; for files the response carries a signed upload URL. Link guard failures
-  (non-http(s), private or loopback address after DNS, redirect to such an address, size or type limits)
-  → 422 `IMPORT_SOURCE_REJECTED`. License fields are recorded, not enforced (owner decision 2026-11-15).
-- `POST /api/bank/imports` body `{sourceIds[], courseHint?}` → 202 `ImportJob` (`QUEUED`); the extraction runs
-  as a worker Run. `GET /api/bank/imports/{jobId}` → status, `itemCount`, `errors[]`, `usage`.
+- Quick entry (Step 39A): `POST /api/bank/imports/parse` body `{format: text|csv, text}` → 200 `{questions[], passages[], problems[]}`
+  with no writes: each proposed question carries `number`, `content` (as `ItemContent`), `passageRef?`,
+  `problems[]` and `duplicateOf?` (an item of the organization with the same `contentHash`, or another proposal);
+  passages carry `ref`, `title`, `text`, `range [from, to]`. `POST /api/bank/imports/batch` body `{questions[≤100],
+  passages[], settings: {courseId?, section?, skillIds[], difficulty?, keyOrigin?, sourceTitle?, sourceLicense?,
+  tags[]}, keepDuplicates?}` → 201 `{created[], skippedDuplicates[]}`: one transaction, items arrive as `draft`
+  (`provenance.kind: author`, reference = source title). Any invalid question → 400 `VALIDATION_FAILED` listing
+  each problem, nothing written.
+- File import (Step 39B): `POST /api/bank/sources` body `{kind: pdf|image|text|link, title, license?, url?, text?,
+  pageCount?}` → 201 `BankSource` (a `link` is fetched by the platform under the guard: non-http(s), private or
+  loopback address after DNS, redirect to such an address, size/type/time limits → 422 `IMPORT_SOURCE_REJECTED`).
+  `PUT /api/bank/sources/{id}/pages/{n}` body `{mediaType?, dataBase64?, text?}` (image ≤600 KB JPEG/PNG/WebP) →
+  200; `GET` the same path returns the page. `POST /api/bank/imports` body `{sourceIds[], courseId?, keyOrigin?}` →
+  202 `ImportJob` (`QUEUED`, per-page tasks, token estimate); `GET /api/bank/imports[/{jobId}]` → status,
+  `pages[]` progress, `itemCount`, `errors[]`, `usage`. Jobs run in the background (lease + fencing, per-page
+  commits, per-organization daily token budget → job `FAILED` with `BUDGET_EXCEEDED`). License fields are
+  recorded, not enforced (owner decision 2026-11-15).
+- Authoring assistant (Step 40): `POST /api/bank/assistant/turns` body `{message, itemIds[], sourceIds[]}` → 202
+  `AssistantTurn`; `GET /api/bank/assistant/turns[/{id}]`; `POST /api/bank/assistant/turns/{id}/proposals/{n}/accept`
+  or `/reject` → the proposal applied through the bank commands as the caller (stale → 409 `VERSION_CONFLICT`;
+  a key proposal is applied only by a content reviewer, otherwise 403).
 - `GET /api/bank/me` → `{uid, role, orgId, canReview}` for an author or content reviewer (403 otherwise); the
   bank screen uses it to decide what it offers. The server still checks every command.
 - `GET /api/bank/items?state=&courseId=&flag=&approvedOnly=&cursor=&limit=` → `{items: BankItemSummary[], nextCursor}`. `approvedOnly=true` includes items whose current state is a new draft or review but whose prior approved version remains selectable; retired items are excluded.

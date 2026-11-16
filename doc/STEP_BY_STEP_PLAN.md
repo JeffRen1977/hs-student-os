@@ -1074,66 +1074,70 @@ Each extension is independently selected and verified. None are prerequisites fo
 
 **Status:** 🟡 Assessment written ([OPTIONAL_INFRASTRUCTURE.md](OPTIONAL_INFRASTRUCTURE.md)): none of the four is adopted, and each has an adoption trigger. 38.2 is deliberately not done: vendor availability, pricing and quality are only checked when a trigger is met, since today's figures would be stale by then. `tests/unit/test_optional_infrastructure.py` checks that no optional package is a runtime dependency and that the app plus a full learning loop run with those modules made unimportable.
 
-### Step 39 — Import questions from PDFs and photos in the author portal (future)
+### Step 39 — Add questions to the bank: quick entry and file import
 
-> **Re-scoped 2026-11-15 (approved, see Step 45 and [QUESTION_BANK.md](QUESTION_BANK.md)):** imports also accept pasted text and links, and write `extracted` items into the organization's question bank instead of a draft package. Confirmed items are approved, keyed and selected by the organization's content reviewer; the package is built from that selection. License/copyright refusal (39.3) is deferred by owner decision: source and license are recorded but not enforced.
+> **Rewritten 2026-11-16 (owner request: "a good tool to let the author easily add questions into the database").** Replaces the 2026-11-07 plan, which went straight from PDFs/photos to a draft package. Every path now ends in the organization's question bank (Step 45); packages come only from a content reviewer's selection (45.4). License/copyright refusal is deferred by owner decision: source and license are recorded, not enforced.
 
-**Goal:** Authors can bring existing question material (PDF files, photos of printed pages) into a draft package without writing JSON. The platform proposes items; the author confirms every item before it can enter a package; the existing validator and review gate are unchanged.
-
-```
-Upload PDF / photos ─► extraction Run (text layer, or OCR + vision-capable model)
-  ─► proposed items (passage, question, choices, answer key, skill, difficulty, figure crop)
-  ─► author review screen (original page | extracted item): edit, confirm or discard
-  ─► confirmed items ─► draft package (rubric criteria + basic evaluation cases generated)
-  ─► existing path: validator report → submit → platform reviewer → active
-```
-
-- [ ] 39.1 Contract first: `ImportJob`, `ProposedItem` (with a link back to the source page and region), author confirmation; API.md and COURSE_PACKAGE.md updated before handlers
-- [ ] 39.2 Upload: signed Cloud Storage uploads scoped to the author's organization; size, page and type limits; files never shown to students and never readable by other organizations (404)
-- [ ] 39.3 Source and license attestation per uploaded file, shown to the reviewer; official College Board or commercial test-prep material is refused without recorded permission
-- [ ] 39.4 Extraction as a worker Run through the LLM gateway (no external calls inside transactions), with per-organization token budgets; output validated against the `ProposedItem` schema, invalid output rejected
-- [ ] 39.5 Proposals are never content: only items the author confirms (and whose answer key the author enters or confirms) can be added to a draft. Handwritten marks on scanned pages are never used as answer keys, and photos are not kept as student data
-- [ ] 39.6 Author portal review screen: side-by-side page and item, edit/confirm/discard, bulk confirm only after each item has been opened
-- [ ] 39.7 Build the draft package from confirmed items (rubric criterion per item, all-correct / one-wrong / unreadable evaluation cases), then hand off to the existing upload and validator
-- [ ] 39.8 Tests: organization isolation of uploads and proposals, idempotent import commands, unconfirmed proposals never reaching a package, extraction failure leaves no partial draft, attestation required, budget exhaustion; an evaluation set of annotated sample pages measuring extraction accuracy (separate from deterministic tests)
-
-**Prerequisites:** item figures and math rendering. Today item prompts and choices are text only, so questions that depend on a diagram, graph or table image cannot be represented; the package contract, validator, storage and student view need image attachments (and formula rendering) first. An offline helper (PDF/photos → spreadsheet → package file) can serve authors in the meantime without platform changes.
-
-**Verify:** An author uploads a sample PDF and a photo, confirms the extracted items, and submits a draft that passes the validator; no unconfirmed item, other organization's file, or student-visible upload exists at any point.
-
-**Status:** ⏳ Planned 2026-11-07 (Option B of the import discussion); not started.
-
-### Step 40 — Conversational authoring agent (future)
-
-> **Re-scoped 2026-11-15 (approved, see Step 45):** the agent's question work happens in the organization's question bank (create, edit and flag items, suggest keys as `agent-suggested`). Answer keys are confirmed by the organization's **content reviewer**, not the author, and the package's questions come from the content reviewer's selection. The other stages (course basics, skills, rubrics, starter plan) are unchanged.
-
-**Goal:** Authors build a course package by talking with an authoring agent instead of writing JSON. The agent asks for what the package needs (course basics, skills, practice-set design, questions and answer keys, rubric criteria and skill tags, the starter plan), proposes changes to a server-side draft, and the author accepts, rejects or adjusts each change in conversation. The package JSON becomes an artifact the agent maintains; submission and the platform review gate are unchanged.
+**Goal:** An author gets questions into the bank in whatever form they have them, quickly and without JSON: typed one by one, pasted in bulk, uploaded as a spreadsheet, or extracted from PDFs, photos and links. Deterministic paths come first (no model, reliable, cheap); model-assisted extraction handles scans and messy layouts. Nothing reaches a package without the content reviewer.
 
 ```
-Author ⇄ authoring agent (chat in the author portal)
-  ─► agent proposes a typed edit (add skill, add set, update item, set answer key, tag criterion …)
-  ─► validator runs on the resulting draft; problems explained in plain language, fixes offered
-  ─► author accepts / rejects / asks for a change
-  ─► server-side draft package (outline, validation report, student preview always available)
-  ─► author presses Submit ─► existing path: platform reviewer → approved → active
+39A quick entry (no model)                      39B file import (model-assisted)
+  form ─────────────┐                             PDF / photos / link
+  paste text ───────┼─► parse preview ─► batch      ─► sources (page images + text layer, stored)
+  CSV template ─────┘   (problems,          import    ─► ImportJob ─► per page: splitter first,
+                         duplicates)          │           vision extraction otherwise
+                                              ▼           ─► answer-key pages matched by number
+                                       draft items        ─► extracted items (page + region provenance)
+                                              │
+                      bank: author confirms/edits/submits ─► content reviewer keys, approves, selects
 ```
 
-Conversation stages (the author can move between them at any time): course basics → manifest; skills (agent suggests from the exam outline or standards, author edits); practice-set design (size, difficulty mix, passages) → abilities and rubric shape; questions (author-written, pasted, imported via Step 39, or agent-drafted on request); rubric criteria and skill tag per item; starter tasks; evaluation cases (generated and run); review walkthrough of the student preview and the submit checklist.
+**Lessons from the 2026-11-15 local SAT bank** (1,617 questions extracted by hand-built tools) that shape this step: two-column layouts, section headers and per-section numbering; shared passages and information blocks that cover a stated range ("Questions 26 and 27 …"), which a linker got wrong for 203 questions; answer keys on separate pages or files, sometimes a third-party key that is wrong; unreliable OCR for math, underlines and figures; page furniture mixed into text; duplicates across files; and volume (many tests at once). Page-image transcription was the only reliable source, so page images are kept for side-by-side review.
 
-- [ ] 40.1 Contract first: `AuthoringSession`, server-side `DraftPackage`, a closed set of typed edit operations (no free-form JSON writes), proposal/accept/reject records, per-item provenance (`author`, `agent-drafted`, `imported`); API.md and COURSE_PACKAGE.md updated before handlers
-- [ ] 40.2 Draft store scoped to the author's organization (other organizations → 404); every applied operation is idempotent, versioned (concurrent edits → 409) and recorded with actor and time; the draft can be exported as package JSON, and an uploaded JSON can seed a draft
-- [ ] 40.3 Authoring agent as a platform ability: each turn is a worker Run through the LLM gateway (no external calls inside transactions) with per-organization token budgets; its only tools are the edit operations, the validator, the student preview and `math-verify`; model output is validated against the operation schema and invalid proposals are rejected
-- [ ] 40.4 Author confirmation rules: a proposal changes the draft only when the author accepts it; every answer key must be confirmed by the author (agent-proposed keys for math items are checked with `math-verify`); items whose key is unconfirmed block Submit
-- [ ] 40.5 Content integrity: agent-drafted items are recorded as such in `source` and shown to the reviewer; the agent asks for the source and license of pasted material and refuses to reproduce College Board or commercial test-prep items; package text the author pastes is treated as content, never as instructions to the agent
-- [ ] 40.6 Boundaries: the agent cannot submit, approve, activate, retire, grant entitlements, read other organizations' packages, or read any student data; Submit stays an explicit author action through the existing endpoint
-- [ ] 40.7 Author portal: chat panel beside a live draft view (outline, validation report, student preview, diff of each proposal with accept/reject); the JSON upload/download path remains for authors who prefer files
-- [ ] 40.8 Tests: organization isolation of sessions and drafts, idempotent and conflicting edits, rejected proposals leave the draft unchanged, unconfirmed answer keys block Submit, the agent cannot call review or entitlement routes, budget exhaustion, a failed Run leaves no partial edit; an evaluation set of scripted authoring sessions (separate from deterministic tests) measuring proposal quality and key correctness against reviewed packages
+#### 39A — Quick entry (deterministic, ships first)
+- [ ] 39.1 Contract first (QUESTION_BANK.md §4/§9, API.md §6.5.7): `POST /api/bank/imports/parse` (no writes: text or CSV → proposed questions, passages with their question ranges, matched keys, per-question problems, duplicates of existing bank items) and `POST /api/bank/imports/batch` (writes a reviewed batch atomically, ≤100 questions + their passages, Idempotency-Key). Author-entered questions arrive as `draft` (`provenance.kind: author`); a `contentHash` (normalized stem + choices) is stored on every item version for duplicate checks.
+- [ ] 39.2 New-question form in the bank: stem, type, choices, key and its origin, existing passage or a new one inline, course, section, skills, difficulty, flags; "Save and add next" keeps the passage and settings.
+- [ ] 39.3 Paste: numbered questions in common layouts (`1.`/`1)`; choices `A)`, `(A)`, `A.`; per-question `Answer: B`; an answer block `1. B 2. D …` or `1-B`), passages introduced by "Questions X–Y refer to / are based on …" and linked only to that range, underlines as `[[…]]`; the preview shows what was found and every problem before anything is written.
+- [ ] 39.4 Spreadsheet: a downloadable CSV template (`number, passage, stem, A, B, C, D, answer, solution, skills, difficulty, section, type`); bad rows reported by row number, never silently dropped.
+- [ ] 39.5 Batch settings applied on import: course, section, skills, difficulty, key origin (`source-key` / `compiled-key`), source title and license note (recorded), tags.
+- [ ] 39.6 Duplicates: questions whose `contentHash` matches an item already in the organization's bank (or another question in the batch) are marked in the preview and skipped unless the author keeps them.
 
-**Relationship to other steps:** requires Step 44 first; builds on the author portal (Step 34) and the review gate (Step 26); Step 39's PDF/photo import becomes one way to give the agent questions; figures and math rendering (Step 39 prerequisite) apply here too. Replaces the spreadsheet-converter idea as the main authoring path.
+#### 39B — File import (model-assisted)
+- [ ] 39.7 Sources: `POST /api/bank/sources` (`kind`: `pdf` | `image` | `text` | `link`; title; license note) and `PUT /api/bank/sources/{id}/pages/{n}` (page image JPEG/PNG/WebP ≤600 KB, optional text layer). The browser renders PDF pages and extracts their text layer with a pinned pdf.js build and downscales photos, so the server needs no PDF parser. Links are fetched by the platform under the §7 guard (http(s) only, no private/loopback addresses after DNS, redirects re-checked, size/type/time limits) and stored as a text source. Sources and pages are organization-scoped (other organizations → 404) and never visible to students.
+- [ ] 39.8 ImportJob: `POST /api/bank/imports {sourceIds, courseId?, keyOrigin?}` → `QUEUED`, one task per page. An import scan (each local worker tick; Cloud Scheduler in deployed environments) leases a job with a fencing token and processes one page at a time: the 39A splitter first when the text layer is clean, otherwise the `question-extraction` platform ability (vision model through the LLM gateway, per-organization daily token budget, output validated against the proposal schema, invalid output rejected). Each page commits its items and its status in one fenced transaction; no external calls inside transactions. Failed pages are reported in plain language and the rest is kept; re-running a job or a page never duplicates items (item key = job + page + question number). The job shows a token estimate before it starts.
+- [ ] 39.9 Answer keys: pages recognized as answer keys (parser or model) are matched by section and number to the job's questions; the origin is recorded (`source-key`, or `compiled-key` when the author marks the source as a third-party key). Handwritten marks on scans are never used as keys.
+- [ ] 39.10 Review: extracted items keep their source page and region; the bank screen shows the page image beside the item and the passage link to confirm; bulk confirm is offered only for items the author has opened.
+- [ ] 39.11 Tests: organization isolation of sources, pages, jobs and items; idempotent parse/batch/import commands; parse never writes; batch atomicity; duplicate detection; job lease and fencing (a stale worker cannot commit); page failure keeps other pages; budget exhaustion stops the job with a plain-language error; invalid model output rejected; link guard. Separately, an evaluation set of annotated pages (the local SAT bank's page-image transcriptions as the first reference) measures extraction accuracy.
 
-**Verify:** An author with no JSON knowledge builds a small course (skills, two practice sets, rubrics, starter tasks) entirely in conversation; the resulting draft passes the validator and every evaluation case, every answer key was confirmed by the author, agent-drafted items are labeled for the reviewer, and nothing reaches students until the platform reviewer approves and activates it.
+**Prerequisites and relationship:** builds on Step 45 (bank) and the bank screen (45.5). Step 46 (question display format) changes the target format later: imports then produce structured blocks (math, tables, figure crops) instead of plain text with `[[…]]` underlines; until then figures are described in text.
 
-**Status:** ⏳ Planned 2026-11-07; not started.
+**Verify:** An author adds 20 questions from pasted text with an answer block, 10 from a CSV and a two-page PDF, without writing JSON; duplicates and problems are shown before import; extracted items show their page beside them; nothing is visible to another organization or to students, and none of it can enter a package before the content reviewer approves and selects it.
+
+**Status:** ⏳ Rewritten 2026-11-16; implementation in progress (39A first).
+
+### Step 40 — Authoring assistant (bank assistant and package design assistant)
+
+> **Rewritten 2026-11-16.** Replaces the 2026-11-07 plan of one chat agent editing a whole draft package: questions now live in the bank (Step 45) and packages come from selections, so the assistant works there. Answer keys are confirmed by the content reviewer, not the author.
+
+**Goal:** Authors and content reviewers get help from an assistant in the bank screen: it proposes, people decide. Each turn is a background job on the shared runtime; its only output is typed proposals the user accepts or rejects one by one.
+
+#### 40A — Bank assistant (questions)
+- [ ] 40.1 Contract first: `AssistantTurn` (`orgs/{orgId}/assistantTurns/{turnId}`: message, selected item/source ids, status, proposals, usage) and the proposal types — `create-item` (as `extracted`, provenance `agent-drafted` or `imported`), `edit-item` (field changes to one item), `propose-key` (answer + solution, `answerSource: agent-suggested`), `link-passage` (items ↔ passage with range), `flag`. `POST /api/bank/assistant/turns`, `GET …/turns/{id}`, `POST …/turns/{id}/proposals/{n}/accept|reject`.
+- [ ] 40.2 Runs like 39.8 (lease + fencing scan, per-organization budget, schema-validated output); its tools are the 39A splitter, the 39B extraction ability and `math-verify` for numeric keys. Selected items, sources and pasted text are content, never instructions.
+- [ ] 40.3 Accepting a proposal applies it through the existing bank commands as the accepting user (author permissions for items; `propose-key` only becomes a reviewer key when the content reviewer sets it, 45.3); rejecting leaves nothing. Each accept is idempotent and fails with `VERSION_CONFLICT` if the item changed since the proposal.
+- [ ] 40.4 Integrity: agent-drafted items are labeled for reviewers; the assistant never reproduces official or commercial test questions from its own memory (author-supplied material follows the deferred license policy); it cannot approve, select, build, submit, or read student data or other organizations.
+- [ ] 40.5 Bank screen: chat panel beside the item list; each proposal shown as a diff with Accept / Reject.
+
+#### 40B — Package design assistant (selections)
+- [ ] 40.6 Contract: a selection may add skills the base package lacks (`addedSkills`, merged into the built package and checked by the validator), and items carry per-item `skillIds` that selection sets no longer override when present.
+- [ ] 40.7 Proposals on selections: group approved items into sets (by skill and difficulty, passages kept together), propose skill tags per item (as `edit-item`), starter vs sequence roles, and missing skills; only the content reviewer can accept.
+- [ ] 40.8 Tests for both: organization isolation of turns, idempotent turns and accepts, rejected proposals change nothing, stale proposals → 409, the assistant cannot reach review/publication routes, budget exhaustion, failed turn leaves no partial change; an evaluation set of scripted sessions (separate from deterministic tests) measuring proposal quality.
+
+**Relationship:** requires Step 44 (done) and Step 39 (its paths are the assistant's tools); Step 43 (platform review assistant) stays separate.
+
+**Verify:** An author pastes a photo and some text, asks the assistant to add the questions and suggest keys, accepts some proposals and rejects others; the content reviewer confirms keys and asks the assistant to group approved questions into sets with skill tags; the built package passes the validator, and every assistant contribution is labeled and was accepted by a person.
+
+**Status:** ⏳ Rewritten 2026-11-16; to be implemented after 39.
 
 ### Step 41 — Reviewer screen in the portal
 
@@ -1328,7 +1332,7 @@ Owner decisions (2026-11-15): the person who selects questions and supplies keys
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; emulator run 2026-11-05; real-model evaluation review and Step 32 pending |
 | M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
 | M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 deployed to staging 2026-11-03; 32 not yet run; 33 not passed |
-| M5 Optional expansion | 34–44 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course publication, review assistant agent, registry-driven ability dispatch) | 34–38 implemented 2026-11-04 (in-memory, synthetic); 41 implemented 2026-11-07 (local); 42 superseded by admin publication 2026-11-07, code removed 2026-11-10; 44 implemented 2026-11-08 (local); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39, 40, 43 planned, not started; 45 (organization question bank + content reviewer) approved 2026-11-15; 45.1–45.6 implemented (local); 46 (question display format) planned, not started |
+| M5 Optional expansion | 34–44 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course publication, review assistant agent, registry-driven ability dispatch) | 34–38 implemented 2026-11-04 (in-memory, synthetic); 41 implemented 2026-11-07 (local); 42 superseded by admin publication 2026-11-07, code removed 2026-11-10; 44 implemented 2026-11-08 (local); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39 and 40 rewritten 2026-11-16 (quick entry, file import, authoring assistant), in progress; 43 planned, not started; 45 (organization question bank + content reviewer) approved 2026-11-15; 45.1–45.6 implemented (local); 46 (question display format) planned, not started |
 
 ## Superseded patterns
 

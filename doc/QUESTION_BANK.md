@@ -2,13 +2,16 @@
 
 Status: **approved by the owner 2026-11-15.** Implemented 2026-11-15: roles, items and their review (45.1–45.3).
 Also implemented: passages (version 1, read endpoint), development seeding (45.6), selections and the
-builder (45.4), and the portal screen `web/bank.html` (45.5). Not yet: sources and imports (Step 39). This document is the contract for the
+builder (45.4), and the portal screen `web/bank.html` (45.5). Contract v1.1 (2026-11-16) adds quick entry,
+file import and the authoring assistant (Steps 39 and 40, §4.1–4.2, §4.5, §7, §9); implementation in progress. This document is the contract for the
 question bank. API.md §6.5.7, BACKEND.md §2–3, COURSE_PACKAGE.md §7 and CLAUDE.md summarize it and point here;
 where they differ, this document wins until the code exists.
 
 ## 1. Goal
 
-Authors bring question material in any form (photos, PDFs, pasted text, links). An authoring agent extracts it
+Authors bring question material in any form: typed in a form, pasted text, a spreadsheet (CSV), PDFs, photos or
+links. Typed, pasted and spreadsheet questions are split deterministically, previewed, and arrive as `draft`
+(Step 39A); files and links go through an extraction job (Step 39B). An authoring agent extracts it
 into the organization's **question bank**. The author checks and edits the extracted questions. A **content
 reviewer of the same organization** decides which questions go into the course package and supplies answer keys
 and solutions where the source has none. The package built from that selection then goes through the existing
@@ -66,10 +69,20 @@ Other organizations' sources, jobs, items and selections return 404.
 `contentHash` (links) or inline `text`; `title`; `uploadedBy`; `createdAt`; `pageCount`;
 `license` / `attribution` (free text, **recorded, not enforced** — §2). Never visible to students.
 
+Pages: `sources/{sourceId}/pages/{n}` (`n` from 1): `mediaType` + `dataBase64` (page image, ≤600 KB, JPEG/PNG/WebP;
+the browser renders PDF pages with a pinned pdf.js build and downscales photos) and `text` (PDF text layer, pasted
+text or the fetched link text). Pages are immutable once the source is used by a job.
+
 ### 4.2 `imports/{jobId}` — one extraction job
 `sourceIds[]`, `courseHint` (optional courseId), `status` (`QUEUED` → `RUNNING` → `SUCCEEDED` | `FAILED`),
-`runId`, `itemCount`, `errors[]` (per page, plain language), `usage` (tokens), `createdBy`, timestamps.
-Created with Idempotency-Key; same key + same body replays the job.
+`itemCount`, `errors[]` (per page, plain language), `usage` (tokens), `createdBy`, timestamps; `keyOrigin`
+(`source-key` | `compiled-key`) for keys found in the material; `pages[]` (`sourceId`, `page`, `status`:
+`pending` | `done` | `failed`, `itemIds[]`, `error`); `lease` (`workerId`, `token`, `expiresAt`). An import scan
+(local worker tick; Cloud Scheduler when deployed) leases a job, processes one page outside any transaction (the
+§7.1 splitter when the text layer parses cleanly, otherwise the `question-extraction` ability) and commits that
+page's items and status in one transaction fenced by the lease token. Item ids are derived from job + page +
+question number, so a re-run never duplicates. Answer-key pages are matched to the job's questions by section and
+number. Created with Idempotency-Key; same key + same body replays the job.
 
 ### 4.3 `bankItems/{itemId}` + `bankItems/{itemId}/versions/{n}` — the question bank
 Item header: `itemId`, `courseId` (target course, optional until selection), `state`, `currentVersion`,
@@ -94,6 +107,7 @@ while `in_review` only the content reviewer may change it, e.g. text fixes or th
 | `provenance` | `{ sourceId, page, region, importJobId }` or `{ by: "author" }` or `{ by: "agent-drafted" }` |
 | `flags[]` | extraction warnings: `ocr-uncertain`, `figure-missing`, `choices-incomplete`, `number-uncertain`, `key-disputed`, `duplicate-of:<itemId>` … |
 | `review` | `{ reviewer, decidedAt, decision, notes }` on approved/rejected versions |
+| `contentHash` | SHA-256 of the normalized stem + choices (lowercase, whitespace collapsed); used to mark duplicates within the organization (§7.1) |
 
 States: `extracted` → `draft` → `in_review` → `approved` | `rejected`; `rejected` → `draft` (author revises);
 any → `discarded` (author, before approval) or `retired` (reviewer, after approval). Editing an approved item
@@ -106,6 +120,15 @@ without skills of their own), `starterSetIds[]`, `sequenceSetIds[]`, `sourceType
 `sourceAuthor`, `sourceLicense` (become each built question's `source`; default: the course's publisher and
 license), `revision`, `builtPackageVersion`, `builtBy`, `builtAt`. Only `approved`, unretired item versions may be
 referenced (409 `ITEM_NOT_APPROVED`); references pin a version. Only `content_reviewer` writes and builds.
+
+### 4.5 `assistantTurns/{turnId}` — one authoring-assistant turn (Step 40)
+`message`, `itemIds[]` / `sourceIds[]` the user selected, `status` (`QUEUED` → `RUNNING` → `SUCCEEDED` | `FAILED`),
+`proposals[]` (each: `kind`, payload, `status` `open` | `accepted` | `rejected`, `decidedBy`, `appliedRevision`),
+`reply` (short plain-language answer), `usage`, `lease`, `createdBy`, timestamps. Proposal kinds: `create-item`
+(becomes an `extracted` item, provenance `agent-drafted`), `edit-item` (field changes + the item revision it was
+based on), `propose-key` (answer + solution, `answerSource: agent-suggested`), `link-passage` (passage text or id +
+question range), `flag`. Accepting applies the proposal through the normal bank commands as the accepting user;
+a proposal whose item changed since → 409 `VERSION_CONFLICT`.
 
 ## 5. Answer keys and solutions
 
@@ -138,6 +161,19 @@ Deterministic, no model calls:
 - The result goes through the existing upload path: validator report, preview, submit, platform review.
 
 ## 7. Authoring agent (extraction and editing)
+
+### 7.1 Quick entry and the deterministic splitter (Step 39A)
+- `POST /api/bank/imports/parse` turns pasted text or CSV into proposed questions without writing anything:
+  numbered questions (`1.` / `1)`), choices (`A)`, `(A)`, `A.`), per-question `Answer: X`, an answer block
+  (`1. B 2. D`, `1-B`), passages introduced by "Questions X–Y refer to / are based on …" (linked to that range
+  only), `[[…]]` underlines. Each proposal lists its problems (missing choices, no key, number gaps) and whether its
+  `contentHash` matches an item already in the organization's bank or another proposal.
+- `POST /api/bank/imports/batch` writes the reviewed proposals (≤100 questions plus their passages) as `draft`
+  items with the batch settings (course, section, skills, difficulty, key origin, source note, tags) in one
+  transaction; duplicates are skipped unless the author keeps them. Same splitter is used for clean text layers in
+  import jobs and as an assistant tool.
+
+### 7.2 Extraction and the assistant (Steps 39B, 40)
 
 - Runs as a platform ability on the shared runtime: a worker Run per import job or chat turn, through the LLM
   gateway with per-organization token budgets; no external calls inside transactions.
@@ -174,9 +210,16 @@ All POSTs require Idempotency-Key; all routes are org-scoped by the caller's mem
 
 | Method & path | Role | Purpose |
 |---|---|---|
-| `POST /api/bank/sources` | author+ | register an upload (signed URL), pasted text or link |
+| `POST /api/bank/imports/parse` | author+ | split pasted text or CSV into proposed questions (no writes; problems and duplicates listed) |
+| `POST /api/bank/imports/batch` | author+ | write a reviewed batch (≤100) as `draft` items with batch settings |
+| `POST /api/bank/sources` | author+ | register a source (`pdf`, `image`, `text`, `link`) |
+| `PUT /api/bank/sources/:sourceId/pages/:n` | author+ | upload one page (image ≤600 KB and/or text layer) |
+| `GET /api/bank/sources/:sourceId/pages/:n` | author+ | page image and text, for side-by-side review |
 | `POST /api/bank/imports` | author+ | start an extraction job over sources |
-| `GET /api/bank/imports/:jobId` | author+ | job status, errors, item count |
+| `GET /api/bank/imports[/:jobId]` | author+ | job status, per-page progress and errors, item count |
+| `POST /api/bank/assistant/turns` | author+ | ask the authoring assistant (message + selected items/sources) |
+| `GET /api/bank/assistant/turns[/:turnId]` | author+ | turn status, reply and proposals |
+| `POST /api/bank/assistant/turns/:turnId/proposals/:n/accept` / `reject` | author+ (keys: content_reviewer) | apply or dismiss one proposal |
 | `GET /api/bank/items?state=&courseId=&flag=&approvedOnly=` | author+ | list items (paged); `approvedOnly=true` includes items with a prior approved version even while a new draft is open |
 | `GET /api/bank/items/:itemId` | author+ | item with versions and provenance |
 | `POST /api/bank/items` | author+ | create an item by hand (`provenance.by = author`) |
