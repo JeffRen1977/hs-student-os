@@ -1293,6 +1293,30 @@ Owner decisions (2026-11-15): the person who selects questions and supplies keys
 - Synthetic member `reviewer_hsos` (content reviewer, `org_hsos_content`) added to `fixtures/platform/members.json`.
 - Tests: `tests/contract/test_question_bank.py` (19: isolation, role gating, idempotency, concurrency, keys, state machine, self-approval, extracted items) and `tests/emulator/test_question_bank_emulator.py` (3 on real Firestore: header + version + history commit together, concurrent edits have one winner, array-contains filtering and organization isolation). Full suite after 45.4: 731 unit/contract, 14 emulator and 55 web tests pass; ruff and mypy clean.
 
+### Step 46 — Question display format (future; requested by the owner 2026-11-15)
+
+**Goal:** Extracted questions read like the source page wherever they appear — the bank screen, the author/reviewer preview and the student session — so reviewers can check them quickly and students see clean questions. Today an item is plain text with `[[…]]` underline markers, which is not good enough to show.
+
+**Problems seen in the 2026-11-15 demo with the local SAT bank** (1,617 items, mostly OCR):
+- OCR noise is shown as content: graph axis fragments (`$300 é`, `% $200`, `0 10 2039`), page furniture (`51 [CONTINUE]`, `4I`), misread characters (`«` for "in", `ot` for "of", `2ax—15`).
+- Math is flattened text: exponents as `x^2`, no fractions, radicals or inequalities layout; equations run into the sentence that follows them.
+- Figures, graphs and tables are either missing (`figure-missing`) or replaced by a bracketed description; no image of the original.
+- Passages lose their layout: paragraph breaks, poetry lines and the line numbers that questions cite ("line 5"); paired passages (Passage 1 / Passage 2) are not separated; spurious underlines from the OCR underline mapping (e.g. "Passage [[2]]", "a is [[a]] constant").
+- Shared information blocks were attached to the wrong questions (fixed in the local bank by range rules; 25 reading/writing items still flagged `passage-range-mismatch`, two because the passage title itself was misread).
+- In the preview, choices of one item are run together on one line.
+- The student session shows only the set instructions until the student switches to "Answer"; the questions should be visible as soon as the session opens.
+
+**Scope (contract first, per §5.3):**
+- [ ] 46.1 Structured item content in QUESTION_BANK.md and the schemas: stem and passage as ordered blocks (paragraph, math in LaTeX, table, figure reference, line-numbered text, paired-passage boundary), underline spans instead of inline markers; plain-text items stay valid and are migrated, not rejected.
+- [ ] 46.2 One shared renderer (math via a pinned KaTeX build, tables, figure images, line numbers, underlines) used by the bank screen, the package preview and the student session; choices one per line; questions visible when a session opens.
+- [ ] 46.3 Figures: crop the figure region from the source page into the organization's storage and reference it from the item (ties in with Step 39 sources); the reviewer can replace or remove it.
+- [ ] 46.4 Extraction cleanup, as proposals the author accepts: strip page furniture and axis fragments, normalize math to LaTeX, rebuild passage paragraphs and line numbers, check passage ranges against titles. Applies to the import path (Step 39) and to the local SAT bank re-seed; agent output stays a proposal (§6.2).
+- [ ] 46.5 Review aids: side-by-side source page image and rendered item in the bank screen; a "format" flag set the reviewer clears when the rendering matches the page.
+
+**Verification:** a reviewed sample from each source test (reading, writing, math with figures, grid-ins) renders the same as the source page in all three surfaces; renderer unit tests (math, tables, line numbers, underline spans, paired passages); existing plain-text items still display; package validator and builder accept the structured content.
+
+**Status:** planned, not started. Depends on: Step 45 (bank), Step 39 for page images; no change to the review or publication policy.
+
 ---
 
 ## Delivery Map
@@ -1304,7 +1328,7 @@ Owner decisions (2026-11-15): the person who selects questions and supplies keys
 | M2 Calculus learning loop | 16–21 | LLM gateway, Calculus skills, atomic assessment, events/SSE, course-driven frontend, evaluation report | Implemented; emulator run 2026-11-05; real-model evaluation review and Step 32 pending |
 | M3 Course platform | 22–27 | Course package contract + validator, ability catalog, course-internal consumers, multi-course planner, author role + review gate, a second course built with data only | Redefined 2026-11-01; course-agnostic parts implemented |
 | M4 Proactive planning and pilot | 28–33 | Scheduled planning, reminders, staging deploy, monitoring, integration tests, pilot gate (Calc BC + Digital SAT, authored) | 28, 29, 31 implemented (local); 30 deployed to staging 2026-11-03; 32 not yet run; 33 not passed |
-| M5 Optional expansion | 34–44 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course publication, review assistant agent, registry-driven ability dispatch) | 34–38 implemented 2026-11-04 (in-memory, synthetic); 41 implemented 2026-11-07 (local); 42 superseded by admin publication 2026-11-07, code removed 2026-11-10; 44 implemented 2026-11-08 (local); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39, 40, 43 planned, not started; 45 (organization question bank + content reviewer) approved 2026-11-15; 45.1–45.6 implemented (local) |
+| M5 Optional expansion | 34–44 | Individually validated extensions (authoring portal and more courses, admissions, parent, predictions, infrastructure, author import from PDF/photos, conversational authoring agent, reviewer screen, admin course publication, review assistant agent, registry-driven ability dispatch) | 34–38 implemented 2026-11-04 (in-memory, synthetic); 41 implemented 2026-11-07 (local); 42 superseded by admin publication 2026-11-07, code removed 2026-11-10; 44 implemented 2026-11-08 (local); APUSH awaiting review; admissions/parent API only; predictions stay unavailable; 38.2 deferred; 39, 40, 43 planned, not started; 45 (organization question bank + content reviewer) approved 2026-11-15; 45.1–45.6 implemented (local); 46 (question display format) planned, not started |
 
 ## Superseded patterns
 
