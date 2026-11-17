@@ -142,6 +142,8 @@
       getItem: function (k) { return m.has(k) ? m.get(k) : null; },
       setItem: function (k, v) { m.set(k, String(v)); },
       removeItem: function (k) { m.delete(k); },
+      key: function (i) { return Array.from(m.keys())[i] ?? null; },
+      get length() { return m.size; },
     };
   }
 
@@ -165,6 +167,19 @@
         return draft;
       },
       clear: function (key) { s.removeItem(prefix + key); },
+      // Sign-out: drop every unsent draft so the next person on this device cannot read them.
+      clearAll: function () {
+        try {
+          const keys = [];
+          for (let i = 0; i < s.length; i += 1) {
+            const k = s.key(i);
+            if (k && k.indexOf(prefix) === 0) keys.push(k);
+          }
+          keys.forEach(function (k) { s.removeItem(k); });
+        } catch (_e) {
+          // Storage unavailable (private mode, blocked): nothing was kept.
+        }
+      },
     };
   }
 

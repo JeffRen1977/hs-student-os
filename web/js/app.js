@@ -42,13 +42,22 @@ function App() {
 
   React.useEffect(load, [load]);
 
+  // Forget the signed-in student, their unsent drafts and their data right away (no stale workspace),
+  // then load again: with no token the startup ends on the sign-in screen.
+  const signOut = React.useCallback(async () => {
+    await AUTH.signOut();
+    DRAFTS.clearAll();
+    setBoot(HSProvider.idle());
+    load();
+  }, [load]);
+
   const screen = HSProvider.deriveScreen(boot);
   if (screen === "not_signed_in") return <SignInScreen auth={AUTH} error={boot.error} onSignedIn={load} />;
   if (screen !== "ready") return <StatusScreen screen={screen} error={boot.error} onRetry={load} />;
-  return <Workspace data={boot.data} onReload={load} />;
+  return <Workspace data={boot.data} onReload={load} onSignOut={signOut} />;
 }
 
-function Workspace({ data, onReload }) {
+function Workspace({ data, onReload, onSignOut }) {
   const S = useAppState(data, data.mode === "api" ? PROVIDER : null);
 
   // Durable event feed (API mode): SSE with Last-Event-ID, polling fallback; on an expired
@@ -76,7 +85,7 @@ function Workspace({ data, onReload }) {
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F8FA] dark:bg-slate-950 transition-colors">
       {S.demo && <DemoBanner />}
-      <Header S={S} />
+      <Header S={S} onSignOut={data.mode === "api" ? onSignOut : null} />
 
       <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)_300px] pb-[64px] md:pb-0">
         <TodayTasks S={S} />

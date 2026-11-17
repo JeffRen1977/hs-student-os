@@ -1,7 +1,7 @@
 // features.js — cross-agent features: header, TodayTasks (task list), Twin summary,
 // server event feed, course catalog + manifest modals, mobile bottom Tab bar.
 
-function Header({ S }) {
+function Header({ S, onSignOut }) {
   const profile = S.twin.profile;
   return (
     <header className="sticky top-0 z-40 shrink-0 bg-white/85 dark:bg-slate-900/85 backdrop-blur border-b border-slate-200/70 dark:border-slate-800 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3">
@@ -32,6 +32,7 @@ function Header({ S }) {
         <button onClick={() => S.setShowManifest(true)} className={"hidden md:inline-flex px-3 min-h-[36px] items-center rounded-full text-xs ring-1 ring-slate-300 dark:ring-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>Twin summary</button>
         <button onClick={() => S.setShowCatalog(true)} className={"px-3 min-h-[36px] rounded-full text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm " + BTN}>Course catalog ({S.enrolledIds.length} enrolled)</button>
         <button onClick={S.toggleDark} aria-label="Toggle dark mode" className={"w-9 h-9 shrink-0 rounded-full ring-1 ring-slate-300 dark:ring-slate-700 flex items-center justify-center text-sm hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>{S.dark ? "☀️" : "🌙"}</button>
+        {onSignOut && <button onClick={onSignOut} className={"px-3 min-h-[36px] rounded-full text-xs ring-1 ring-slate-300 dark:ring-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 " + BTN}>Sign out</button>}
       </div>
     </header>
   );

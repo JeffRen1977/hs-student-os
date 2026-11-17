@@ -214,6 +214,18 @@ test("drafts persist locally and are marked as not sent", () => {
   assert.equal(drafts.load("task_1"), null);
 });
 
+test("clearAll removes every draft on sign-out and leaves other keys alone", () => {
+  const storage = P.memoryStorage();
+  storage.setItem("hsos.localEmulatorUid", "stu_beth");
+  const drafts = P.createDraftStore(storage);
+  drafts.save("task_1", "first answer");
+  drafts.save("task_2", "second answer");
+  drafts.clearAll();
+  assert.equal(drafts.load("task_1"), null);
+  assert.equal(drafts.load("task_2"), null);
+  assert.equal(storage.getItem("hsos.localEmulatorUid"), "stu_beth");
+});
+
 test("corrupt draft storage does not crash", () => {
   const storage = P.memoryStorage();
   storage.setItem("hsos.draft.task_1", "{not json");
