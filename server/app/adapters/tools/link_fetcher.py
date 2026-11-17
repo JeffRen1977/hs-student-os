@@ -90,12 +90,16 @@ class HttpLinkFetcher:
         self._transport = transport
 
     async def _check(self, url: str) -> None:
-        parts = urlsplit(url)
+        try:
+            parts = urlsplit(url)
+            port = parts.port
+        except ValueError as exc:
+            raise _reject("The link has an invalid host or port.") from exc
         if parts.scheme not in ("http", "https"):
             raise _reject("Only http and https links can be imported.")
         if parts.username or parts.password:
             raise _reject("Links with a user name or password are not accepted.")
-        if parts.port not in (None, 80, 443):
+        if port not in (None, 80, 443):
             raise _reject("Links must use the standard web ports.")
         host = parts.hostname
         if not host:

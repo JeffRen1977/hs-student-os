@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from app.domain.bank_import_service import ImportProcessor, PageResult, StaleLease
-from app.domain.errors import DomainError
+from app.domain.errors import DomainError, ErrorCode
 from app.domain.ports.bank import FetchedLink
 from tests.support import Harness, ScriptedProvider, build_harness
 
@@ -240,6 +240,28 @@ async def test_text_and_link_sources_are_one_page_each(clean_env: pytest.MonkeyP
         {"kind": "link", "title": "x", "url": "http://private.test/"},
     )
     assert err["error"]["code"] == "IMPORT_SOURCE_REJECTED"
+
+
+async def test_link_source_replay_does_not_fetch_the_remote_page_again(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    links = FakeLinks()
+    h = build_harness(clean_env, link_fetcher=links)
+    body = {"kind": "link", "title": "Web", "url": "https://example.org/q"}
+    headers = h.cmd(AUTHOR, "link-create-retry")
+    first = await h.client.post(SOURCES, json=body, headers=headers)
+    assert first.status_code == 201, first.text
+    assert links.calls == [body["url"]]
+    links.calls.clear()
+
+    async def unavailable(url: str) -> FetchedLink:
+        raise DomainError(ErrorCode.IMPORT_SOURCE_REJECTED, "The page is gone.")
+
+    links.fetch = unavailable  # type: ignore[method-assign]
+    replay = await h.client.post(SOURCES, json=body, headers=headers)
+    assert replay.status_code == 201, replay.text
+    assert replay.json()["sourceId"] == first.json()["sourceId"]
+    assert replay.headers["idempotency-replayed"] == "true"
 
 
 async def test_a_worker_that_lost_its_lease_cannot_commit(clean_env: pytest.MonkeyPatch) -> None:

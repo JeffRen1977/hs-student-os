@@ -449,6 +449,8 @@ class BankService:
         answer: str,
         solution: str | None,
         cmd: CommandKey,
+        *,
+        expected_revision: int | None = None,
     ) -> Outcome[ItemDetail]:
         """Set the final key (`answerSource: reviewer`) and solution of a draft or in-review
         version. This is also how a reviewer confirms an agent-suggested key or replaces a
@@ -473,6 +475,7 @@ class BankService:
             None,
             update=apply,
             allowed_from=(BankItemState.DRAFT, BankItemState.IN_REVIEW),
+            expected_revision=expected_revision,
         )
 
     async def approve(
@@ -568,6 +571,7 @@ class BankService:
         update: Any = None,
         notes: str = "",
         never_approved: bool = False,
+        expected_revision: int | None = None,
     ) -> Outcome[ItemDetail]:
         """One state change (or, with `to=None`, an in-place update) of the current version."""
         org = self._org(actor)
@@ -581,6 +585,11 @@ class BankService:
                     created=False,
                 )
             item = await self._own(tx, org, item_id)
+            if expected_revision is not None and item.revision != expected_revision:
+                raise DomainError(
+                    ErrorCode.VERSION_CONFLICT,
+                    f"The item changed (revision {item.revision}); reload and try again.",
+                )
             if expect is not None and item.state is not expect:
                 raise self._bad_state(item, action)
             if allowed_from and item.state not in allowed_from:

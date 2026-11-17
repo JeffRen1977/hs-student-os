@@ -173,6 +173,16 @@ class ImportService:
                 raise DomainError(
                     ErrorCode.IMPORT_SOURCE_REJECTED, "Links cannot be fetched in this environment."
                 )
+
+            # A successful create must replay even if the remote page later disappears.
+            # The write transaction checks the key again to handle concurrent requests.
+            async def existing(tx: BankTx) -> BankSource | None:
+                record = await _replay(tx, actor, cmd)
+                return await tx.sources.get(org, record.resource_id) if record else None
+
+            replay = await self._uow.transaction(existing)
+            if replay is not None:
+                return Outcome(value=replay, replayed=True, created=True)
             fetched = await self._links.fetch(new.url or "")  # outside any transaction
             url, text = fetched.url, fetched.text[:MAX_PAGE_TEXT_CHARS]
             if not text.strip():

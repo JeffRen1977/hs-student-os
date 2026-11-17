@@ -367,7 +367,12 @@ class AssistantService:
         if p.kind is ProposalKind.PROPOSE_KEY:
             if actor.can(Permission.BANK_REVIEW):
                 await self._bank.set_key(
-                    actor, d["itemId"], d["answer"], d["solution"], self._cmd(turn, p)
+                    actor,
+                    d["itemId"],
+                    d["answer"],
+                    d["solution"],
+                    self._cmd(turn, p),
+                    expected_revision=d["basedOnRevision"],
                 )
             else:
                 await self._bank.edit(

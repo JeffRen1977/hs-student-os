@@ -174,6 +174,44 @@ async def test_keys_accepted_by_an_author_stay_suggestions(clean_env: pytest.Mon
     assert (cur["answer"], cur["answerSource"]) == ("C", "reviewer")
 
 
+async def test_reviewer_cannot_accept_a_key_for_a_changed_item(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    h, provider = make(clean_env)
+    (iid,) = await drafts(h, "What is 2 + 2?")
+    provider.queue(
+        {
+            "reply": "Use B.",
+            "proposals": [
+                {
+                    "kind": "propose-key",
+                    "summary": "Key B",
+                    "itemId": iid,
+                    "answer": "B",
+                    "solution": "Two plus two is four.",
+                }
+            ],
+        }
+    )
+    t = await turn(h, REVIEWER, {"message": "Check the key", "itemIds": [iid]})
+    await call(
+        h,
+        "PATCH",
+        f"{ITEMS}/{iid}",
+        AUTHOR,
+        200,
+        {
+            "expectedRevision": 1,
+            "changes": {"stem": "What is 3 + 3?"},
+        },
+    )
+    err = await call(h, "POST", f"{TURNS}/{t['turnId']}/proposals/0/accept", REVIEWER, 409)
+    assert err["error"]["code"] == "VERSION_CONFLICT"
+    current = await call(h, "GET", f"{ITEMS}/{iid}", REVIEWER, 200)
+    assert current["current"]["answer"] is None
+    assert current["current"]["stem"] == "What is 3 + 3?"
+
+
 async def test_turns_are_private_to_whoever_asked(clean_env: pytest.MonkeyPatch) -> None:
     h, provider = make(clean_env)
     provider.queue({"reply": "Nothing to change.", "proposals": []})

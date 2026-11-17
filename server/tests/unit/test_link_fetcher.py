@@ -55,6 +55,8 @@ async def test_public_pages_are_reduced_to_text() -> None:
         ("ftp://quiz.test/q", "Only http and https"),
         ("https://user:pw@quiz.test/q", "user name or password"),
         ("https://quiz.test:8080/q", "standard web ports"),
+        ("https://quiz.test:not-a-port/q", "invalid host or port"),
+        ("https://[broken/q", "invalid host or port"),
         ("https://inside.test/q", "private or local network"),
         ("http://127.0.0.1/q", "private or local network"),
         ("http://[::1]/q", "private or local network"),
